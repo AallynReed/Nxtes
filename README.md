@@ -3,7 +3,8 @@
 Nxtes is a free, open-source handwriting and PDF annotation app for Android tablets, with a sync
 server you can host yourself. Every feature is free, with no ads.
 
-**Status:** early development (milestone 0). Nothing is usable yet.
+**Status:** early development. Milestone 1 is done: you can import PDFs, organise them in folders, use the
+trash, and read them with scrolling and pinch zoom. Handwriting comes in milestone 2.
 
 - [Feature spec](docs/spec.md): what Nxtes will do
 - [Architecture and plan](docs/plan.md): how it's built, plus the milestones
