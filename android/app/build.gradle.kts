@@ -30,6 +30,11 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.serialization.protobuf)
     implementation(libs.pdfium)
+    implementation(libs.androidx.ink.authoring.compose)
+    implementation(libs.androidx.ink.brush)
+    implementation(libs.androidx.ink.geometry)
+    implementation(libs.androidx.ink.rendering)
+    implementation(libs.androidx.ink.strokes)
 
     testImplementation(libs.junit)
 }
