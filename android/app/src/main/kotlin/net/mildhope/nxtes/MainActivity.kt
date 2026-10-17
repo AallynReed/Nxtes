@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import net.mildhope.nxtes.library.LibraryScreen
 import net.mildhope.nxtes.library.TrashScreen
 import net.mildhope.nxtes.ui.NxtesTheme
+import net.mildhope.nxtes.viewer.DocumentViewer
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,16 +34,18 @@ private fun NxtesRoot() {
     val library by app.library.state.collectAsState()
     var folderId by rememberSaveable { mutableStateOf<String?>(null) }
     var showTrash by rememberSaveable { mutableStateOf(false) }
+    var documentId by rememberSaveable { mutableStateOf<String?>(null) }
     val visibleFolder = folderId?.takeIf { library.folder(it) != null && !library.isInTrash(it) }
+    val openDocument = library.document(documentId)?.takeIf { it.trashedAt == null && !library.isInTrash(it.folderId) }
 
-    if (showTrash) {
-        TrashScreen(library = library, onBack = { showTrash = false })
-    } else {
-        LibraryScreen(
+    when {
+        openDocument != null -> DocumentViewer(doc = openDocument, onBack = { documentId = null })
+        showTrash -> TrashScreen(library = library, onBack = { showTrash = false })
+        else -> LibraryScreen(
             library = library,
             folderId = visibleFolder,
             onOpenFolder = { folderId = it },
-            onOpenDocument = {},
+            onOpenDocument = { documentId = it },
             onShowTrash = { showTrash = true },
         )
     }
