@@ -17,14 +17,18 @@ import kotlinx.coroutines.launch
 import net.mildhope.nxtes.data.Page
 import kotlin.math.abs
 
-/** Page rectangles at zoom 1, in pixels, with pages stacked vertically and fitted to the width. */
+/**
+ * Page rectangles at zoom 1, in pixels, with pages stacked vertically and fitted to the width.
+ * World coordinates are these pixels divided by [scale], so they're in PDF points.
+ */
 class PageLayout(pages: List<Page>, viewportWidth: Float, gap: Float) {
     val rects: List<Rect>
     val contentHeight: Float
 
+    /** Pixels per point at zoom 1. */
+    val scale: Float = (viewportWidth - 2 * gap).coerceAtLeast(1f) / (pages.maxOfOrNull { it.width } ?: 1f)
+
     init {
-        val maxWidth = pages.maxOfOrNull { it.width } ?: 1f
-        val scale = (viewportWidth - 2 * gap).coerceAtLeast(1f) / maxWidth
         var y = gap
         rects = pages.map { page ->
             val w = page.width * scale
@@ -32,6 +36,16 @@ class PageLayout(pages: List<Page>, viewportWidth: Float, gap: Float) {
             Rect((viewportWidth - w) / 2, y, (viewportWidth + w) / 2, y + h).also { y += h + gap }
         }
         contentHeight = y
+    }
+
+    /** The page's top-left corner in world coordinates. */
+    fun origin(index: Int): Offset = rects[index].topLeft / scale
+
+    /** The page containing the world point, or the nearest page above or below it. */
+    fun pageAt(world: Offset): Int {
+        val y = world.y * scale
+        val index = rects.indexOfFirst { y < it.bottom }
+        return if (index < 0) rects.lastIndex else index
     }
 
     /** Pages overlapping the viewport, widened by [extra] pages on each side. */

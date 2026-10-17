@@ -1,10 +1,10 @@
 package net.mildhope.nxtes.viewer
 
 import android.graphics.Bitmap
+import android.graphics.BlendMode
+import android.graphics.Paint
 import androidx.compose.animation.splineBasedDecay
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
@@ -32,19 +32,33 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import androidx.core.graphics.createBitmap
+import androidx.ink.authoring.compose.InProgressStrokes
+import androidx.ink.brush.TextureBitmapStore
+import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
+import androidx.ink.strokes.StrokeInput
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -53,6 +67,10 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Page
+import net.mildhope.nxtes.data.Pen
+import net.mildhope.nxtes.ink.InkSession
+import net.mildhope.nxtes.ink.StrokeGeometry
+import net.mildhope.nxtes.ink.ToolState
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -67,9 +85,18 @@ private class Detail(val bitmap: ImageBitmap, val zoom: Float, val offset: Offse
 
 private const val DETAIL_DELAY_MS = 120L
 private const val DETAIL_MIN_ZOOM = 1.05f
+private const val PALM_REJECT_MS = 600L
+private const val WHEEL_STEP_PX = 64f
 
 @Composable
-fun PageCanvas(pages: List<Page>, renderer: PageRenderer, modifier: Modifier = Modifier) {
+fun PageCanvas(
+    pages: List<Page>,
+    renderer: PageRenderer,
+    ink: InkSession,
+    tools: ToolState,
+    textures: TextureBitmapStore,
+    modifier: Modifier = Modifier,
+) {
     val gap = with(LocalDensity.current) { 16.dp.toPx() }
     val outline = MaterialTheme.colorScheme.outlineVariant
     val state = remember(pages) { ViewportState() }
@@ -77,8 +104,17 @@ fun PageCanvas(pages: List<Page>, renderer: PageRenderer, modifier: Modifier = M
     val layout = remember(pages, size.width, gap) { PageLayout(pages, size.width.toFloat(), gap) }
     val base = remember(layout) { mutableStateMapOf<Int, ImageBitmap>() }
     val detail = remember(layout) { mutableStateMapOf<Int, Detail>() }
+    val strokeRenderer = remember(textures) { CanvasStrokeRenderer.create(textures) }
+    val strokeMatrix = remember { android.graphics.Matrix() }
+    val multiply = remember { Paint().apply { blendMode = BlendMode.MULTIPLY } }
 
     LaunchedEffect(layout, size) { state.updateLayout(size.toSize(), layout.contentHeight) }
+
+    LaunchedEffect(layout, ink) {
+        snapshotFlow { layout.visible(state.zoom, state.offset, state.size.height, extra = 1) }
+            .distinctUntilChanged()
+            .collect { range -> ink.ensureLoaded(range.map { pages[it].id }) }
+    }
 
     LaunchedEffect(layout) {
         snapshotFlow { layout.visible(state.zoom, state.offset, state.size.height, extra = 1) }
@@ -134,14 +170,13 @@ fun PageCanvas(pages: List<Page>, renderer: PageRenderer, modifier: Modifier = M
         }
     }
 
-    Box(modifier) {
-        Canvas(
-            Modifier
-                .fillMaxSize()
-                .clipToBounds()
-                .onSizeChanged { size = it }
-                .viewportGestures(state),
-        ) {
+    Box(
+        modifier
+            .clipToBounds()
+            .onSizeChanged { size = it }
+            .canvasGestures(state, tools),
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
             val zoom = state.zoom
             val offset = state.offset
             val viewport = Rect(Offset.Zero, this.size)
@@ -160,9 +195,32 @@ fun PageCanvas(pages: List<Page>, renderer: PageRenderer, modifier: Modifier = M
                 detail[i]?.takeIf { it.zoom == zoom }?.let { d ->
                     drawImage(d.bitmap, topLeft = d.topLeft + (offset - d.offset))
                 }
+                val strokes = ink.strokes(pages[i].id)
+                if (strokes.isNotEmpty()) {
+                    drawIntoCanvas { canvas ->
+                        val native = canvas.nativeCanvas
+                        val k = layout.scale * zoom
+                        strokeMatrix.setScale(k, k)
+                        strokeMatrix.postTranslate(screen.left, screen.top)
+                        native.save()
+                        native.clipRect(screen.left, screen.top, screen.right, screen.bottom)
+                        if (strokes.any { it.pen == Pen.HIGHLIGHTER }) {
+                            native.saveLayer(screen.left, screen.top, screen.right, screen.bottom, multiply)
+                            strokes.forEach {
+                                if (it.pen == Pen.HIGHLIGHTER) strokeRenderer.draw(native, StrokeGeometry.of(it), strokeMatrix)
+                            }
+                            native.restore()
+                        }
+                        strokes.forEach {
+                            if (it.pen != Pen.HIGHLIGHTER) strokeRenderer.draw(native, StrokeGeometry.of(it), strokeMatrix)
+                        }
+                        native.restore()
+                    }
+                }
                 drawRect(outline, screen.topLeft, screen.size, style = Stroke(1f))
             }
         }
+        InkLayer(state, layout, pages, ink, tools, textures)
         if (pages.size > 1) {
             Surface(
                 shape = RoundedCornerShape(50),
@@ -180,31 +238,134 @@ fun PageCanvas(pages: List<Page>, renderer: PageRenderer, modifier: Modifier = M
     }
 }
 
-/** One- or two-finger pan, pinch zoom around the fingers, and fling. */
-private fun Modifier.viewportGestures(state: ViewportState): Modifier = pointerInput(state) {
+/** Live, low-latency strokes; finished strokes move onto the page they started on. */
+@Composable
+private fun InkLayer(
+    state: ViewportState,
+    layout: PageLayout,
+    pages: List<Page>,
+    ink: InkSession,
+    tools: ToolState,
+    textures: TextureBitmapStore,
+) {
+    val toWorld = 1f / (state.zoom * layout.scale)
+    val pointerToWorld = Matrix().apply {
+        values[Matrix.ScaleX] = toWorld
+        values[Matrix.ScaleY] = toWorld
+        values[Matrix.TranslateX] = -state.offset.x * toWorld
+        values[Matrix.TranslateY] = -state.offset.y * toWorld
+    }
+    val scratch = remember { StrokeInput() }
+    InProgressStrokes(
+        defaultBrush = tools.pen.brush,
+        pointerEventToWorldTransform = pointerToWorld,
+        textureBitmapStore = textures,
+        onStrokesFinished = { strokes ->
+            val now = System.currentTimeMillis()
+            for (stroke in strokes) {
+                if (stroke.inputs.isEmpty()) continue
+                stroke.inputs.populate(0, scratch)
+                val index = layout.pageAt(Offset(scratch.x, scratch.y))
+                if (index < 0) continue
+                val origin = layout.origin(index)
+                val started = now - stroke.inputs.getDurationMillis()
+                ink.add(pages[index].id, StrokeGeometry.fromFinished(stroke, origin.x, origin.y, started))
+            }
+        },
+    )
+}
+
+private class PenTracker {
+    var lastSeen = Long.MIN_VALUE / 2
+}
+
+private fun PointerType.isPen() = this == PointerType.Stylus || this == PointerType.Eraser
+
+/**
+ * Routes input in the initial pass, before the ink layer sees it. Pens are left alone so they draw.
+ * Fingers pan and zoom, unless finger drawing is on, when one finger draws and two navigate.
+ * Touches right after the pen was near are treated as a resting palm and ignored.
+ */
+private fun Modifier.canvasGestures(state: ViewportState, tools: ToolState): Modifier = pointerInput(state, tools) {
     val decay = splineBasedDecay<Float>(this)
     val pointerScope = this
+    val pen = PenTracker()
     coroutineScope {
         var fling: Job? = null
-        pointerScope.awaitEachGesture {
-            awaitFirstDown(requireUnconsumed = false)
-            fling?.cancel()
-            val tracker = VelocityTracker()
-            var travelled = Offset.Zero
-            do {
-                val event = awaitPointerEvent()
-                val zoomChange = event.calculateZoom()
-                val pan = event.calculatePan()
-                val centroid = event.calculateCentroid(useCurrent = false)
-                if (centroid.isValid() && (zoomChange != 1f || pan != Offset.Zero)) {
-                    state.transformBy(centroid, pan, zoomChange)
-                    event.changes.forEach { if (it.positionChanged()) it.consume() }
+        pointerScope.awaitPointerEventScope {
+            while (true) {
+                val event = nextEvent(pen)
+                if (event.type == PointerEventType.Scroll) {
+                    val delta = event.changes.first().scrollDelta
+                    state.transformBy(Offset.Zero, -delta * WHEEL_STEP_PX, 1f)
+                    event.changes.forEach { it.consume() }
+                    continue
                 }
-                travelled += pan
-                event.changes.firstOrNull()?.let { tracker.addPosition(it.uptimeMillis, travelled) }
-            } while (event.changes.any { it.pressed })
-            val velocity = tracker.calculateVelocity()
-            fling = launch { state.fling(velocity, decay) }
+                val down = event.changes.firstOrNull { it.changedToDownIgnoreConsumed() } ?: continue
+                when {
+                    down.type == PointerType.Eraser -> swallow(pen, event) { it.type == PointerType.Eraser }
+                    down.type == PointerType.Stylus || down.type == PointerType.Mouse -> Unit
+                    down.uptimeMillis - pen.lastSeen < PALM_REJECT_MS -> swallow(pen, event) { it.type == PointerType.Touch }
+                    else -> {
+                        fling?.cancel()
+                        val navigation = if (tools.drawWithFinger) secondFingerJoins(pen, event) else event
+                        if (navigation != null) {
+                            val velocity = navigate(pen, state, navigation)
+                            fling = launch { state.fling(velocity, decay) }
+                        }
+                    }
+                }
+            }
         }
+    }
+}
+
+private suspend fun AwaitPointerEventScope.nextEvent(pen: PenTracker): PointerEvent =
+    awaitPointerEvent(PointerEventPass.Initial).also { event ->
+        event.changes.forEach { if (it.type.isPen()) pen.lastSeen = it.uptimeMillis }
+    }
+
+/** Consumes matching pointers until none of them is still pressed. */
+private suspend fun AwaitPointerEventScope.swallow(
+    pen: PenTracker,
+    first: PointerEvent,
+    matches: (PointerInputChange) -> Boolean,
+) {
+    var event = first
+    while (true) {
+        event.changes.filter(matches).forEach { it.consume() }
+        if (event.changes.none { matches(it) && it.pressed }) return
+        event = nextEvent(pen)
+    }
+}
+
+/** Lets one finger draw; returns the event where a second finger joined, or null if it never did. */
+private suspend fun AwaitPointerEventScope.secondFingerJoins(pen: PenTracker, first: PointerEvent): PointerEvent? {
+    var event = first
+    while (true) {
+        val touching = event.changes.count { it.type == PointerType.Touch && it.pressed }
+        if (touching >= 2) return event
+        if (touching == 0) return null
+        event = nextEvent(pen)
+    }
+}
+
+/** Pans and zooms until every finger lifts; returns the release velocity for a fling. */
+private suspend fun AwaitPointerEventScope.navigate(pen: PenTracker, state: ViewportState, first: PointerEvent): Velocity {
+    val tracker = VelocityTracker()
+    var travelled = Offset.Zero
+    var event = first
+    while (true) {
+        val zoomChange = event.calculateZoom()
+        val pan = event.calculatePan()
+        val centroid = event.calculateCentroid(useCurrent = false)
+        if (centroid.isValid() && (zoomChange != 1f || pan != Offset.Zero)) {
+            state.transformBy(centroid, pan, zoomChange)
+        }
+        event.changes.forEach { if (it.type == PointerType.Touch) it.consume() }
+        travelled += pan
+        event.changes.firstOrNull()?.let { tracker.addPosition(it.uptimeMillis, travelled) }
+        if (event.changes.none { it.type == PointerType.Touch && it.pressed }) return tracker.calculateVelocity()
+        event = nextEvent(pen)
     }
 }
