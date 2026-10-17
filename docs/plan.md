@@ -19,9 +19,10 @@ Licensed AGPL-3.0. Every dependency must be AGPL-compatible.
 - **Language and UI:** Kotlin. Jetpack Compose for screens and toolbars; the writing canvas is a
   plain View so input and drawing stay on the low-latency path.
 - **minSdk 29 (Android 10):** front-buffered low-latency rendering needs it.
-- **Ink:** Jetpack Ink (`androidx.ink`) for stroke modelling, brushes, hit testing (eraser, lasso)
-  and rendering, with our own brush definitions for the fountain pen, pencil and highlighter. If
-  its brush model can't express a pen, that pen gets a custom renderer on the same stroke data.
+- **Ink:** Jetpack Ink (`androidx.ink`) 1.0 for low-latency input, stroke geometry, hit testing
+  (eraser, lasso) and rendering, using its versioned stock brushes. Custom and textured brushes are
+  still library-internal in 1.0, so the pencil draws like the fountain pen until a public texture
+  API ships; strokes keep their pen type, so they'll pick it up then.
 - **PDF:** PDFium through `io.legere:pdfiumandroid` (Apache-2.0), which bundles the native
   libraries, so no NDK build is needed. It covers rendering, text extraction for search and
   selection, links and outlines. Writing annotations into exported PDFs may need extra native
