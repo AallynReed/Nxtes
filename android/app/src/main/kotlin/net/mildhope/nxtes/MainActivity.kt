@@ -1,42 +1,83 @@
 package net.mildhope.nxtes
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.IntentCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import net.mildhope.nxtes.library.LibraryScreen
 import net.mildhope.nxtes.library.TrashScreen
+import net.mildhope.nxtes.library.importPdfs
 import net.mildhope.nxtes.ui.NxtesTheme
 import net.mildhope.nxtes.viewer.DocumentViewer
 
 class MainActivity : ComponentActivity() {
+    private val openRequests = MutableStateFlow<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) importShared(intent)
         setContent {
             NxtesTheme {
-                NxtesRoot()
+                NxtesRoot(openRequests)
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        importShared(intent)
+    }
+
+    /** Imports PDFs sent or opened from other apps, and opens the document if there was just one. */
+    private fun importShared(intent: Intent) {
+        val uris = when (intent.action) {
+            Intent.ACTION_VIEW -> listOfNotNull(intent.data)
+            Intent.ACTION_SEND -> listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
+            Intent.ACTION_SEND_MULTIPLE ->
+                IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+            else -> emptyList()
+        }
+        if (uris.isEmpty()) return
+        lifecycleScope.launch {
+            val imported = importPdfs(this@MainActivity, uris, folderId = null)
+            imported.singleOrNull()?.let { openRequests.value = it.id }
         }
     }
 }
 
 @Composable
-private fun NxtesRoot() {
+private fun NxtesRoot(openRequests: MutableStateFlow<String?>) {
     val app = LocalContext.current.nxtes
     val library by app.library.state.collectAsState()
+    val openRequest by openRequests.collectAsState()
     var folderId by rememberSaveable { mutableStateOf<String?>(null) }
     var showTrash by rememberSaveable { mutableStateOf(false) }
     var documentId by rememberSaveable { mutableStateOf<String?>(null) }
     val visibleFolder = folderId?.takeIf { library.folder(it) != null && !library.isInTrash(it) }
     val openDocument = library.document(documentId)?.takeIf { it.trashedAt == null && !library.isInTrash(it.folderId) }
+
+    LaunchedEffect(openRequest) {
+        openRequest?.let {
+            documentId = it
+            showTrash = false
+            openRequests.value = null
+        }
+    }
 
     when {
         openDocument != null -> DocumentViewer(doc = openDocument, onBack = { documentId = null })
