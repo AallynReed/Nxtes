@@ -18,7 +18,7 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v6
-      - run: ./gradlew testDebugUnitTest assembleDebug --console=plain
+      - run: ./gradlew testDebugUnitTest assembleDebug lintDebug --console=plain
 
   server:
     runs-on: ubuntu-latest
