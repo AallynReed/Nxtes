@@ -3,6 +3,7 @@ package net.mildhope.nxtes.pdf
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import androidx.core.graphics.createBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.data.Document
@@ -27,7 +28,7 @@ class Thumbnails(private val dir: File, private val pdf: PdfEngine, private val 
             val cached = if (file.exists()) BitmapFactory.decodeFile(file.path) else null
             val bitmap = cached ?: run {
                 val heightPx = (widthPx * page.height / page.width).roundToInt().coerceAtLeast(1)
-                val rendered = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+                val rendered = createBitmap(widthPx, heightPx)
                 pdf.render(library.blobFile(doc.id, source.blob), source.index, rendered, 0, 0, widthPx, heightPx)
                 docDir.listFiles()?.forEach { it.delete() }
                 docDir.mkdirs()

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
+import androidx.core.graphics.createBitmap
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -89,7 +90,7 @@ fun PageCanvas(pages: List<Page>, renderer: PageRenderer, modifier: Modifier = M
                     val rect = layout.rects[i]
                     val w = rect.width.roundToInt().coerceAtLeast(1)
                     val h = rect.height.roundToInt().coerceAtLeast(1)
-                    val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                    val bitmap = createBitmap(w, h)
                     renderer.render(i, bitmap, 0, 0, w, h)
                     base[i] = bitmap.asImageBitmap()
                 }
@@ -113,7 +114,7 @@ fun PageCanvas(pages: List<Page>, renderer: PageRenderer, modifier: Modifier = M
                 val top = floor(shown.top)
                 val w = (ceil(shown.right) - left).toInt().coerceAtLeast(1)
                 val h = (ceil(shown.bottom) - top).toInt().coerceAtLeast(1)
-                val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                val bitmap = createBitmap(w, h)
                 renderer.render(
                     i, bitmap,
                     (screen.left - left).roundToInt(), (screen.top - top).roundToInt(),
