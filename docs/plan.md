@@ -22,11 +22,12 @@ Licensed AGPL-3.0. Every dependency must be AGPL-compatible.
 - **Ink:** Jetpack Ink (`androidx.ink`) for stroke modelling, brushes, hit testing (eraser, lasso)
   and rendering, with our own brush definitions for the fountain pen, pencil and highlighter. If
   its brush model can't express a pen, that pen gets a custom renderer on the same stroke data.
-- **PDF:** PDFium (BSD-3/Apache-2.0) from prebuilt binaries, with a small JNI layer kept in this
-  repo. It covers tile rendering, text extraction for search and selection, links and outlines,
-  page import and merge, and PDF export (annotations or flattened).
-- **Storage:** document packages (below) in app storage. Room (SQLite) holds the library index,
-  trash, recents and an FTS5 full-text search index.
+- **PDF:** PDFium through `io.legere:pdfiumandroid` (Apache-2.0), which bundles the native
+  libraries, so no NDK build is needed. It covers rendering, text extraction for search and
+  selection, links and outlines. Writing annotations into exported PDFs may need extra native
+  calls; that's decided in milestone 7.
+- **Storage:** the document packages (below) and a `folders.json` are the source of truth for the
+  library, including trash. SQLite holds only derived data: the FTS5 search index in milestone 5.
 - **Background work:** WorkManager runs sync and indexing; a foreground service handles recording.
 - **Networking:** OkHttp with kotlinx.serialization.
 
