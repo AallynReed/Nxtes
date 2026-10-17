@@ -110,7 +110,6 @@ fun DocumentViewer(doc: Document, onBack: () -> Unit) {
             renderer = renderer,
             ink = ink,
             tools = tools,
-            textures = app.textures,
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()

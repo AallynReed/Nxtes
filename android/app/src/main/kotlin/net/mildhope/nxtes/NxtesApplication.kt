@@ -2,9 +2,9 @@ package net.mildhope.nxtes
 
 import android.app.Application
 import android.content.Context
-import androidx.ink.brush.StockTextureBitmapStore
 import kotlinx.coroutines.MainScope
 import net.mildhope.nxtes.data.LibraryStore
+import net.mildhope.nxtes.ink.InkPainter
 import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.pdf.PdfEngine
 import net.mildhope.nxtes.pdf.Thumbnails
@@ -14,7 +14,6 @@ import kotlin.concurrent.thread
 class NxtesApplication : Application() {
     /** For work that must finish even after the screen that started it closes, such as saving. */
     val scope = MainScope()
-    val textures by lazy { StockTextureBitmapStore(resources) }
     val tools by lazy { ToolState(getSharedPreferences("tools", MODE_PRIVATE)) }
 
     lateinit var pdf: PdfEngine
@@ -28,7 +27,7 @@ class NxtesApplication : Application() {
         super.onCreate()
         pdf = PdfEngine(this)
         library = LibraryStore(File(filesDir, "library"), pdf::pageSizes)
-        thumbnails = Thumbnails(File(cacheDir, "thumbnails"), pdf, library)
+        thumbnails = Thumbnails(File(cacheDir, "thumbnails"), pdf, library, lazy { InkPainter() })
         thread(name = "library-load") { library.load() }
     }
 }

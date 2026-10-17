@@ -2,42 +2,67 @@ package net.mildhope.nxtes.pdf
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.RectF
 import android.util.LruCache
 import androidx.core.graphics.createBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.data.LibraryStore
+import net.mildhope.nxtes.data.Page
+import net.mildhope.nxtes.ink.InkPainter
 import java.io.File
 import kotlin.math.roundToInt
 
-/** First-page previews, cached in memory and as JPEGs on disk. */
-class Thumbnails(private val dir: File, private val pdf: PdfEngine, private val library: LibraryStore) {
+/** First-page previews with their ink, cached in memory and as JPEGs on disk. */
+class Thumbnails(
+    private val dir: File,
+    private val pdf: PdfEngine,
+    private val library: LibraryStore,
+    private val painter: Lazy<InkPainter>,
+) {
     private val memory = object : LruCache<String, Bitmap>(MEMORY_BYTES) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
     suspend fun get(doc: Document, widthPx: Int): Bitmap? {
         val page = doc.pages.firstOrNull() ?: return null
-        val source = page.pdf ?: return null
         val key = "${page.id}-${doc.modified}-$widthPx"
         memory.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
             val docDir = File(dir, doc.id)
             val file = File(docDir, "$key.jpg")
             val cached = if (file.exists()) BitmapFactory.decodeFile(file.path) else null
-            val bitmap = cached ?: run {
-                val heightPx = (widthPx * page.height / page.width).roundToInt().coerceAtLeast(1)
-                val rendered = createBitmap(widthPx, heightPx)
-                pdf.render(library.blobFile(doc.id, source.blob), source.index, rendered, 0, 0, widthPx, heightPx)
+            val bitmap = cached ?: render(doc, page, widthPx).also { rendered ->
                 docDir.listFiles()?.forEach { it.delete() }
                 docDir.mkdirs()
                 file.outputStream().use { rendered.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }
-                rendered
             }
             memory.put(key, bitmap)
             bitmap
         }
+    }
+
+    private suspend fun render(doc: Document, page: Page, widthPx: Int): Bitmap {
+        val heightPx = (widthPx * page.height / page.width).roundToInt().coerceAtLeast(1)
+        val bitmap = createBitmap(widthPx, heightPx)
+        val source = page.pdf
+        if (source != null) {
+            pdf.render(library.blobFile(doc.id, source.blob), source.index, bitmap, 0, 0, widthPx, heightPx)
+        } else {
+            bitmap.eraseColor(Color.WHITE)
+        }
+        val strokes = library.readPageInk(doc.id, page.id)
+        if (strokes.isNotEmpty()) {
+            val scale = widthPx / page.width
+            val matrix = Matrix().apply { setScale(scale, scale) }
+            val clip = RectF(0f, 0f, widthPx.toFloat(), heightPx.toFloat())
+            synchronized(painter) { painter.value.draw(Canvas(bitmap), strokes, matrix, clip) }
+        }
+        return bitmap
     }
 
     private companion object {

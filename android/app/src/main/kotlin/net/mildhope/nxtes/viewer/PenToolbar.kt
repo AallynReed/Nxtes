@@ -66,7 +66,7 @@ fun PenToolbar(tools: ToolState, modifier: Modifier = Modifier) {
                 Box {
                     ToolButton(selected, stringResource(penName(preset.pen)), onClick = {
                         if (selected) settingsFor = i else tools.selectPen(i)
-                    }) { PenGlyph(preset) }
+                    }) { PenGlyph(preset, Modifier.size(32.dp)) }
                     DropdownMenu(expanded = settingsFor == i, onDismissRequest = { settingsFor = null }) {
                         PenSettings(preset, onChange = { tools.updatePen(i, it) })
                     }
@@ -98,7 +98,7 @@ private fun ToolButton(selected: Boolean, label: String, onClick: () -> Unit, gl
 }
 
 @Composable
-private fun PenGlyph(preset: PenPreset, modifier: Modifier = Modifier.size(32.dp)) {
+private fun PenGlyph(preset: PenPreset, modifier: Modifier = Modifier) {
     val color = Color(preset.color)
     Canvas(modifier) {
         val path = Path().apply {

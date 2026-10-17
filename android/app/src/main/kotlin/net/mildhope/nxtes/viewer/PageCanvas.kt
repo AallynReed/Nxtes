@@ -1,8 +1,7 @@
 package net.mildhope.nxtes.viewer
 
 import android.graphics.Bitmap
-import android.graphics.BlendMode
-import android.graphics.Paint
+import android.graphics.RectF
 import androidx.compose.animation.splineBasedDecay
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -58,8 +57,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import androidx.core.graphics.createBitmap
 import androidx.ink.authoring.compose.InProgressStrokes
-import androidx.ink.brush.TextureBitmapStore
-import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.ink.strokes.StrokeInput
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -69,7 +66,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Page
-import net.mildhope.nxtes.data.Pen
+import net.mildhope.nxtes.ink.InkPainter
 import net.mildhope.nxtes.ink.InkSession
 import net.mildhope.nxtes.ink.StrokeGeometry
 import net.mildhope.nxtes.ink.Tool
@@ -98,7 +95,6 @@ fun PageCanvas(
     renderer: PageRenderer,
     ink: InkSession,
     tools: ToolState,
-    textures: TextureBitmapStore,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -110,9 +106,9 @@ fun PageCanvas(
     val layout = remember(pages, size.width, gap) { PageLayout(pages, size.width.toFloat(), gap) }
     val base = remember(layout) { mutableStateMapOf<Int, ImageBitmap>() }
     val detail = remember(layout) { mutableStateMapOf<Int, Detail>() }
-    val strokeRenderer = remember(textures) { CanvasStrokeRenderer.create(textures) }
+    val painter = remember { InkPainter() }
     val strokeMatrix = remember { android.graphics.Matrix() }
-    val multiply = remember { Paint().apply { blendMode = BlendMode.MULTIPLY } }
+    val strokeClip = remember { RectF() }
     var eraserAt by remember { mutableStateOf<Offset?>(null) }
     var eraseGroup by remember { mutableStateOf<Any?>(null) }
     val eraser by rememberUpdatedState(
@@ -222,31 +218,17 @@ fun PageCanvas(
                 }
                 val strokes = ink.strokes(pages[i].id)
                 if (strokes.isNotEmpty()) {
-                    drawIntoCanvas { canvas ->
-                        val native = canvas.nativeCanvas
-                        val k = layout.scale * zoom
-                        strokeMatrix.setScale(k, k)
-                        strokeMatrix.postTranslate(screen.left, screen.top)
-                        native.save()
-                        native.clipRect(screen.left, screen.top, screen.right, screen.bottom)
-                        if (strokes.any { it.pen == Pen.HIGHLIGHTER }) {
-                            native.saveLayer(screen.left, screen.top, screen.right, screen.bottom, multiply)
-                            strokes.forEach {
-                                if (it.pen == Pen.HIGHLIGHTER) strokeRenderer.draw(native, StrokeGeometry.of(it), strokeMatrix)
-                            }
-                            native.restore()
-                        }
-                        strokes.forEach {
-                            if (it.pen != Pen.HIGHLIGHTER) strokeRenderer.draw(native, StrokeGeometry.of(it), strokeMatrix)
-                        }
-                        native.restore()
-                    }
+                    val k = layout.scale * zoom
+                    strokeMatrix.setScale(k, k)
+                    strokeMatrix.postTranslate(screen.left, screen.top)
+                    strokeClip.set(screen.left, screen.top, screen.right, screen.bottom)
+                    drawIntoCanvas { painter.draw(it.nativeCanvas, strokes, strokeMatrix, strokeClip) }
                 }
                 drawRect(outline, screen.topLeft, screen.size, style = Stroke(1f))
             }
             eraserAt?.let { drawCircle(outline, eraserRadius, it, style = Stroke(2f)) }
         }
-        InkLayer(state, layout, pages, ink, tools, textures)
+        InkLayer(state, layout, pages, ink, tools)
         if (pages.size > 1) {
             Surface(
                 shape = RoundedCornerShape(50),
@@ -272,7 +254,6 @@ private fun InkLayer(
     pages: List<Page>,
     ink: InkSession,
     tools: ToolState,
-    textures: TextureBitmapStore,
 ) {
     val toWorld = 1f / (state.zoom * layout.scale)
     val pointerToWorld = Matrix().apply {
@@ -285,7 +266,6 @@ private fun InkLayer(
     InProgressStrokes(
         defaultBrush = tools.pen.brush,
         pointerEventToWorldTransform = pointerToWorld,
-        textureBitmapStore = textures,
         onStrokesFinished = { strokes ->
             val now = System.currentTimeMillis()
             for (stroke in strokes) {
