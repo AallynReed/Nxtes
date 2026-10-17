@@ -34,6 +34,24 @@ class LibraryStore(
 
     fun blobFile(documentId: String, sha256: String) = File(documentDir(documentId), "blobs/$sha256")
 
+    fun readPageInk(documentId: String, pageId: String): List<InkStroke> {
+        val file = pageInkFile(documentId, pageId)
+        return if (file.exists()) InkCodec.decode(file.readBytes()) else emptyList()
+    }
+
+    /** Saves ink for the given pages and marks the document as modified. */
+    @Synchronized
+    fun writePageInk(documentId: String, pages: Map<String, List<InkStroke>>) {
+        pages.forEach { (pageId, strokes) ->
+            val file = pageInkFile(documentId, pageId)
+            if (strokes.isEmpty()) file.delete() else writeAtomically(file, InkCodec.encode(strokes))
+        }
+        val now = clock()
+        updateItem(documentId, { it }, { it.copy(modified = now) })
+    }
+
+    private fun pageInkFile(documentId: String, pageId: String) = File(documentDir(documentId), "pages/$pageId.pb")
+
     @Synchronized
     fun load() {
         val folders = if (foldersFile.exists()) json.decodeFromString<List<Folder>>(foldersFile.readText()) else emptyList()
@@ -150,10 +168,12 @@ class LibraryStore(
         writeAtomically(File(documentDir(doc.id), DOCUMENT_JSON), json.encodeToString(doc))
     }
 
-    private fun writeAtomically(file: File, text: String) {
+    private fun writeAtomically(file: File, text: String) = writeAtomically(file, text.toByteArray())
+
+    private fun writeAtomically(file: File, bytes: ByteArray) {
         file.parentFile?.mkdirs()
         val tmp = File(file.parentFile, "${file.name}.tmp")
-        tmp.writeText(text)
+        tmp.writeBytes(bytes)
         Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
     }
 

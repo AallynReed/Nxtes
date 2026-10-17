@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package nxtes;
+
+// The ink on one page: pages/<page-id>.pb inside a document package.
+message PageInk {
+  repeated InkStroke strokes = 1;
+}
+
+// Coordinates are page points from the top-left corner.
+message InkStroke {
+  string id = 1;
+  Pen pen = 2;
+  fixed32 color = 3;  // ARGB
+  float size = 4;     // brush size in points
+  InputTool tool = 5;
+  uint32 noise_seed = 6;
+
+  // Per point. x and y are deltas from the previous point in 1/100 pt; t is the delta in ms.
+  repeated sint32 x = 7;
+  repeated sint32 y = 8;
+  repeated uint32 t = 9;
+
+  // Per point, or empty when the device didn't report them.
+  repeated uint32 pressure = 10;     // 0..1000
+  repeated uint32 tilt = 11;         // milliradians
+  repeated uint32 orientation = 12;  // milliradians
+
+  int64 created = 13;  // Unix ms when the stroke started
+}
+
+enum Pen {
+  PEN_UNSPECIFIED = 0;
+  BALLPOINT = 1;
+  FOUNTAIN = 2;
+  PENCIL = 3;
+  MARKER = 4;
+  HIGHLIGHTER = 5;
+}
+
+enum InputTool {
+  INPUT_TOOL_UNSPECIFIED = 0;
+  MOUSE = 1;
+  TOUCH = 2;
+  STYLUS = 3;
+}

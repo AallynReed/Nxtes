@@ -113,6 +113,23 @@ class LibraryStoreTest {
         assertTrue(renamed.modified > doc.modified)
     }
 
+    @Test
+    fun pageInkSurvivesReloadAndEmptyPagesLeaveNoFile() {
+        val doc = import()
+        val page = doc.pages.first().id
+        val stroke = InkStroke(
+            id = "s1", pen = Pen.BALLPOINT, color = -16777216, size = 1f, tool = InputTool.STYLUS,
+            noiseSeed = 0, created = 0, x = floatArrayOf(1f, 2f), y = floatArrayOf(3f, 4f), t = intArrayOf(0, 5),
+        )
+
+        store.writePageInk(doc.id, mapOf(page to listOf(stroke)))
+        assertEquals(listOf("s1"), newStore().readPageInk(doc.id, page).map { it.id })
+        assertTrue(store.state.value.document(doc.id)!!.modified > doc.modified)
+
+        store.writePageInk(doc.id, mapOf(page to emptyList()))
+        assertFalse(File(store.documentDir(doc.id), "pages/$page.pb").exists())
+    }
+
     private fun sha256(bytes: ByteArray) =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
