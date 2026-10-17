@@ -51,6 +51,7 @@ data class PageSize(val width: Float, val height: Float)
 data class Library(
     val folders: List<Folder> = emptyList(),
     val documents: List<Document> = emptyList(),
+    val loaded: Boolean = false,
 ) {
     private val folderById = folders.associateBy { it.id }
 

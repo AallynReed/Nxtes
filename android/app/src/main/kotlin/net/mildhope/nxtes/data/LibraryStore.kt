@@ -41,7 +41,7 @@ class LibraryStore(
             val file = File(dir, DOCUMENT_JSON)
             if (file.exists()) runCatching { json.decodeFromString<Document>(file.readText()) }.getOrNull() else null
         }
-        _state.value = Library(folders, documents)
+        _state.value = Library(folders, documents, loaded = true)
     }
 
     @Synchronized

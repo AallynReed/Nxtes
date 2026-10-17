@@ -3,4 +3,23 @@
     <string name="app_name">Nxtes</string>
     <string name="library_title">Library</string>
     <string name="library_empty">No documents yet</string>
+    <string name="back">Back</string>
+    <string name="add">Add</string>
+    <string name="more_options">More options</string>
+    <string name="import_pdf">Import PDF</string>
+    <string name="new_folder">New folder</string>
+    <string name="folder_name">Folder name</string>
+    <string name="rename">Rename</string>
+    <string name="move">Move</string>
+    <string name="move_to">Move to</string>
+    <string name="move_to_trash">Move to trash</string>
+    <string name="trash_title">Trash</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="untitled">Untitled</string>
+    <string name="action_failed">That didn\'t work. Please try again.</string>
+    <plurals name="import_failed">
+        <item quantity="one">%d PDF couldn\'t be imported</item>
+        <item quantity="other">%d PDFs couldn\'t be imported</item>
+    </plurals>
 </resources>
