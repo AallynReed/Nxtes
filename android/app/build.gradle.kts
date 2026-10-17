@@ -27,6 +27,7 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.material3)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.pdfium)
 
     testImplementation(libs.junit)
 }
