@@ -28,6 +28,17 @@
     <string name="undo">Undo</string>
     <string name="redo">Redo</string>
     <string name="draw_with_finger">Draw with finger</string>
+    <string name="pen_ballpoint">Ballpoint</string>
+    <string name="pen_fountain">Fountain pen</string>
+    <string name="pen_pencil">Pencil</string>
+    <string name="pen_marker">Marker</string>
+    <string name="pen_highlighter">Highlighter</string>
+    <string name="pen_size">Size: %1$.1f pt</string>
+    <string name="pen_opacity">Opacity: %1$d%%</string>
+    <string name="eraser">Eraser</string>
+    <string name="eraser_stroke">Whole stroke</string>
+    <string name="eraser_partial">Partial</string>
+    <string name="eraser_size">Size: %1$d dp</string>
     <string name="action_failed">That didn\'t work. Please try again.</string>
     <plurals name="import_failed">
         <item quantity="one">%d PDF couldn\'t be imported</item>

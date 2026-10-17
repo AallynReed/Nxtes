@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -37,7 +38,6 @@ import kotlinx.coroutines.launch
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.ink.InkSession
-import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.nxtes
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,7 +63,7 @@ fun DocumentViewer(doc: Document, onBack: () -> Unit) {
             scope = app.scope,
         )
     }
-    val tools = remember { ToolState() }
+    val tools = app.tools
     var menuOpen by remember { mutableStateOf(false) }
 
     DisposableEffect(ink) { onDispose { app.scope.launch { ink.flush() } } }
@@ -72,34 +72,37 @@ fun DocumentViewer(doc: Document, onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(doc.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
-                    }
-                },
-                actions = {
-                    IconButton(onClick = ink::undo, enabled = ink.canUndo) {
-                        Icon(painterResource(R.drawable.ic_undo), stringResource(R.string.undo))
-                    }
-                    IconButton(onClick = ink::redo, enabled = ink.canRedo) {
-                        Icon(painterResource(R.drawable.ic_redo), stringResource(R.string.redo))
-                    }
-                    Box {
-                        IconButton(onClick = { menuOpen = true }) {
-                            Icon(Icons.Default.MoreVert, stringResource(R.string.more_options))
+            Column {
+                TopAppBar(
+                    title = { Text(doc.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
                         }
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.draw_with_finger)) },
-                                trailingIcon = { Checkbox(checked = tools.drawWithFinger, onCheckedChange = null) },
-                                onClick = { tools.drawWithFinger = !tools.drawWithFinger },
-                            )
+                    },
+                    actions = {
+                        IconButton(onClick = ink::undo, enabled = ink.canUndo) {
+                            Icon(painterResource(R.drawable.ic_undo), stringResource(R.string.undo))
                         }
-                    }
-                },
-            )
+                        IconButton(onClick = ink::redo, enabled = ink.canRedo) {
+                            Icon(painterResource(R.drawable.ic_redo), stringResource(R.string.redo))
+                        }
+                        Box {
+                            IconButton(onClick = { menuOpen = true }) {
+                                Icon(Icons.Default.MoreVert, stringResource(R.string.more_options))
+                            }
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.draw_with_finger)) },
+                                    trailingIcon = { Checkbox(checked = tools.drawWithFinger, onCheckedChange = null) },
+                                    onClick = tools::toggleDrawWithFinger,
+                                )
+                            }
+                        }
+                    },
+                )
+                PenToolbar(tools)
+            }
         },
     ) { padding ->
         PageCanvas(
