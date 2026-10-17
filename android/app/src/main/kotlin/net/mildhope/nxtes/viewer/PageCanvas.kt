@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -41,6 +42,7 @@ import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
@@ -70,7 +72,9 @@ import net.mildhope.nxtes.data.Page
 import net.mildhope.nxtes.data.Pen
 import net.mildhope.nxtes.ink.InkSession
 import net.mildhope.nxtes.ink.StrokeGeometry
+import net.mildhope.nxtes.ink.Tool
 import net.mildhope.nxtes.ink.ToolState
+import net.mildhope.nxtes.ink.erase
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -97,7 +101,9 @@ fun PageCanvas(
     textures: TextureBitmapStore,
     modifier: Modifier = Modifier,
 ) {
-    val gap = with(LocalDensity.current) { 16.dp.toPx() }
+    val density = LocalDensity.current
+    val gap = with(density) { 16.dp.toPx() }
+    val eraserRadius = with(density) { tools.eraserRadiusDp.dp.toPx() }
     val outline = MaterialTheme.colorScheme.outlineVariant
     val state = remember(pages) { ViewportState() }
     var size by remember { mutableStateOf(IntSize.Zero) }
@@ -107,6 +113,25 @@ fun PageCanvas(
     val strokeRenderer = remember(textures) { CanvasStrokeRenderer.create(textures) }
     val strokeMatrix = remember { android.graphics.Matrix() }
     val multiply = remember { Paint().apply { blendMode = BlendMode.MULTIPLY } }
+    var eraserAt by remember { mutableStateOf<Offset?>(null) }
+    var eraseGroup by remember { mutableStateOf<Any?>(null) }
+    val eraser by rememberUpdatedState(
+        EraserInput(
+            onMove = { from, to ->
+                eraserAt = to
+                val group = eraseGroup ?: Any().also { eraseGroup = it }
+                val k = layout.scale * state.zoom
+                val worldTo = (to - state.offset) / k
+                val index = layout.pageAt(worldTo)
+                val origin = layout.origin(index)
+                erase(ink, pages[index].id, (from - state.offset) / k - origin, worldTo - origin, eraserRadius / k, tools.eraserMode, group)
+            },
+            onEnd = {
+                eraserAt = null
+                eraseGroup = null
+            },
+        ),
+    )
 
     LaunchedEffect(layout, size) { state.updateLayout(size.toSize(), layout.contentHeight) }
 
@@ -174,7 +199,7 @@ fun PageCanvas(
         modifier
             .clipToBounds()
             .onSizeChanged { size = it }
-            .canvasGestures(state, tools),
+            .canvasGestures(state, tools) { eraser },
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val zoom = state.zoom
@@ -219,6 +244,7 @@ fun PageCanvas(
                 }
                 drawRect(outline, screen.topLeft, screen.size, style = Stroke(1f))
             }
+            eraserAt?.let { drawCircle(outline, eraserRadius, it, style = Stroke(2f)) }
         }
         InkLayer(state, layout, pages, ink, tools, textures)
         if (pages.size > 1) {
@@ -275,18 +301,23 @@ private fun InkLayer(
     )
 }
 
+private class EraserInput(val onMove: (from: Offset, to: Offset) -> Unit, val onEnd: () -> Unit)
+
 private class PenTracker {
     var lastSeen = Long.MIN_VALUE / 2
 }
 
 private fun PointerType.isPen() = this == PointerType.Stylus || this == PointerType.Eraser
 
+private fun PointerType.draws() = this == PointerType.Stylus || this == PointerType.Mouse
+
 /**
  * Routes input in the initial pass, before the ink layer sees it. Pens are left alone so they draw.
  * Fingers pan and zoom, unless finger drawing is on, when one finger draws and two navigate.
- * Touches right after the pen was near are treated as a resting palm and ignored.
+ * Touches right after the pen was near are treated as a resting palm and ignored. The eraser end of
+ * a stylus always erases, as does any drawing pointer while the eraser tool is selected.
  */
-private fun Modifier.canvasGestures(state: ViewportState, tools: ToolState): Modifier = pointerInput(state, tools) {
+private fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, eraser: () -> EraserInput) = pointerInput(state, tools) {
     val decay = splineBasedDecay<Float>(this)
     val pointerScope = this
     val pen = PenTracker()
@@ -302,10 +333,12 @@ private fun Modifier.canvasGestures(state: ViewportState, tools: ToolState): Mod
                     continue
                 }
                 val down = event.changes.firstOrNull { it.changedToDownIgnoreConsumed() } ?: continue
+                val erasing = tools.tool == Tool.ERASER
                 when {
-                    down.type == PointerType.Eraser -> swallow(pen, event) { it.type == PointerType.Eraser }
-                    down.type == PointerType.Stylus || down.type == PointerType.Mouse -> Unit
+                    down.type == PointerType.Eraser || (erasing && down.type.draws()) -> erase(pen, event, down.id, eraser())
+                    down.type.draws() -> Unit
                     down.uptimeMillis - pen.lastSeen < PALM_REJECT_MS -> swallow(pen, event) { it.type == PointerType.Touch }
+                    erasing && tools.drawWithFinger -> erase(pen, event, down.id, eraser())
                     else -> {
                         fling?.cancel()
                         val navigation = if (tools.drawWithFinger) secondFingerJoins(pen, event) else event
@@ -324,6 +357,23 @@ private suspend fun AwaitPointerEventScope.nextEvent(pen: PenTracker): PointerEv
     awaitPointerEvent(PointerEventPass.Initial).also { event ->
         event.changes.forEach { if (it.type.isPen()) pen.lastSeen = it.uptimeMillis }
     }
+
+/** Erases along one pointer's path until it lifts. */
+private suspend fun AwaitPointerEventScope.erase(pen: PenTracker, first: PointerEvent, pointer: PointerId, eraser: EraserInput) {
+    var event = first
+    var last: Offset? = null
+    while (true) {
+        val change = event.changes.firstOrNull { it.id == pointer }
+        event.changes.forEach { if (it.id == pointer || it.type == PointerType.Touch) it.consume() }
+        if (change == null || !change.pressed) {
+            eraser.onEnd()
+            return
+        }
+        eraser.onMove(last ?: change.position, change.position)
+        last = change.position
+        event = nextEvent(pen)
+    }
+}
 
 /** Consumes matching pointers until none of them is still pressed. */
 private suspend fun AwaitPointerEventScope.swallow(
