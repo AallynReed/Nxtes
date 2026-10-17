@@ -1,0 +1,142 @@
+# Nxtes architecture and build plan
+
+What to build is in [spec.md](spec.md). This file covers how and in what order.
+
+## Repository layout
+
+```
+android/   Kotlin app (Gradle)
+server/    Rust workspace: the sync server and its admin CLI
+web/       Web viewer, served by the server
+proto/     Document and page schema shared by the app and the server
+docs/
+```
+
+Licensed AGPL-3.0. Every dependency must be AGPL-compatible.
+
+## Android app
+
+- **Language and UI:** Kotlin. Jetpack Compose for screens and toolbars; the writing canvas is a
+  plain View so input and drawing stay on the low-latency path.
+- **minSdk 29 (Android 10):** front-buffered low-latency rendering needs it.
+- **Ink:** Jetpack Ink (`androidx.ink`) for stroke modelling, brushes, hit testing (eraser, lasso)
+  and rendering, with our own brush definitions for the fountain pen, pencil and highlighter. If
+  its brush model can't express a pen, that pen gets a custom renderer on the same stroke data.
+- **PDF:** PDFium (BSD-3/Apache-2.0) from prebuilt binaries, with a small JNI layer kept in this
+  repo. It covers tile rendering, text extraction for search and selection, links and outlines,
+  page import and merge, and PDF export (annotations or flattened).
+- **Storage:** document packages (below) in app storage. Room (SQLite) holds the library index,
+  trash, recents and an FTS5 full-text search index.
+- **Background work:** WorkManager runs sync and indexing; a foreground service handles recording.
+- **Networking:** OkHttp with kotlinx.serialization.
+
+## Document package
+
+One directory per document, zipped for backup and export:
+
+```
+<document-id>/
+  document.json        title, timestamps, page order, page sizes and templates, bookmarks, outline
+  pages/<page-id>.pb   ink, shapes, textboxes, image refs, sticky notes, masks, highlights
+  blobs/<sha256>       source PDFs, images, audio, fonts
+```
+
+- Page files and blobs are identified by SHA-256. A document's manifest maps page IDs to hashes,
+  so an edit rewrites, and sync uploads, only the pages that changed.
+- A stroke stores its brush, colour and size, plus points as (x, y, pressure, tilt,
+  milliseconds into the active recording). The time field drives audio sync and replay.
+- Coordinates are in PDF points on the page, independent of screen size and zoom.
+- `proto/nxtes/document.proto` defines the page format: Wire on Android, prost in Rust when the
+  web viewer starts rendering pages itself.
+
+## Rust server
+
+- axum on tokio. sqlx with PostgreSQL, and SQLite for single-user installs. Blobs go through
+  `object_store`, so they can live on local disk or any S3-compatible store (MinIO, Garage, AWS).
+- argon2 password hashing; opaque access and refresh tokens; per-device sessions.
+- Email through `lettre` over SMTP: verification links, password resets and email-change
+  confirmations. Tokens are single-use, hashed at rest and expire, and sends are rate-limited.
+  An account can't log in until its address is verified. Self-hosters without mail can turn off
+  `require_email_verification`.
+- It stores manifests and blobs and never parses note contents, which keeps end-to-end
+  encryption possible later.
+- Ships as a single binary and a Docker image, configured through environment variables or TOML.
+  An admin CLI creates users and sets quotas.
+
+### Sync API (v1)
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /v1/auth/register`, `/login`, `/refresh`, `/logout` | Accounts and sessions |
+| `POST /v1/auth/verify`, `/resend-verification` | Confirm an email address from the link's token; send a new link |
+| `POST /v1/auth/password-reset`, `/password-reset/confirm` | Email a reset link; set a new password with its token |
+| `GET /verify/{token}`, `GET /reset/{token}` | Pages the email links open (served by the server) |
+| `DELETE /v1/account` | Delete the account and its data |
+| `GET /v1/devices`, `DELETE /v1/devices/{id}` | Device list and removal |
+| `POST /v1/blobs/missing` | Client sends hashes; server returns the ones it lacks |
+| `PUT /v1/blobs/{sha256}`, `GET /v1/blobs/{sha256}` | Upload and download content |
+| `GET /v1/library` | Folders and documents with their current revision |
+| `PUT /v1/documents/{id}` | New manifest with `base_revision`: 200 with the new revision, or 409 with the server's |
+| `PUT /v1/folders/{id}`, `DELETE /v1/documents/{id}` | Folder changes; moving to trash and deleting |
+| `GET /v1/changes?since=<cursor>` | Everything changed since the cursor |
+| `GET /v1/events` | Server-sent events notifying other devices that something changed, with no Google push service |
+| `GET /v1/usage` | Storage used against quota |
+| `POST /v1/shares`, `GET /s/{token}` | Web viewer: upload a PDF the app exports, then view it in the browser |
+
+A 409 response makes the app ask whether to keep this device's copy, the server's copy, or both
+(the server's copy is kept as a "conflicted copy").
+
+The v1 web viewer displays PDFs the app exports, using pdf.js (Apache-2.0), so the server never
+has to render ink. Rendering synced documents straight from their page files comes later.
+
+## Deployment on Zakros
+
+The official instance runs on Zakros at `https://nxtes.mildhope.net`.
+
+- **Image:** CI publishes it to GHCR, so it can be re-pulled and image pruning can't lose it
+  (locally built images on Zakros exist in no registry).
+- **Stack:** `/opt/nxtes/docker-compose.yml` with the server and PostgreSQL. Blobs live on a
+  host volume.
+- **Binds:** the server binds `10.8.0.253:<port>` (wg0) and Postgres stays on the internal
+  network, never `0.0.0.0`. The port is picked at deploy time from the ones free on Zakros.
+- **Traffic path:** the VPS nginx terminates TLS for `nxtes.mildhope.net` and proxies over wg0.
+  That needs a `map $host` port/IP entry on the VPS and a `DOCKER-USER` wg0 RETURN rule for the
+  port on Zakros (zakros-firewall skill).
+- **nginx settings:** `client_max_body_size` large enough for blob uploads, and
+  `proxy_buffering off` on `/v1/events` so server-sent events stream.
+- **Mail:** sent through Zakros's host Postfix via `host.docker.internal` (compose
+  `extra_hosts: host-gateway`), the same way trove-api does.
+- **Before launch:** check that the sender address's domain has SPF and DKIM on that Postfix.
+- **Updates:** add `nxtes` to the `PROJECTS` list in `/opt/update_containers.sh`.
+
+## Flexcil backup import
+
+A `.flex` backup holds Flexcil document packages: `pages.index`, per-page `.drawings` and
+`.annotations` files, `.info` and `template.info`, the source PDFs and `.m4a` recordings, with JSON
+written by Gson. The importer lives in the app and converts each package into a Nxtes document.
+Before writing it we need to:
+
+1. Map the JSON schemas from Flexcil's Gson adapter classes with REA.
+2. Get a real `.flex` backup from a test account to validate against. The APK contains no user data.
+
+The importer only reads the user's own data, for interoperability.
+
+## Milestones
+
+| # | Milestone | Done when |
+|---|---|---|
+| 0 | Skeleton | The app launches to an empty library; `cargo test` passes; CI builds both; LICENSE is in place |
+| 1 | Library and PDF viewer | Import PDFs, folders, thumbnails, open/scroll/zoom, trash |
+| 2 | Ink core | Pens, highlighter, eraser, undo/redo, stylus-only input with palm rejection, saved to the package |
+| 3 | Notes and pages | Generated templates, new notes, page manager, merge, bookmarks and outlines |
+| 4 | Editing tools | Lasso, shapes and recognition, textboxes and fonts, images, camera and crop, sticky notes, stickers, laser, masking, PDF text highlighting |
+| 5 | Viewer | Tabs, scroll modes, gestures, side panel, full-text search |
+| 6 | Audio | Recording service, stroke timestamps, replay, playback speed |
+| 7 | Import/export | PDF export options, image export, sharing, Nxtes backup and restore |
+| 8 | Server | Email-verified auth and password reset, devices, blob and manifest sync, change feed and events, quotas, Docker image live at nxtes.mildhope.net |
+| 9 | App sync | Background sync, conflict prompt, Wi-Fi-only option, live updates |
+| 10 | Web viewer | Share uploads and the pdf.js page |
+| 11 | Flexcil import | `.flex` backups convert to Nxtes documents, checked against a real backup |
+
+The server (8) depends only on the sync API above, so it can be built alongside 1–7. The web
+viewer (10) needs the server. The Flexcil importer (11) needs the editing model from 2–4.
