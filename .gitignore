@@ -1,0 +1,15 @@
+# Local research inputs, never published
+/rea/
+*.apk
+/docs/flexcil-research.md
+
+# Android
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+
+# Rust
+/server/target/
