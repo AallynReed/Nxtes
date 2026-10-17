@@ -14,6 +14,14 @@
     <string name="move_to">Move to</string>
     <string name="move_to_trash">Move to trash</string>
     <string name="trash_title">Trash</string>
+    <string name="trash_empty">The trash is empty</string>
+    <string name="trashed_on">Moved to trash %1$s</string>
+    <string name="restore">Restore</string>
+    <string name="delete">Delete</string>
+    <string name="empty_trash">Empty trash</string>
+    <string name="delete_forever_title">Delete “%1$s” forever?</string>
+    <string name="empty_trash_title">Empty the trash?</string>
+    <string name="cannot_undo">This can\'t be undone.</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="untitled">Untitled</string>
