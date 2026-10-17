@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nxtes</string>
+    <string name="library_title">Library</string>
+    <string name="library_empty">No documents yet</string>
+</resources>
