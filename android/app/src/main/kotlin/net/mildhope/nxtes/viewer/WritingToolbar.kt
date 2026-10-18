@@ -10,12 +10,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -107,14 +114,16 @@ fun WritingToolbar(
     var viewSettings by remember { mutableStateOf(false) }
     Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxWidth()) {
         Column {
-            Box(Modifier.fillMaxWidth().height(BAR_HEIGHT)) {
-                Row(Modifier.align(Alignment.CenterStart).padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(BAR_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     BarButton(rememberVectorPainter(Icons.AutoMirrored.Filled.ArrowBack), stringResource(R.string.back), onClick = onBack)
                     BarButton(painterResource(R.drawable.ic_grid_view), stringResource(R.string.pages), onClick = onPages)
                 }
+                val toolScroll = rememberScrollState()
+                Box(Modifier.weight(1f).fillMaxHeight().fadingEdges(toolScroll), contentAlignment = Alignment.Center) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 112.dp).horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.horizontalScroll(toolScroll).padding(horizontal = 8.dp),
                 ) {
                     val penMode = tools.mode == InputMode.PEN
                     BarButton(
@@ -207,7 +216,8 @@ fun WritingToolbar(
                         glyph = { Icon(painterResource(R.drawable.ic_laser), null, tint = it, modifier = Modifier.size(24.dp)) },
                     ) { LaserSettings(tools) }
                 }
-                Row(Modifier.align(Alignment.CenterEnd).padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                }
+                Row(Modifier.padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     BarButton(painterResource(R.drawable.ic_undo), stringResource(R.string.undo), enabled = canUndo, onClick = onUndo)
                     BarButton(painterResource(R.drawable.ic_redo), stringResource(R.string.redo), enabled = canRedo, onClick = onRedo)
                     Box {
@@ -245,6 +255,25 @@ fun WritingToolbar(
         }
     }
 }
+
+/** Fades the ends of a horizontally scrolled strip when there's more to scroll to that way. */
+private fun Modifier.fadingEdges(scroll: ScrollState) = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
+    drawContent()
+    val w = FADE_WIDTH.toPx()
+    if (scroll.canScrollBackward) {
+        drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), endX = w), size = Size(w, size.height), blendMode = BlendMode.DstIn)
+    }
+    if (scroll.canScrollForward) {
+        drawRect(
+            Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - w, endX = size.width),
+            topLeft = Offset(size.width - w, 0f),
+            size = Size(w, size.height),
+            blendMode = BlendMode.DstIn,
+        )
+    }
+}
+
+private val FADE_WIDTH = 24.dp
 
 @Composable
 private fun BarButton(
