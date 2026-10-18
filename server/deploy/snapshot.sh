@@ -9,6 +9,7 @@ KEEP_DAYS=30
 stamp=$(date +%Y-%m-%d_%H%M)
 target="$DEST/$stamp"
 mkdir -p "$target"
+chmod 700 "$DEST"
 docker exec nxtes nxtes-server admin backup "/data/.snapshot-$stamp.db"
 mv "$DATA/.snapshot-$stamp.db" "$target/nxtes.db"
 for dir in blobs shares; do
