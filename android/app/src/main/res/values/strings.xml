@@ -394,6 +394,7 @@
         <item quantity="other">Restored %d documents</item>
     </plurals>
     <string name="app_version">Nxtes %1$s</string>
+    <string name="privacy_policy">Privacy policy</string>
     <string name="action_failed">That didn\'t work. Please try again.</string>
     <plurals name="import_failed">
         <item quantity="one">%d file couldn\'t be imported</item>

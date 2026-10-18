@@ -29,12 +29,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.R
+import net.mildhope.nxtes.sync.DEFAULT_SERVER
 import net.mildhope.nxtes.sync.SyncSettings
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -117,7 +120,12 @@ fun SettingsDialog(onDismiss: () -> Unit, extra: @Composable () -> Unit = {}) {
                 restored?.let { Text(pluralStringResource(R.plurals.backup_restored, it, it), style = MaterialTheme.typography.bodyMedium) }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
                 HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                Text(stringResource(R.string.app_version, version), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.app_version, version), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    val uri = LocalUriHandler.current
+                    val privacy = if (LocalConfiguration.current.locales[0].language == "pt") "$DEFAULT_SERVER/privacy/pt" else "$DEFAULT_SERVER/privacy"
+                    TextButton(onClick = { uri.openUri(privacy) }) { Text(stringResource(R.string.privacy_policy)) }
+                }
             }
         },
         confirmButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.close)) } },

@@ -407,6 +407,7 @@
         <item quantity="other">%d documentos restaurados</item>
     </plurals>
     <string name="app_version">Nxtes %1$s</string>
+    <string name="privacy_policy">Política de privacidade</string>
     <string name="action_failed">Não funcionou. Tente novamente.</string>
     <plurals name="import_failed">
         <item quantity="one">Não foi possível importar %d ficheiro</item>
