@@ -503,6 +503,15 @@ fun PageCanvas(
             shapePreview = index to shape
         }
 
+        override fun fingerTap(fingers: Int) {
+            if (selection.text != null || selection.note != null) return
+            selection.clear()
+            when (fingers) {
+                2 -> ink.undo()
+                3 -> ink.redo()
+            }
+        }
+
         override fun longPress(at: Offset) {
             if (tools.annotationsHidden) return
             val index = mapper.pageAt(at)

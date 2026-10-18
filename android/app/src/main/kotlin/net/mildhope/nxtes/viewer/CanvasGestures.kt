@@ -60,11 +60,15 @@ interface CanvasTools {
     fun penHeld(path: List<Offset>)
 
     fun longPress(at: Offset)
+
+    /** Two or more fingers tapped together: two undo, three redo. */
+    fun fingerTap(fingers: Int)
 }
 
 private const val PALM_REJECT_MS = 600L
 private const val HOLD_TO_CONVERT_MS = 650L
 private const val WHEEL_STEP_PX = 64f
+private const val FINGER_TAP_MS = 300L
 
 private class PenTracker {
     var lastSeen = Long.MIN_VALUE / 2
@@ -113,8 +117,8 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                         Hold.Held -> canvas.longPress(down.position)
                         is Hold.Tapped -> canvas.tap(hold.at)
                         is Hold.Moved -> {
-                            val velocity = navigate(pen, state, hold.event, everyPointer)
-                            fling = launch { state.fling(velocity, decay) }
+                            val end = navigate(pen, state, hold.event, down.uptimeMillis, slop, everyPointer)
+                            if (end.fingers >= 2) canvas.fingerTap(end.fingers) else fling = launch { state.fling(end.velocity, decay) }
                         }
                     }
                 }
@@ -148,8 +152,8 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                     tools.drawWithFinger -> {
                         fling?.cancel()
                         watchPen(pen, event, down, canvas, slop, finger = true)?.let {
-                            val velocity = navigate(pen, state, it)
-                            fling = launch { state.fling(velocity, decay) }
+                            val end = navigate(pen, state, it, down.uptimeMillis, slop)
+                            if (end.fingers >= 2) canvas.fingerTap(end.fingers) else fling = launch { state.fling(end.velocity, decay) }
                         }
                     }
                     else -> navigateFrom(event, everyPointer = false)
@@ -281,15 +285,27 @@ private suspend fun AwaitPointerEventScope.swallow(
 }
 
 /** Pans and zooms until every finger lifts; returns the release velocity for a fling. */
+/** How a scroll or zoom ended: its speed, or the number of fingers when it was really a quick tap. */
+private class NavigationEnd(val velocity: Velocity, val fingers: Int)
+
+/**
+ * Scrolls and zooms with the pointers until they all lift. Fingers that come down together since
+ * [startedAt] and lift quickly without moving count as a multi-finger tap instead.
+ */
 private suspend fun AwaitPointerEventScope.navigate(
     pen: PenTracker,
     state: ViewportState,
     first: PointerEvent,
+    startedAt: Long,
+    slop: Float,
     everyPointer: Boolean = false,
-): Velocity {
+): NavigationEnd {
     fun counts(change: PointerInputChange) = everyPointer || change.type == PointerType.Touch
     val tracker = VelocityTracker()
     var travelled = Offset.Zero
+    var moved = 0f
+    var zoomed = 1f
+    var fingers = 0
     var event = first
     while (true) {
         val zoomChange = event.calculateZoom()
@@ -300,8 +316,15 @@ private suspend fun AwaitPointerEventScope.navigate(
         }
         event.changes.forEach { if (counts(it)) it.consume() }
         travelled += pan
+        moved += pan.getDistance()
+        zoomed *= zoomChange
+        fingers = maxOf(fingers, event.changes.count { it.type == PointerType.Touch && it.pressed })
         event.changes.firstOrNull()?.let { tracker.addPosition(it.uptimeMillis, travelled) }
-        if (event.changes.none { counts(it) && it.pressed }) return tracker.calculateVelocity()
+        if (event.changes.none { counts(it) && it.pressed }) {
+            val quick = (event.changes.firstOrNull()?.uptimeMillis ?: startedAt) - startedAt < FINGER_TAP_MS
+            val still = moved < slop * 2 && zoomed in 0.9f..1.1f
+            return NavigationEnd(tracker.calculateVelocity(), if (quick && still) fingers else 0)
+        }
         event = nextEvent(pen)
     }
 }
