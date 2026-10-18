@@ -17,7 +17,13 @@ import kotlin.math.atan2
 import kotlin.math.hypot
 
 /** Where a touch landed on a selection. */
-enum class Handle { NONE, BODY, SCALE_TOP_LEFT, SCALE_TOP_RIGHT, SCALE_BOTTOM_RIGHT, SCALE_BOTTOM_LEFT, ROTATE }
+enum class Handle { NONE, BODY, SCALE_TOP_LEFT, SCALE_TOP_RIGHT, SCALE_BOTTOM_RIGHT, SCALE_BOTTOM_LEFT, ROTATE, TEXT_START, TEXT_END }
+
+/** Characters [start] to [end] picked on a PDF page. */
+class TextPick(val pageId: String, val text: PageText, val start: Int, val end: Int) {
+    val rects: FloatArray by lazy { text.rects(start, end) }
+    val string: String get() = text.textOf(start, end)
+}
 
 /** A text box being typed into: the page it's on and how it looks now. */
 class TextEdit(val pageId: String, val box: TextBox, val isNew: Boolean)
@@ -59,6 +65,11 @@ class SelectionState {
 
     var note by mutableStateOf<NoteEdit?>(null)
         private set
+
+    var textPick by mutableStateOf<TextPick?>(null)
+
+    /** A highlight or other text mark touched and held, as page id and mark id. */
+    var markAt by mutableStateOf<Pair<String, String>?>(null)
 
     /** Masks shown see-through, by id; this isn't saved. */
     var revealed by mutableStateOf<Set<String>>(emptySet())
@@ -173,6 +184,8 @@ class SelectionState {
     }
 
     fun clear() {
+        textPick = null
+        markAt = null
         pageId = null
         picked = Picked()
         bounds = null

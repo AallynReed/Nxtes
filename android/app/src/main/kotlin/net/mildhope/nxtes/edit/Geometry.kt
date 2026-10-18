@@ -11,6 +11,7 @@ import net.mildhope.nxtes.data.Picture
 import net.mildhope.nxtes.data.Shape
 import net.mildhope.nxtes.data.StickyNote
 import net.mildhope.nxtes.data.TextBox
+import net.mildhope.nxtes.data.TextMark
 import net.mildhope.nxtes.page.PagePainter
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -169,6 +170,10 @@ object Geometry {
             emptyList()
         }
         return Picked(strokes.map { it.id }.toSet(), objects.map { it.id }.toSet(), notes.map { it.id }.toSet(), masks.map { it.id }.toSet())
+    }
+
+    fun hit(m: TextMark, x: Float, y: Float): Boolean = (0 until m.rects.size / 4).any { i ->
+        x >= m.rects[i * 4] && x <= m.rects[i * 4] + m.rects[i * 4 + 2] && y >= m.rects[i * 4 + 1] && y <= m.rects[i * 4 + 1] + m.rects[i * 4 + 3]
     }
 
     /** Whether the point is on the mask: inside tape, or within reach of a pen mask's line. */

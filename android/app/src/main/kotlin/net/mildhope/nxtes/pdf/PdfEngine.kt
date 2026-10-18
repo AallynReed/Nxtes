@@ -10,6 +10,7 @@ import io.legere.pdfiumandroid.PdfiumCore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.data.PageSize
+import net.mildhope.nxtes.edit.PageText
 import java.io.File
 
 data class OutlineEntry(val title: String, val pdfPage: Int, val depth: Int)
@@ -40,6 +41,40 @@ class PdfEngine(context: Context) {
             }
             walk(doc.getTableOfContents(), 0)
             entries
+        }
+    }
+
+    /** The page's characters and their boxes in points from its top-left corner, as it's shown unturned. */
+    suspend fun text(file: File, pageIndex: Int): PageText = withContext(Dispatchers.IO) {
+        synchronized(open) {
+            val doc = open.getOrPut(file.path) { openFile(file) }
+            doc.openPage(pageIndex)?.use { page ->
+                val w = page.getPageWidthPoint() * MAP_SCALE
+                val h = page.getPageHeightPoint() * MAP_SCALE
+                fun map(x: Double, y: Double) = page.mapPageCoordsToDevice(0, 0, w, h, 0, x, y).let { it.x.toFloat() / MAP_SCALE to it.y.toFloat() / MAP_SCALE }
+                val (ox, oy) = map(0.0, 0.0)
+                val (xx, xy) = map(MAP_SPAN, 0.0)
+                val (yx, yy) = map(0.0, MAP_SPAN)
+                val span = MAP_SPAN.toFloat()
+                page.openTextPage().use { textPage ->
+                    val count = textPage.textPageCountChars().coerceAtLeast(0)
+                    val chars = StringBuilder(count)
+                    val boxes = FloatArray(count * 4)
+                    for (i in 0 until count) {
+                        chars.append(textPage.textPageGetUnicode(i))
+                        val r: RectF = textPage.textPageGetCharBox(i) ?: continue
+                        val ax = ox + (xx - ox) * r.left / span + (yx - ox) * r.top / span
+                        val ay = oy + (xy - oy) * r.left / span + (yy - oy) * r.top / span
+                        val bx = ox + (xx - ox) * r.right / span + (yx - ox) * r.bottom / span
+                        val by = oy + (xy - oy) * r.right / span + (yy - oy) * r.bottom / span
+                        boxes[i * 4] = minOf(ax, bx)
+                        boxes[i * 4 + 1] = minOf(ay, by)
+                        boxes[i * 4 + 2] = maxOf(ax, bx)
+                        boxes[i * 4 + 3] = maxOf(ay, by)
+                    }
+                    PageText(chars.toString(), boxes)
+                }
+            } ?: PageText("", FloatArray(0))
         }
     }
 
@@ -104,5 +139,9 @@ class PdfEngine(context: Context) {
         const val MAX_OPEN = 4
         const val POINTS_DPI = 72
         const val WHITE = 0xFFFFFFFF.toInt()
+
+        /** Page-to-screen mapping rounds to whole pixels, so it's done this many times larger. */
+        const val MAP_SCALE = 16
+        const val MAP_SPAN = 1000.0
     }
 }

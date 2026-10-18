@@ -74,7 +74,11 @@ import net.mildhope.nxtes.page.PageResources
 import androidx.core.graphics.withMatrix
 import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.Pen
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import net.mildhope.nxtes.data.Mask
+import net.mildhope.nxtes.edit.PageText
+import net.mildhope.nxtes.edit.TextPick
 import net.mildhope.nxtes.data.MaskKind
 import net.mildhope.nxtes.data.Shape
 import net.mildhope.nxtes.edit.MaskBuilder
@@ -119,6 +123,9 @@ private class DragState {
     var start = Offset.Zero
     val path = mutableListOf<Offset>()
 
+    /** The end of picked PDF text being dragged, if that's what this drag is. */
+    var textHandle: Handle? = null
+
     /** A shape the next finished ink stroke turns into, from holding the pen still. */
     var convert: Pair<Int, Shape>? = null
 }
@@ -154,6 +161,7 @@ private class LaserTrail {
 
 private const val LASER_TRAIL_MS = 700L
 private const val LASER_DOT_FADE_MS = 300L
+private val TEXT_KNOB = 8.dp
 private const val DETAIL_DELAY_MS = 120L
 private const val DETAIL_MIN_ZOOM = 1.05f
 private val HANDLE_RADIUS = 9.dp
@@ -173,6 +181,7 @@ fun PageCanvas(
     modifier: Modifier = Modifier,
     assetsLoaded: () -> Int = { 0 },
     onStamp: (pageIndex: Int, point: Offset) -> Unit = { _, _ -> },
+    pageText: suspend (pageIndex: Int) -> PageText? = { null },
     overlay: @Composable BoxScope.(PageMapper) -> Unit = {},
 ) {
     val density = LocalDensity.current
@@ -195,6 +204,19 @@ fun PageCanvas(
     var maskPreview by remember { mutableStateOf<Pair<Int, Mask>?>(null) }
     val drag = remember { DragState() }
     val laser = remember { LaserTrail() }
+    val scope = rememberCoroutineScope()
+    val knob = with(density) { TEXT_KNOB.toPx() }
+
+    /** Where the picked text's two handles sit on screen: below its first and last characters. */
+    fun textHandles(pick: TextPick): Pair<Offset, Offset>? {
+        val r = pick.rects
+        val index = mapper.indexOf(pick.pageId)
+        if (r.isEmpty() || index < 0) return null
+        val last = r.size - 4
+        val start = mapper.toScreen(index, Offset(r[0], r[1] + r[3])) + Offset(0f, knob)
+        val end = mapper.toScreen(index, Offset(r[last] + r[last + 2], r[last + 1] + r[last + 3])) + Offset(0f, knob)
+        return start to end
+    }
 
     /** The shape the shape pen makes for the current drag. */
     fun dragShape(end: Offset): Shape? {
@@ -227,6 +249,10 @@ fun PageCanvas(
 
     val canvasTools = object : CanvasTools {
         override fun handleAt(at: Offset): Handle {
+            selection.textPick?.let(::textHandles)?.let { (start, end) ->
+                if ((at - start).getDistance() < handleTouch) return Handle.TEXT_START
+                if ((at - end).getDistance() < handleTouch) return Handle.TEXT_END
+            }
             if (!selection.active) return Handle.NONE
             val corners = selectionCorners() ?: return Handle.NONE
             val top = (corners[0] + corners[1]) / 2f
@@ -282,7 +308,11 @@ fun PageCanvas(
                     drag.page = mapper.pageAt(at)
                     selection.lasso = listOf(at)
                 }
-                DragKind.SELECTION -> selection.startDrag(handle, mapper.toPage(mapper.indexOf(selection.pageId), at))
+                DragKind.SELECTION -> if (handle == Handle.TEXT_START || handle == Handle.TEXT_END) {
+                    drag.textHandle = handle
+                } else {
+                    selection.startDrag(handle, mapper.toPage(mapper.indexOf(selection.pageId), at))
+                }
                 DragKind.PLACE -> Unit
                 DragKind.LASER -> {
                     laser.down = true
@@ -311,7 +341,7 @@ fun PageCanvas(
                 DragKind.ERASE -> eraseAlong(drag.last, to)
                 DragKind.LASSO -> selection.lasso =
                     if (tools.lassoShape == LassoShape.RECT) listOf(selection.lasso.first(), to) else selection.lasso + to
-                DragKind.SELECTION -> selection.drag(mapper.toPage(mapper.indexOf(selection.pageId), to))
+                DragKind.SELECTION -> if (drag.textHandle != null) moveTextHandle(to) else selection.drag(mapper.toPage(mapper.indexOf(selection.pageId), to))
                 DragKind.PLACE -> Unit
                 DragKind.LASER -> laser.add(to, tools.laserMode)
                 DragKind.MASK -> {
@@ -333,7 +363,9 @@ fun PageCanvas(
             when (drag.kind) {
                 DragKind.ERASE -> eraserAt = null
                 DragKind.LASSO -> finishLasso()
-                DragKind.SELECTION -> {
+                DragKind.SELECTION -> if (drag.textHandle != null) {
+                    drag.textHandle = null
+                } else {
                     selection.endDrag(ink)
                     if (tools.autoDeselect) selection.clear()
                 }
@@ -376,6 +408,34 @@ fun PageCanvas(
                     if (index >= 0) onStamp(index, mapper.toPage(index, at))
                 }
                 else -> Unit
+            }
+        }
+
+        /** Moves the dragged end of the picked text to the character nearest the point, aiming above the handle. */
+        private fun moveTextHandle(to: Offset) {
+            val pick = selection.textPick ?: return
+            val index = mapper.indexOf(pick.pageId).takeIf { it >= 0 } ?: return
+            val point = mapper.toPage(index, to - Offset(0f, knob * 2))
+            val i = pick.text.charAt(point.x, point.y, Float.MAX_VALUE).takeIf { it >= 0 } ?: return
+            val start = if (drag.textHandle == Handle.TEXT_START) i else pick.start
+            val end = if (drag.textHandle == Handle.TEXT_END) i else pick.end
+            if (start > end) drag.textHandle = if (drag.textHandle == Handle.TEXT_START) Handle.TEXT_END else Handle.TEXT_START
+            selection.textPick = TextPick(pick.pageId, pick.text, minOf(start, end), maxOf(start, end))
+        }
+
+        /** Picks the PDF word under the point, or opens the page menu when there's no text there. */
+        private fun pickWord(index: Int, point: Offset) {
+            val page = pages[index]
+            scope.launch {
+                val text = pageText(index)
+                val i = text?.charAt(point.x, point.y, handleTouch / mapper.pixelsPerPoint / 2) ?: -1
+                selection.clear()
+                if (text == null || i < 0) {
+                    selection.menuAt = page.id to point
+                } else {
+                    val word = text.wordAt(i)
+                    selection.textPick = TextPick(page.id, text, word.first, word.last)
+                }
             }
         }
 
@@ -449,8 +509,14 @@ fun PageCanvas(
             val point = mapper.toPage(index, at)
             val content = ink.content(page.id)
             val hit = Geometry.hit(content, point.x, point.y, slop = handleTouch / mapper.pixelsPerPoint / 2)
+            val mark = content.marks.lastOrNull { Geometry.hit(it, point.x, point.y) }
             if (hit != null) {
                 selection.select(page.id, hit, content)
+            } else if (tools.mode == InputMode.GESTURE && mark != null) {
+                selection.clear()
+                selection.markAt = page.id to mark.id
+            } else if (tools.mode == InputMode.GESTURE && page.pdf != null) {
+                pickWord(index, point)
             } else {
                 selection.clear()
                 selection.menuAt = page.id to point
@@ -606,6 +672,10 @@ fun PageCanvas(
                     }
                 }
             }
+            selection.textPick?.let { pick ->
+                val index = mapper.indexOf(pick.pageId)
+                if (index >= 0) drawTextPick(pick.rects, textHandles(pick), knob, accent) { x, y -> mapper.toScreen(index, Offset(x, y)) }
+            }
             drawLasso(selection.lasso, tools.lassoShape, accent)
             if (laser.visible) drawLaser(laser, tools.laserMode, Color(tools.laserColor))
             if (selection.active && selection.lasso.isEmpty()) selectionCorners()?.let { drawSelection(it, accent, rotateDistance) }
@@ -671,6 +741,19 @@ private fun DrawScope.drawLaser(trail: LaserTrail, mode: LaserMode, colour: Colo
     drawCircle(colour.copy(alpha = 0.3f * fade), 12.dp.toPx(), head)
     drawCircle(colour.copy(alpha = fade), 6.dp.toPx(), head)
     drawCircle(Color.White.copy(alpha = 0.8f * fade), 2.5.dp.toPx(), head)
+}
+
+/** Picked text: a tint over each line, and a handle hanging below each end. */
+private fun DrawScope.drawTextPick(rects: FloatArray, handles: Pair<Offset, Offset>?, knob: Float, colour: Color, toScreen: (Float, Float) -> Offset) {
+    for (i in rects.indices step 4) {
+        val a = toScreen(rects[i], rects[i + 1])
+        val b = toScreen(rects[i] + rects[i + 2], rects[i + 1] + rects[i + 3])
+        drawRect(colour.copy(alpha = 0.25f), a, androidx.compose.ui.geometry.Size(b.x - a.x, b.y - a.y))
+    }
+    handles?.toList()?.forEach { at ->
+        drawLine(colour, at - Offset(0f, knob * 2), at, 2.dp.toPx())
+        drawCircle(colour, knob * 0.75f, at)
+    }
 }
 
 private fun DrawScope.drawLasso(points: List<Offset>, shape: LassoShape, colour: Color) {

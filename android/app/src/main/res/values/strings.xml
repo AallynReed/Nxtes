@@ -283,6 +283,12 @@
     <string name="sort_lowest">Lowest</string>
     <string name="reveal_all">Reveal all</string>
     <string name="cover_all">Cover all</string>
+    <string name="highlight">Highlight</string>
+    <string name="underline">Underline</string>
+    <string name="strike_through">Strike through</string>
+    <string name="look_up">Look up</string>
+    <string name="share">Share</string>
+    <string name="copied">Copied</string>
     <string name="action_failed">That didn\'t work. Please try again.</string>
     <plurals name="import_failed">
         <item quantity="one">%d PDF couldn\'t be imported</item>

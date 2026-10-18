@@ -1,6 +1,17 @@
 package net.mildhope.nxtes.viewer
 
 import android.util.Log
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import net.mildhope.nxtes.data.TextMark
+import net.mildhope.nxtes.edit.MarkMenu
+import net.mildhope.nxtes.edit.PageText
+import net.mildhope.nxtes.edit.TextPick
+import net.mildhope.nxtes.edit.TextPickActions
+import net.mildhope.nxtes.edit.TextPickMenu
 import net.mildhope.nxtes.edit.MaskMenu
 import net.mildhope.nxtes.edit.answer
 import net.mildhope.nxtes.edit.mask
@@ -115,6 +126,22 @@ fun DocumentViewer(
         )
     }
     val resources = remember(doc.id) { app.assets.resources(doc.id, app.scope) }
+    val pageTexts = remember(doc.id) { HashMap<String, PageText>() }
+
+    /** The PDF text on page [index] as it's shown, read once per page. */
+    suspend fun pageText(index: Int): PageText? {
+        val page = doc.pages.getOrNull(index) ?: return null
+        val source = page.pdf ?: return null
+        pageTexts[page.id]?.let { return it }
+        val sideways = page.turns % 2 == 1
+        val text = runCatching { app.pdf.text(app.library.blobFile(doc.id, source.blob), source.index) }
+            .onFailure { Log.w("Viewer", "Text of page $index failed", it) }
+            .getOrNull()
+            ?.turned(page.turns, if (sideways) page.height else page.width, if (sideways) page.width else page.height)
+            ?: return null
+        pageTexts[page.id] = text
+        return text
+    }
     val selection = remember(doc.id) { SelectionState() }
     val actions = remember(doc.id, ink) { SelectionActions(app, doc.id, ink, selection) }
     val scope = rememberCoroutineScope()
@@ -264,6 +291,7 @@ fun DocumentViewer(
                     onPageCounter = { goToPage = true },
                     assetsLoaded = { app.assets.loaded },
                     onStamp = ::stamp,
+                    pageText = ::pageText,
                     overlay = { mapper ->
                         val edit = selection.text
                         val crop = selection.crop
@@ -282,6 +310,25 @@ fun DocumentViewer(
                             EditMenus(doc, mapper, selection, actions, scope, tools, ink) { pageIndex, point ->
                                 imageTarget = pageIndex to point
                                 addImage(ImageSource.GALLERY)
+                            }
+                            selection.textPick?.let { pick -> TextPickMenu(pick, mapper, textActions(doc, pick, selection, ink, scope)) }
+                            selection.markAt?.let { (pageId, markId) ->
+                                ink.content(pageId).marks.firstOrNull { it.id == markId }?.let { mark ->
+                                    MarkMenu(
+                                        pageId, mark, mapper,
+                                        onCopy = {
+                                            copyText(context, mark.text)
+                                            selection.markAt = null
+                                        },
+                                        onRecolour = { colour ->
+                                            ink.update(pageId) { c -> c.copy(marks = c.marks.map { if (it.id == markId) TextMark(it.id, it.kind, colour, it.rects, it.text) else it }) }
+                                        },
+                                        onDelete = {
+                                            ink.update(pageId) { c -> c.copy(marks = c.marks.filter { it.id != markId }) }
+                                            selection.markAt = null
+                                        },
+                                    )
+                                }
                             }
                             selection.asking?.let { (pageId, maskId) ->
                                 ink.content(pageId).mask(maskId)?.let { mask ->
@@ -448,6 +495,49 @@ private fun EditMenus(
     items += stringResource(R.string.add_outline) to { addToDocument(outlineAdded) { addOutline(doc.id, pageId, pageTitle) } }
     PageMenu(Rect(at, at), items)
 }
+
+/** Puts [text] on the clipboard; older Androids don't confirm it themselves. */
+private fun copyText(context: Context, text: String) {
+    context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(text.take(40), text))
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) Toast.makeText(context, R.string.copied, Toast.LENGTH_SHORT).show()
+}
+
+/** Opens [intent] in a chooser, or says nothing can handle it. */
+private fun launch(context: Context, intent: Intent) {
+    runCatching { context.startActivity(Intent.createChooser(intent, null)) }
+        .onFailure { Toast.makeText(context, R.string.action_failed, Toast.LENGTH_SHORT).show() }
+}
+
+@Composable
+private fun textActions(doc: Document, pick: TextPick, selection: SelectionState, ink: PageSession, scope: CoroutineScope): TextPickActions {
+    val context = LocalContext.current
+    val bookmarkAdded = stringResource(R.string.bookmark_added)
+    val outlineAdded = stringResource(R.string.outline_added)
+    val title = pick.string.lines().joinToString(" ").trim().take(TITLE_LENGTH)
+    fun addToDocument(message: String, action: LibraryStore.() -> Unit) {
+        selection.textPick = null
+        scope.launch { if (runLibraryAction(context, action) != null) Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
+    }
+    return TextPickActions(
+        mark = { kind, colour ->
+            ink.update(pick.pageId) { it.copy(marks = it.marks + TextMark(UUID.randomUUID().toString(), kind, colour, pick.rects, pick.string)) }
+            selection.textPick = null
+        },
+        copy = {
+            copyText(context, pick.string)
+            selection.textPick = null
+        },
+        lookUp = {
+            launch(context, Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain").putExtra(Intent.EXTRA_PROCESS_TEXT, pick.string).putExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, true))
+        },
+        share = { launch(context, Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, pick.string)) },
+        bookmark = { addToDocument(bookmarkAdded) { addBookmark(doc.id, pick.pageId, title) } },
+        outline = { addToDocument(outlineAdded) { addOutline(doc.id, pick.pageId, title) } },
+    )
+}
+
+/** Bookmarks and outline entries made from picked text keep this many characters. */
+private const val TITLE_LENGTH = 80
 
 /** Scrolls the pages up when the keyboard would cover [target] (screen pixels), keeping its top in view. */
 @Composable
