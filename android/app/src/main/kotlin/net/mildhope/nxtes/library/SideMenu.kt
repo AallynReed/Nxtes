@@ -72,8 +72,9 @@ fun LibrarySideMenu(
         }
         Spacer(Modifier.height(20.dp))
         Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-            ShortcutTab(painterResource(R.drawable.ic_schedule), stringResource(R.string.recents), !shortcutsShowFavorites) { onShortcutsShowFavorites(false) }
-            ShortcutTab(rememberVectorPainter(Icons.Default.Star), stringResource(R.string.favorites), shortcutsShowFavorites) { onShortcutsShowFavorites(true) }
+            val tab = Modifier.weight(1f, fill = false)
+            ShortcutTab(painterResource(R.drawable.ic_schedule), stringResource(R.string.recents), !shortcutsShowFavorites, tab) { onShortcutsShowFavorites(false) }
+            ShortcutTab(rememberVectorPainter(Icons.Default.Star), stringResource(R.string.favorites), shortcutsShowFavorites, tab) { onShortcutsShowFavorites(true) }
         }
         Box(
             contentAlignment = Alignment.Center,
@@ -155,14 +156,14 @@ private fun NavRow(icon: Painter, label: String, selected: Boolean, onClick: () 
 }
 
 @Composable
-private fun ShortcutTab(icon: Painter, label: String, selected: Boolean, onClick: () -> Unit) {
+private fun ShortcutTab(icon: Painter, label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(8.dp),
+        modifier = modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 8.dp),
     ) {
         Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
-        Text(label, color = color, style = MaterialTheme.typography.labelLarge)
+        Text(label, color = color, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
