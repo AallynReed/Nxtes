@@ -193,6 +193,91 @@ class LibraryStoreTest {
         assertEquals(Pattern.GRAPH, store.state.value.document(note.id)!!.pages.single().background!!.pattern)
     }
 
+    @Test
+    fun insertedPagesCopyTheTemplateOrTheNeighbourSize() {
+        val note = store.createNote("Ideas", null, TemplateChoice(Background(Pattern.GRAPH)), cover = null)
+        val pdf = import()
+
+        val notePage = store.insertPage(note.id, 1)
+        val pdfPage = store.insertPage(pdf.id, 2)
+
+        assertEquals(Pattern.GRAPH, notePage.background!!.pattern)
+        assertEquals(listOf(note.pages[0].id, notePage.id), pages(note.id))
+        assertEquals(792f to 612f, pdfPage.width to pdfPage.height)
+        assertNull(pdfPage.pdf)
+        assertEquals(pdfPage.id, pages(pdf.id).last())
+    }
+
+    @Test
+    fun duplicatedPagesFollowTheirOriginalsWithTheirInk() {
+        val doc = import()
+        val (first, second) = doc.pages.map { it.id }
+        store.writePageInk(doc.id, mapOf(first to listOf(stroke())))
+
+        val copy = store.duplicatePages(doc.id, listOf(first)).single()
+
+        assertEquals(listOf(first, copy.id, second), pages(doc.id))
+        assertEquals(listOf("s1"), store.readPageInk(doc.id, copy.id).map { it.id })
+        assertEquals(setOf(first, copy.id), store.annotatedPages(doc.id))
+    }
+
+    @Test
+    fun deletingPagesRemovesInkAndDeletingAllTrashesTheDocument() {
+        val doc = import()
+        val (first, second) = doc.pages.map { it.id }
+        store.writePageInk(doc.id, mapOf(first to listOf(stroke())))
+
+        store.deletePages(doc.id, listOf(first))
+        assertEquals(listOf(second), pages(doc.id))
+        assertTrue(store.annotatedPages(doc.id).isEmpty())
+
+        store.deletePages(doc.id, listOf(second))
+        assertEquals(listOf(second), pages(doc.id))
+        assertTrue(store.state.value.document(doc.id)!!.trashedAt != null)
+    }
+
+    @Test
+    fun reorderingMovesSelectedPagesTogether() {
+        val doc = import()
+        val c = store.insertPage(doc.id, 2).id
+        val d = store.insertPage(doc.id, 3).id
+        val (a, b) = doc.pages.map { it.id }
+
+        store.reorderPages(doc.id, listOf(a, c), 4)
+        assertEquals(listOf(b, d, a, c), pages(doc.id))
+
+        store.reorderPages(doc.id, listOf(c), 0)
+        assertEquals(listOf(c, b, d, a), pages(doc.id))
+    }
+
+    @Test
+    fun turningAPageSwapsItsSizeAndTurnsItsInk() {
+        val doc = import()
+        val page = doc.pages.first()
+        store.writePageInk(doc.id, mapOf(page.id to listOf(stroke())))
+
+        store.turnPages(doc.id, listOf(page.id), clockwise = true)
+
+        val turned = store.state.value.document(doc.id)!!.pages.first()
+        assertEquals(Triple(792f, 612f, 1), Triple(turned.width, turned.height, turned.turns))
+        val ink = store.readPageInk(doc.id, page.id).single()
+        assertEquals(792f - 3f, ink.x[0], 0.01f)
+        assertEquals(1f, ink.y[0], 0.01f)
+
+        store.turnPages(doc.id, listOf(page.id), clockwise = false)
+        val back = store.readPageInk(doc.id, page.id).single()
+        assertEquals(1f, back.x[0], 0.01f)
+        assertEquals(3f, back.y[0], 0.01f)
+        assertEquals(0, store.state.value.document(doc.id)!!.pages.first().turns)
+    }
+
+    private fun pages(documentId: String) = store.state.value.document(documentId)!!.pages.map { it.id }
+
+    private fun stroke() = InkStroke(
+        id = "s1", pen = Pen.BALLPOINT, color = -16777216, size = 1f, tool = InputTool.STYLUS,
+        noiseSeed = 0, created = 0, x = floatArrayOf(1f, 2f), y = floatArrayOf(3f, 4f), t = intArrayOf(0, 5),
+    )
+
     private fun sha256(bytes: ByteArray) =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 

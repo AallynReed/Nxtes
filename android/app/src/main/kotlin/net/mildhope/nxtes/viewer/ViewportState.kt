@@ -84,8 +84,15 @@ class ViewportState {
         pageRects.indexOfFirst { it.bottom >= centre }.coerceAtLeast(0)
     }
 
+    private var pendingPage: Int? = null
+
+    /** Scrolls to the page, or does so once the layout is known. */
     fun goToPage(index: Int) {
-        val rect = pageRects.getOrNull(index) ?: return
+        if (pageRects.isEmpty()) {
+            pendingPage = index
+            return
+        }
+        val rect = pageRects.getOrNull(index.coerceIn(pageRects.indices)) ?: return
         offset = clamp(Offset(offset.x, -(rect.top - PAGE_TOP_MARGIN) * zoom), zoom)
     }
 
@@ -97,6 +104,10 @@ class ViewportState {
         size = newSize
         contentHeight = newContentHeight
         offset = clamp(Offset(-fx * newSize.width * zoom, -fy * newContentHeight * zoom), zoom)
+        if (newSize.height > 0) pendingPage?.let {
+            pendingPage = null
+            goToPage(it)
+        }
     }
 
     fun transformBy(centroid: Offset, pan: Offset, zoomChange: Float) {

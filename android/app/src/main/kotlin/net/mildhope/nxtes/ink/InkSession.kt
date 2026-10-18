@@ -2,6 +2,7 @@ package net.mildhope.nxtes.ink
 
 import android.util.Log
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CancellationException
@@ -38,6 +39,10 @@ class InkSession(
     var canUndo by mutableStateOf(false)
         private set
     var canRedo by mutableStateOf(false)
+        private set
+
+    /** Bumped by [reset], so views reload the pages they show. */
+    var generation by mutableIntStateOf(0)
         private set
 
     fun strokes(pageId: String): List<InkStroke> = pages[pageId].orEmpty()
@@ -80,6 +85,16 @@ class InkSession(
         edit.pages.forEach { (pageId, change) -> set(pageId, change.after) }
         undoStack.addLast(edit)
         updateFlags()
+    }
+
+    /** Forgets loaded pages and history, after pages changed on disk. Call [flush] first. */
+    fun reset() {
+        saveJob?.cancel()
+        pages = emptyMap()
+        undoStack.clear()
+        redoStack.clear()
+        updateFlags()
+        generation++
     }
 
     /** Writes every unsaved page now. */

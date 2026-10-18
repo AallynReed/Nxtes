@@ -83,6 +83,10 @@ class PdfEngine(context: Context) {
                 3 -> postTranslate(0f, sourceWidth)
             }
             postTranslate(left.toFloat(), top.toFloat())
+            // pdfiumandroid passes the skew terms to PDFium in swapped order, so pre-swap them.
+            val values = FloatArray(9).also(::getValues)
+            values[Matrix.MSKEW_X] = values[Matrix.MSKEW_Y].also { values[Matrix.MSKEW_Y] = values[Matrix.MSKEW_X] }
+            setValues(values)
         }
     }
 

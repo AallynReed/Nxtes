@@ -29,7 +29,9 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.data.Document
+import net.mildhope.nxtes.data.LibraryStore
 import net.mildhope.nxtes.ink.InkSession
+import net.mildhope.nxtes.library.runLibraryAction
 import net.mildhope.nxtes.nxtes
 import net.mildhope.nxtes.ui.LocalNxtesColors
 
@@ -40,8 +42,10 @@ fun DocumentViewer(
     tabs: List<Document>,
     onSelectTab: (String) -> Unit,
     onCloseTab: (String) -> Unit,
+    onOpenDocument: (id: String, pageIndex: Int) -> Unit,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     val app = LocalContext.current.nxtes
     val renderer = remember(doc.id, doc.pages) {
         PageRenderer { index, bitmap, left, top, width, height ->
@@ -64,56 +68,89 @@ fun DocumentViewer(
     val tools = app.tools
     var panelOpen by rememberSaveable { mutableStateOf(false) }
     var panelTab by rememberSaveable { mutableStateOf(SideTab.PAGES) }
+    var navigatorOpen by rememberSaveable { mutableStateOf(false) }
+    var goToPage by remember { mutableStateOf(false) }
+
+    /** Runs a page change, saving this document's ink first and reloading it after. */
+    fun editPages(documentId: String, action: LibraryStore.() -> Unit) {
+        app.scope.launch {
+            if (documentId == doc.id) ink.flush()
+            runLibraryAction(context, action)
+            if (documentId == doc.id) ink.reset()
+        }
+    }
 
     DisposableEffect(ink) { onDispose { app.scope.launch { ink.flush() } } }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { app.scope.launch { ink.flush() } }
     BackHandler(onBack = onBack)
 
-    Column(
+    Box(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
             .windowInsetsPadding(WindowInsets.systemBars),
     ) {
-        WritingToolbar(
-            tools = tools,
-            canUndo = ink.canUndo,
-            canRedo = ink.canRedo,
-            onBack = onBack,
-            onPages = {
-                panelTab = SideTab.PAGES
-                panelOpen = true
-            },
-            onUndo = ink::undo,
-            onRedo = ink::redo,
-            onSidePanel = { panelOpen = !panelOpen },
-        )
-        DocumentTabBar(tabs, doc.id, onSelectTab, onCloseTab)
-        Box(Modifier.fillMaxWidth().weight(1f)) {
-            PageCanvas(
-                pages = doc.pages,
-                renderer = renderer,
-                ink = ink,
+        Column(Modifier.fillMaxSize()) {
+            WritingToolbar(
                 tools = tools,
-                state = viewport,
-                modifier = Modifier.fillMaxSize().background(LocalNxtesColors.current.pageBackground),
+                canUndo = ink.canUndo,
+                canRedo = ink.canRedo,
+                onBack = onBack,
+                onPages = { navigatorOpen = true },
+                onUndo = ink::undo,
+                onRedo = ink::redo,
+                onSidePanel = { panelOpen = !panelOpen },
             )
-            if (panelOpen) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.12f))
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { panelOpen = false },
+            DocumentTabBar(tabs, doc.id, onSelectTab, onCloseTab)
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                PageCanvas(
+                    pages = doc.pages,
+                    renderer = renderer,
+                    ink = ink,
+                    tools = tools,
+                    state = viewport,
+                    onPageCounter = { goToPage = true },
+                    modifier = Modifier.fillMaxSize().background(LocalNxtesColors.current.pageBackground),
                 )
-                SidePanel(
-                    doc = doc,
-                    viewport = viewport,
-                    tab = panelTab,
-                    onTab = { panelTab = it },
-                    onClose = { panelOpen = false },
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                )
+                if (panelOpen) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.12f))
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { panelOpen = false },
+                    )
+                    SidePanel(
+                        doc = doc,
+                        viewport = viewport,
+                        tab = panelTab,
+                        onTab = { panelTab = it },
+                        onClose = { panelOpen = false },
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    )
+                }
             }
         }
+        if (navigatorOpen) {
+            PageNavigator(
+                current = doc,
+                currentPage = viewport.currentPage,
+                onOpenPage = { id, index ->
+                    navigatorOpen = false
+                    if (id == doc.id) viewport.goToPage(index) else onOpenDocument(id, index)
+                },
+                onEdit = ::editPages,
+                onClose = { navigatorOpen = false },
+            )
+        }
+    }
+    if (goToPage) {
+        GoToPageDialog(
+            pageCount = doc.pages.size,
+            onGo = {
+                goToPage = false
+                viewport.goToPage(it)
+            },
+            onDismiss = { goToPage = false },
+        )
     }
 }

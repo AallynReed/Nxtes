@@ -126,6 +126,103 @@ class LibraryStore(
         }
     }
 
+    /** Pages that have ink, judged by their ink files. */
+    fun annotatedPages(documentId: String): Set<String> =
+        File(documentDir(documentId), "pages").listFiles().orEmpty()
+            .filter { it.name.endsWith(".pb") }
+            .map { it.name.removeSuffix(".pb") }
+            .toSet()
+
+    /** Inserts a blank page at [index]: the document's template, or else a white page sized like its neighbour. */
+    @Synchronized
+    fun insertPage(documentId: String, index: Int): Page {
+        lateinit var page: Page
+        updateDocument(documentId) { doc ->
+            val at = index.coerceIn(0, doc.pages.size)
+            val neighbour = doc.pages.getOrNull(at - 1) ?: doc.pages[at]
+            page = newPage(doc.template ?: PageTemplate(neighbour.width, neighbour.height))
+            doc.copy(pages = doc.pages.toMutableList().apply { add(at, page) })
+        }
+        return page
+    }
+
+    /** Puts a copy of each page, with its ink, right after it. */
+    @Synchronized
+    fun duplicatePages(documentId: String, pageIds: Collection<String>): List<Page> {
+        val copies = mutableListOf<Page>()
+        updateDocument(documentId) { doc ->
+            doc.copy(
+                pages = doc.pages.flatMap { page ->
+                    if (page.id !in pageIds) return@flatMap listOf(page)
+                    val copy = page.copy(id = newId())
+                    copyInk(documentId, page.id, documentId, copy.id)
+                    copies += copy
+                    listOf(page, copy)
+                },
+            )
+        }
+        return copies
+    }
+
+    /** Deletes pages and their ink. Deleting every page moves the document to the trash instead. */
+    @Synchronized
+    fun deletePages(documentId: String, pageIds: Collection<String>) {
+        if (requireDocument(documentId).pages.all { it.id in pageIds }) {
+            trash(documentId)
+            return
+        }
+        updateDocument(documentId) { doc -> doc.copy(pages = doc.pages.filter { it.id !in pageIds }) }
+        pageIds.forEach { pageInkFile(documentId, it).delete() }
+        pruneBlobs(documentId)
+    }
+
+    /** Moves the pages, keeping their order, to just before the page that was at [toIndex] (or to the end). */
+    @Synchronized
+    fun reorderPages(documentId: String, pageIds: Collection<String>, toIndex: Int) {
+        updateDocument(documentId) { doc ->
+            val moving = doc.pages.filter { it.id in pageIds }
+            val staying = doc.pages.filter { it.id !in pageIds }
+            val at = doc.pages.take(toIndex.coerceIn(0, doc.pages.size)).count { it.id !in pageIds }
+            doc.copy(pages = staying.take(at) + moving + staying.drop(at))
+        }
+    }
+
+    /** Turns pages a quarter turn, with their ink. */
+    @Synchronized
+    fun turnPages(documentId: String, pageIds: Collection<String>, clockwise: Boolean) {
+        updateDocument(documentId) { doc ->
+            doc.copy(
+                pages = doc.pages.map { page ->
+                    if (page.id !in pageIds) return@map page
+                    val strokes = readPageInk(documentId, page.id)
+                    if (strokes.isNotEmpty()) {
+                        writeAtomically(pageInkFile(documentId, page.id), InkCodec.encode(strokes.map { it.turned(clockwise, page.width, page.height) }))
+                    }
+                    page.copy(width = page.height, height = page.width, turns = (page.turns + if (clockwise) 1 else 3) % 4)
+                },
+            )
+        }
+    }
+
+    private fun copyInk(fromDocument: String, fromPage: String, toDocument: String, toPage: String) {
+        val source = pageInkFile(fromDocument, fromPage)
+        if (source.exists()) writeAtomically(pageInkFile(toDocument, toPage), source.readBytes())
+    }
+
+    /** Deletes blobs that no page or template of the document refers to any more. */
+    private fun pruneBlobs(documentId: String) {
+        val doc = requireDocument(documentId)
+        val used = (doc.pages.mapNotNull { it.pdf?.blob } + listOfNotNull(doc.template?.pdf?.blob)).toSet()
+        File(documentDir(documentId), "blobs").listFiles().orEmpty().filter { it.name !in used }.forEach { it.delete() }
+    }
+
+    private fun requireDocument(id: String) = requireNotNull(_state.value.document(id)) { "No document $id" }
+
+    private fun updateDocument(id: String, change: (Document) -> Document) {
+        val now = clock()
+        updateItem(id, { it }) { change(it).copy(modified = now) }
+    }
+
     /** Resolves a picked template into one this document can use. */
     private fun pageTemplate(documentId: String, choice: TemplateChoice): PageTemplate =
         PageTemplate(choice.width, choice.height, background = choice.background)

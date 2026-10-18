@@ -92,6 +92,7 @@ private fun RowScope.SideTabButton(icon: Painter, label: String, selected: Boole
 private fun PageGrid(doc: Document, viewport: ViewportState) {
     val grid = rememberLazyGridState()
     LaunchedEffect(doc.id) { grid.scrollToItem(viewport.currentPage) }
+    PageJump(doc.pages.size, viewport::goToPage, Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp))
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         state = grid,

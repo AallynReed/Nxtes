@@ -53,3 +53,16 @@ class InkStroke(
         }
     }
 }
+
+/** The stroke after its [width]x[height] page turns a quarter turn, clockwise or not. */
+fun InkStroke.turned(clockwise: Boolean, width: Float, height: Float): InkStroke {
+    val fullTurn = (2 * Math.PI).toFloat()
+    val quarter = fullTurn / 4 * (if (clockwise) 1 else -1)
+    return InkStroke(
+        id = id, pen = pen, color = color, size = size, tool = tool, noiseSeed = noiseSeed, created = created,
+        x = FloatArray(pointCount) { if (clockwise) height - y[it] else y[it] },
+        y = FloatArray(pointCount) { if (clockwise) x[it] else width - x[it] },
+        t = t, pressure = pressure, tilt = tilt,
+        orientation = orientation?.let { o -> FloatArray(pointCount) { (o[it] + quarter).mod(fullTurn) } },
+    )
+}

@@ -96,6 +96,7 @@ fun PageCanvas(
     ink: InkSession,
     tools: ToolState,
     state: ViewportState,
+    onPageCounter: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -131,7 +132,7 @@ fun PageCanvas(
 
     LaunchedEffect(layout, size) { state.updateLayout(size.toSize(), layout.contentHeight, layout.rects) }
 
-    LaunchedEffect(layout, ink) {
+    LaunchedEffect(layout, ink, ink.generation) {
         snapshotFlow { layout.visible(state.zoom, state.offset, state.size.height, extra = 1) }
             .distinctUntilChanged()
             .collect { range -> ink.ensureLoaded(range.map { pages[it].id }) }
@@ -226,6 +227,7 @@ fun PageCanvas(
             Surface(
                 shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.8f),
+                onClick = onPageCounter,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
             ) {
                 Text(

@@ -105,6 +105,33 @@
     <string name="apply_template_title">Use the new template for</string>
     <string name="apply_template_new_pages">Pages you add from now on</string>
     <string name="apply_template_all_pages">Every page, including existing ones</string>
+    <string name="documents_panel">Show or hide documents</string>
+    <string name="edit_pages">Edit pages</string>
+    <string name="close">Close</string>
+    <string name="filter_annotated">Annotated</string>
+    <string name="select_all">Select all</string>
+    <string name="deselect_all">Deselect all</string>
+    <plurals name="pages_selected">
+        <item quantity="one">%d page selected</item>
+        <item quantity="other">%d pages selected</item>
+    </plurals>
+    <plurals name="page_count">
+        <item quantity="one">%d page</item>
+        <item quantity="other">%d pages</item>
+    </plurals>
+    <string name="turn_left">Turn left</string>
+    <string name="turn_right">Turn right</string>
+    <string name="duplicate">Duplicate</string>
+    <string name="insert_page">Add a page here</string>
+    <string name="add_page">Add a page at the end</string>
+    <plurals name="delete_pages_title">
+        <item quantity="one">Delete %d page?</item>
+        <item quantity="other">Delete %d pages?</item>
+    </plurals>
+    <string name="delete_every_page">That\'s every page, so the document will move to the trash.</string>
+    <string name="go_to_page">Go to page</string>
+    <string name="page_range">1 to %d</string>
+    <string name="go">Go</string>
     <string name="action_failed">That didn\'t work. Please try again.</string>
     <plurals name="import_failed">
         <item quantity="one">%d PDF couldn\'t be imported</item>

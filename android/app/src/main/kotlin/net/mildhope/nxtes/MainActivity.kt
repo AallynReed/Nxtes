@@ -104,6 +104,10 @@ private fun NxtesRoot(openRequests: MutableStateFlow<String?>) {
                 viewports.remove(id)
                 if (id == documentId) documentId = tabIds.getOrNull(index.coerceAtMost(tabIds.lastIndex))
             },
+            onOpenDocument = { id, page ->
+                open(id)
+                viewports.getOrPut(id) { ViewportState() }.goToPage(page)
+            },
             onBack = { documentId = null },
         )
     } else {
