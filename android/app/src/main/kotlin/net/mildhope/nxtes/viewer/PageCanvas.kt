@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -223,6 +224,7 @@ fun PageCanvas(
     val laser = remember { LaserTrail() }
     val scope = rememberCoroutineScope()
     val knob = with(density) { TEXT_KNOB.toPx() }
+    val uriHandler = LocalUriHandler.current
 
     /** Where the picked text's two handles sit on screen: below its first and last characters. */
     fun textHandles(pick: TextPick): Pair<Offset, Offset>? {
@@ -427,14 +429,15 @@ fun PageCanvas(
             drag.group = null
         }
 
-        override fun tap(at: Offset) {
+        override fun tap(at: Offset, drawing: Boolean) {
             selection.searchMark = null
             val jump = onInkTap
             if (jump != null && selection.text == null && selection.note == null) {
                 inkTimeAt(at)?.let { time -> if (jump(time)) return }
             }
             if (readOnly) {
-                maskAt(at)?.let { (pageId, mask) -> selection.toggleMask(pageId, mask.id) }
+                val mask = maskAt(at)
+                if (mask != null) selection.toggleMask(mask.first, mask.second.id) else if (!drawing) followLink(at)
                 selection.asking = null
                 return
             }
@@ -444,6 +447,7 @@ fun PageCanvas(
             selection.asking = null
             if (openNote(at)) return
             maskAt(at)?.let { (pageId, mask) -> return selection.toggleMask(pageId, mask.id) }
+            if (!drawing && followLink(at)) return
             if (tools.mode != InputMode.PEN) return
             when (tools.tool) {
                 Tool.TEXT -> placeText(at)
@@ -454,6 +458,19 @@ fun PageCanvas(
                 }
                 else -> Unit
             }
+        }
+
+        /** Goes to the page or opens the URL of the link under the point; false if there's none. */
+        private fun followLink(at: Offset): Boolean {
+            val index = mapper.pageAt(at)
+            val page = pages.getOrNull(index) ?: return false
+            val point = mapper.toPage(index, at)
+            val links = ink.content(page.id).links
+            val slop = handleTouch / mapper.pixelsPerPoint / 4
+            val link = links.lastOrNull { it.contains(point.x, point.y) } ?: links.lastOrNull { it.contains(point.x, point.y, slop) } ?: return false
+            val target = link.pageId
+            if (target != null) mapper.indexOf(target).takeIf { it >= 0 }?.let { state.goToPage(it) } else link.url?.let { runCatching { uriHandler.openUri(it) } }
+            return true
         }
 
         /** Moves the dragged end of the picked text to the character nearest the point, aiming above the handle. */

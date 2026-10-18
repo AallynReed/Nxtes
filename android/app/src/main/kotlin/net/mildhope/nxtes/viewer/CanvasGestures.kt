@@ -53,8 +53,8 @@ interface CanvasTools {
 
     fun dragEnd()
 
-    /** A short touch that didn't move. */
-    fun tap(at: Offset)
+    /** A short touch that didn't move; [drawing] when it came from a pointer that draws, which doesn't follow links. */
+    fun tap(at: Offset, drawing: Boolean)
 
     /** A pen starts drawing ink. */
     fun penDown(at: Offset)
@@ -118,7 +118,7 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                     fling?.cancel()
                     when (val hold = holdOrMove(pen, start, down, longPressMs, slop, everyPointer)) {
                         Hold.Held -> canvas.longPress(down.position)
-                        is Hold.Tapped -> canvas.tap(hold.at)
+                        is Hold.Tapped -> canvas.tap(hold.at, drawing = false)
                         is Hold.Moved -> {
                             val end = navigate(pen, state, hold.event, down.uptimeMillis, slop, everyPointer)
                             if (end.fingers >= 2) canvas.fingerTap(end.fingers) else fling = launch { state.fling(end.velocity, decay) }
@@ -131,7 +131,7 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                     if (kind != DragKind.LASSO && kind != DragKind.PLACE && kind != DragKind.MASK) return drag(pen, start, down.id, canvas, kind, Handle.NONE)
                     when (val hold = holdOrMove(pen, start, down, longPressMs, slop, everyPointer = true, consume = true)) {
                         Hold.Held -> canvas.longPress(down.position)
-                        is Hold.Tapped -> canvas.tap(hold.at)
+                        is Hold.Tapped -> canvas.tap(hold.at, drawing = true)
                         is Hold.Moved -> drag(pen, hold.event, down.id, canvas, kind, Handle.NONE, from = down.position)
                     }
                 }
