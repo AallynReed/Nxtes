@@ -1,5 +1,6 @@
 package net.mildhope.nxtes.edit
 
+import net.mildhope.nxtes.data.Page
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -75,20 +76,22 @@ class PageText(val text: String, val boxes: FloatArray) {
         return out.toFloatArray()
     }
 
-    /** The same text on a page turned clockwise by [turns] quarter turns; [width] and [height] are the unturned page's. */
-    fun turned(turns: Int, width: Float, height: Float): PageText {
-        val quarter = turns.mod(4)
-        if (quarter == 0) return this
+    /** This text, with boxes in fractions of the unturned PDF page, in points of [page] as it's shown: scaled to it and turned with it. */
+    fun shownOn(page: Page): PageText {
+        val quarter = page.turns.mod(4)
+        val width = if (quarter % 2 == 1) page.height else page.width
+        val height = if (quarter % 2 == 1) page.width else page.height
         val out = FloatArray(boxes.size)
         for (i in 0 until length) {
-            val (x0, y0) = turn(quarter, boxes[i * 4], boxes[i * 4 + 1], width, height)
-            val (x1, y1) = turn(quarter, boxes[i * 4 + 2], boxes[i * 4 + 3], width, height)
+            val (x0, y0) = turn(quarter, boxes[i * 4] * width, boxes[i * 4 + 1] * height, width, height)
+            val (x1, y1) = turn(quarter, boxes[i * 4 + 2] * width, boxes[i * 4 + 3] * height, width, height)
             out[i * 4] = min(x0, x1); out[i * 4 + 1] = min(y0, y1); out[i * 4 + 2] = max(x0, x1); out[i * 4 + 3] = max(y0, y1)
         }
         return PageText(text, out)
     }
 
     private fun turn(quarter: Int, x: Float, y: Float, w: Float, h: Float) = when (quarter) {
+        0 -> x to y
         1 -> h - y to x
         2 -> w - x to h - y
         else -> y to w - x

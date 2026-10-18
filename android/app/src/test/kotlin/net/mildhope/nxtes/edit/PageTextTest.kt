@@ -1,5 +1,8 @@
 package net.mildhope.nxtes.edit
 
+import net.mildhope.nxtes.data.Page
+import net.mildhope.nxtes.data.PdfSource
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -38,10 +41,30 @@ class PageTextTest {
         assertEquals(listOf(10f, 0f, 35f, 12f, 0f, 20f, 20f, 12f), text.rects(1, 7).toList())
     }
 
-    @Test
-    fun aQuarterTurnMovesBoxesWithThePage() {
-        val turned = text.turned(1, 100f, 200f)
+    /** One character, then a made-up one, in fractions of the PDF page. */
+    private val fractions = PageText("a\n", floatArrayOf(0.1f, 0.2f, 0.3f, 0.25f, 0f, 0f, 0f, 0f))
 
-        assertEquals(listOf(188f, 0f, 200f, 10f), turned.boxes.copyOfRange(0, 4).toList())
+    /** A page showing a 600x800 PDF page turned by [turns]. */
+    private fun page(turns: Int) =
+        if (turns % 2 == 1) Page("p", 800f, 600f, PdfSource("a", 0), turns = turns) else Page("p", 600f, 800f, PdfSource("a", 0), turns = turns)
+
+    private fun assertBox(expected: FloatArray, text: PageText) = assertArrayEquals(expected, text.boxes.copyOfRange(0, 4), 0.01f)
+
+    @Test
+    fun boxesScaleToThePage() {
+        assertBox(floatArrayOf(60f, 160f, 180f, 200f), fractions.shownOn(page(0)))
+        assertBox(floatArrayOf(120f, 200f, 360f, 250f), fractions.shownOn(Page("p", 1200f, 1000f, PdfSource("a", 0))))
+    }
+
+    @Test
+    fun boxesTurnWithThePage() {
+        assertBox(floatArrayOf(600f, 60f, 640f, 180f), fractions.shownOn(page(1)))
+        assertBox(floatArrayOf(420f, 600f, 540f, 640f), fractions.shownOn(page(2)))
+        assertBox(floatArrayOf(160f, 420f, 200f, 540f), fractions.shownOn(page(3)))
+    }
+
+    @Test
+    fun madeUpCharactersStayEmpty() {
+        for (turns in 0..3) assertEquals(0, fractions.shownOn(page(turns)).rects(1, 1).size)
     }
 }

@@ -46,12 +46,14 @@ class PdfEngine(context: Context) {
         }
     }
 
-    /** The page's characters and their boxes in points from its top-left corner, as it's shown unturned. */
+    /** The page's characters and their boxes in fractions of the page from its top-left corner, as it's shown unturned. */
     suspend fun text(file: File, pageIndex: Int): PageText = withContext(Dispatchers.IO) {
         synchronized(open) {
             val doc = open.getOrPut(file.path) { openFile(file) }
             doc.openPage(pageIndex)?.use { page ->
                 val shown = shownPoints(page)
+                val w = page.getPageWidthPoint().toFloat()
+                val h = page.getPageHeightPoint().toFloat()
                 page.openTextPage().use { textPage ->
                     val count = textPage.textPageCountChars().coerceAtLeast(0)
                     val chars = StringBuilder(count)
@@ -61,10 +63,10 @@ class PdfEngine(context: Context) {
                         val r: RectF = textPage.textPageGetCharBox(i) ?: continue
                         val (ax, ay) = shown.map(r.left, r.top)
                         val (bx, by) = shown.map(r.right, r.bottom)
-                        boxes[i * 4] = minOf(ax, bx)
-                        boxes[i * 4 + 1] = minOf(ay, by)
-                        boxes[i * 4 + 2] = maxOf(ax, bx)
-                        boxes[i * 4 + 3] = maxOf(ay, by)
+                        boxes[i * 4] = minOf(ax, bx) / w
+                        boxes[i * 4 + 1] = minOf(ay, by) / h
+                        boxes[i * 4 + 2] = maxOf(ax, bx) / w
+                        boxes[i * 4 + 3] = maxOf(ay, by) / h
                     }
                     PageText(chars.toString(), boxes)
                 }

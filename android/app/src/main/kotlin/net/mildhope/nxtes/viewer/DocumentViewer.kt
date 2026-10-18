@@ -106,6 +106,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.data.LibraryStore
+import net.mildhope.nxtes.data.Page
 import net.mildhope.nxtes.ink.PageSession
 import net.mildhope.nxtes.library.runLibraryAction
 import net.mildhope.nxtes.nxtes
@@ -144,21 +145,20 @@ fun DocumentViewer(
         )
     }
     val resources = remember(doc.id) { app.assets.resources(doc.id, app.scope) }
-    val pageTexts = remember(doc.id) { HashMap<String, PageText>() }
+    val pageTexts = remember(doc.id) { HashMap<Page, PageText>() }
     val search = remember(doc.id) { DocumentSearch(app.scope) }
 
-    /** The PDF text on page [index] as it's shown, read once per page. */
+    /** The PDF text on page [index] as it's shown, read again only when the page is turned or resized. */
     suspend fun pageText(index: Int): PageText? {
         val page = doc.pages.getOrNull(index) ?: return null
         val source = page.pdf ?: return null
-        pageTexts[page.id]?.let { return it }
-        val sideways = page.turns % 2 == 1
+        pageTexts[page]?.let { return it }
         val text = runCatching { app.pdf.text(app.library.blobFile(doc.id, source.blob), source.index) }
             .onFailure { Log.w("Viewer", "Text of page $index failed", it) }
             .getOrNull()
-            ?.turned(page.turns, if (sideways) page.height else page.width, if (sideways) page.width else page.height)
+            ?.shownOn(page)
             ?: return null
-        pageTexts[page.id] = text
+        pageTexts[page] = text
         return text
     }
     val selection = remember(doc.id) { SelectionState() }
