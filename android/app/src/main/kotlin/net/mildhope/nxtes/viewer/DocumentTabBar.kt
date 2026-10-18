@@ -2,6 +2,7 @@ package net.mildhope.nxtes.viewer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,16 +36,41 @@ import androidx.compose.ui.unit.dp
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Document
 
-/** One tab per open document, the active one underlined, with the open count on the right. */
+/**
+ * One tab per open document, the active one underlined, with the open count on the right. Touch and
+ * hold a tab, or open the count, to close other tabs or all of them.
+ */
 @Composable
-fun DocumentTabBar(tabs: List<Document>, activeId: String, onSelect: (String) -> Unit, onClose: (String) -> Unit) {
+fun DocumentTabBar(
+    tabs: List<Document>,
+    activeId: String,
+    onSelect: (String) -> Unit,
+    onClose: (String) -> Unit,
+    onCloseOthers: (String) -> Unit,
+    onCloseAll: () -> Unit,
+) {
     var listOpen by remember { mutableStateOf(false) }
+    var menuFor by remember { mutableStateOf<String?>(null) }
     val divider = MaterialTheme.colorScheme.outlineVariant
     Column(Modifier.background(MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().height(38.dp)) {
             tabs.forEach { doc ->
                 val active = doc.id == activeId
-                Box(Modifier.weight(1f).fillMaxHeight().clickable { onSelect(doc.id) }) {
+                Box(Modifier.weight(1f).fillMaxHeight().combinedClickable(onClick = { onSelect(doc.id) }, onLongClick = { menuFor = doc.id })) {
+                    DropdownMenu(expanded = menuFor == doc.id, onDismissRequest = { menuFor = null }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.close_tab)) }, onClick = {
+                            menuFor = null
+                            onClose(doc.id)
+                        })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.close_other_tabs)) }, enabled = tabs.size > 1, onClick = {
+                            menuFor = null
+                            onCloseOthers(doc.id)
+                        })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.close_all_tabs)) }, onClick = {
+                            menuFor = null
+                            onCloseAll()
+                        })
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxHeight().padding(start = 12.dp, end = 4.dp),
@@ -91,6 +117,15 @@ fun DocumentTabBar(tabs: List<Document>, activeId: String, onSelect: (String) ->
                             },
                         )
                     }
+                    HorizontalDivider(color = divider)
+                    DropdownMenuItem(text = { Text(stringResource(R.string.close_other_tabs)) }, enabled = tabs.size > 1, onClick = {
+                        listOpen = false
+                        onCloseOthers(activeId)
+                    })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.close_all_tabs)) }, onClick = {
+                        listOpen = false
+                        onCloseAll()
+                    })
                 }
             }
         }

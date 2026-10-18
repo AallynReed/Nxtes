@@ -227,6 +227,12 @@ fun WritingToolbar(
                             PageFlowSettings(view)
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             DropdownMenuItem(
+                                text = { Text(stringResource(R.string.hide_tabs)) },
+                                trailingIcon = { Checkbox(checked = view.hideTabs, onCheckedChange = null) },
+                                onClick = view::toggleHideTabs,
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.use_stylus_only)) },
                                 trailingIcon = { Checkbox(checked = !tools.drawWithFinger, onCheckedChange = null) },
                                 onClick = tools::toggleDrawWithFinger,

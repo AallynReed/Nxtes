@@ -102,6 +102,8 @@ fun DocumentViewer(
     tabs: List<Document>,
     onSelectTab: (String) -> Unit,
     onCloseTab: (String) -> Unit,
+    onCloseOtherTabs: (String) -> Unit,
+    onCloseAllTabs: () -> Unit,
     onOpenDocument: (id: String, pageIndex: Int) -> Unit,
     onBack: () -> Unit,
 ) {
@@ -279,7 +281,7 @@ fun DocumentViewer(
                 onSidePanel = { panelOpen = !panelOpen },
                 onAddImage = ::addImage,
             )
-            DocumentTabBar(tabs, doc.id, onSelectTab, onCloseTab)
+            if (!app.view.hideTabs) DocumentTabBar(tabs, doc.id, onSelectTab, onCloseTab, onCloseOtherTabs, onCloseAllTabs)
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 PageCanvas(
                     pages = doc.pages,

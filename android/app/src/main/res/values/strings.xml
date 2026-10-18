@@ -296,6 +296,9 @@
     <string name="flow_paged">Page by page</string>
     <string name="two_pages">Two pages side by side</string>
     <string name="cover_alone">First page alone</string>
+    <string name="close_other_tabs">Close other tabs</string>
+    <string name="close_all_tabs">Close all tabs</string>
+    <string name="hide_tabs">Hide the tab bar</string>
     <string name="action_failed">That didn\'t work. Please try again.</string>
     <plurals name="import_failed">
         <item quantity="one">%d PDF couldn\'t be imported</item>
