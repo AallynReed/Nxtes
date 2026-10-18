@@ -41,7 +41,19 @@ data class PenPreset(
         }
 }
 
-enum class Tool { PEN, ERASER, LASSO }
+enum class Tool { PEN, ERASER, LASSO, TEXT }
+
+/** Font, size and colours for text boxes. */
+@Serializable
+data class TextStyle(
+    val font: String = "sans-serif",
+    val size: Float = 14f,
+    val color: Int = 0xFF000000.toInt(),
+    val background: Int = 0,
+    val bold: Boolean = false,
+    val italic: Boolean = false,
+    val underline: Boolean = false,
+)
 
 /** A lasso is drawn freehand or as a box. */
 enum class LassoShape { FREE, RECT }
@@ -81,6 +93,18 @@ class ToolState(private val prefs: SharedPreferences) {
     /** Clear the selection after moving or changing it. */
     var autoDeselect by mutableStateOf(prefs.getBoolean(KEY_AUTO_DESELECT, false))
         private set
+
+    /** The style new text boxes start with: the last one used. */
+    var textStyle by mutableStateOf(
+        runCatching { json.decodeFromString<TextStyle>(prefs.getString(KEY_TEXT_STYLE, null)!!) }.getOrDefault(TextStyle()),
+    )
+        private set
+
+    fun updateTextStyle(style: TextStyle) {
+        if (style == textStyle) return
+        textStyle = style
+        prefs.edit { putString(KEY_TEXT_STYLE, json.encodeToString(style)) }
+    }
 
     /** Shapes a pen stroke turns into when the pen is held still at its end. */
     var convertShapes by mutableStateOf(
@@ -180,6 +204,7 @@ class ToolState(private val prefs: SharedPreferences) {
         private const val KEY_LASSO_TYPES = "lasso_types"
         private const val KEY_AUTO_DESELECT = "auto_deselect"
         private const val KEY_CONVERT = "convert_shapes"
+        private const val KEY_TEXT_STYLE = "text_style"
 
         /** Shapes hold-to-convert can make. */
         val CONVERTIBLE = setOf(ShapeKind.LINE, ShapeKind.ELLIPSE, ShapeKind.TRIANGLE, ShapeKind.RECTANGLE, ShapeKind.POLYGON)
@@ -201,3 +226,6 @@ class ToolState(private val prefs: SharedPreferences) {
         ).map { it.toInt() }
     }
 }
+
+/** The style of a text box, to start the next one with. */
+val net.mildhope.nxtes.data.TextBox.style get() = TextStyle(font, size, color, background, bold, italic, underline)

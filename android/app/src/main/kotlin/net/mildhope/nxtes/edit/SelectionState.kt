@@ -7,12 +7,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import net.mildhope.nxtes.data.Affine
 import net.mildhope.nxtes.data.PageContent
+import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.ink.PageSession
+import net.mildhope.nxtes.page.PagePainter
+import net.mildhope.nxtes.page.PageResources
 import kotlin.math.atan2
 import kotlin.math.hypot
 
 /** Where a touch landed on a selection. */
 enum class Handle { NONE, BODY, SCALE_TOP_LEFT, SCALE_TOP_RIGHT, SCALE_BOTTOM_RIGHT, SCALE_BOTTOM_LEFT, ROTATE }
+
+/** A text box being typed into: the page it's on and how it looks now. */
+class TextEdit(val pageId: String, val box: TextBox, val isNew: Boolean)
 
 /** Items copied with the lasso, with the document whose blobs they use. */
 class ContentClip(val documentId: String, val content: PageContent, val bounds: Box)
@@ -40,6 +46,9 @@ class SelectionState {
     /** A page and point, in page points, where a touch-and-hold opened the page menu. */
     var menuAt by mutableStateOf<Pair<String, Offset>?>(null)
 
+    var text by mutableStateOf<TextEdit?>(null)
+        private set
+
     val active get() = pageId != null && !picked.isEmpty
 
     private var dragHandle = Handle.NONE
@@ -53,6 +62,32 @@ class SelectionState {
         bounds = box
         preview = Affine()
         menuAt = null
+    }
+
+    fun startText(pageId: String, box: TextBox, isNew: Boolean) {
+        clear()
+        menuAt = null
+        text = TextEdit(pageId, box, isNew)
+    }
+
+    fun updateText(box: TextBox) {
+        text = text?.let { TextEdit(it.pageId, box, it.isNew) }
+    }
+
+    /** Saves the text box being typed into, sized to its text, or drops it if it's empty. */
+    fun commitText(session: PageSession, resources: PageResources): TextBox? {
+        val edit = text ?: return null
+        text = null
+        val box = edit.box
+        if (box.text.isBlank()) {
+            if (!edit.isNew) session.update(edit.pageId) { c -> c.copy(objects = c.objects.filter { it.id != box.id }) }
+            return null
+        }
+        val saved = box.copy(height = PagePainter.textLayout(box, resources).height.toFloat().coerceAtLeast(box.size))
+        session.update(edit.pageId) { c ->
+            if (c.objects.any { it.id == box.id }) c.copy(objects = c.objects.map { if (it.id == box.id) saved else it }) else c.copy(objects = c.objects + saved)
+        }
+        return saved
     }
 
     fun clear() {

@@ -167,6 +167,12 @@ fun WritingToolbar(
                         onSelect = { tools.selectTool(Tool.LASSO) },
                         glyph = { LassoGlyph(it) },
                     ) { LassoSettings(tools) }
+                    ToolSlot(
+                        selected = penMode && tools.tool == Tool.TEXT,
+                        label = stringResource(R.string.text_box),
+                        onSelect = { tools.selectTool(Tool.TEXT) },
+                        glyph = { Icon(painterResource(R.drawable.ic_text), null, tint = it, modifier = Modifier.size(24.dp)) },
+                    )
                 }
                 Row(Modifier.align(Alignment.CenterEnd).padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     BarButton(painterResource(R.drawable.ic_undo), stringResource(R.string.undo), enabled = canUndo, onClick = onUndo)

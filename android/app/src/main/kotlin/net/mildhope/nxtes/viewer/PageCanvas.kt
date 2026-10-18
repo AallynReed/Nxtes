@@ -61,14 +61,18 @@ import net.mildhope.nxtes.ink.PageSession
 import net.mildhope.nxtes.ink.StrokeGeometry
 import net.mildhope.nxtes.ink.Tool
 import net.mildhope.nxtes.ink.ToolState
+import net.mildhope.nxtes.ink.style
 import net.mildhope.nxtes.ink.erase
 import net.mildhope.nxtes.page.PagePainter
 import net.mildhope.nxtes.page.PageResources
 import androidx.core.graphics.withMatrix
+import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.Pen
 import net.mildhope.nxtes.data.Shape
+import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.edit.ShapeBuilder
 import net.mildhope.nxtes.edit.ShapeRecognizer
+import net.mildhope.nxtes.edit.newTextBox
 import java.util.UUID
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -186,6 +190,7 @@ fun PageCanvas(
         override fun drawingDrag() = when {
             tools.tool == Tool.LASSO -> DragKind.LASSO
             tools.tool == Tool.PEN && tools.pen.pen == Pen.SHAPE -> DragKind.SHAPE
+            tools.tool == Tool.TEXT -> DragKind.PLACE
             else -> null
         }
 
@@ -202,6 +207,7 @@ fun PageCanvas(
                     selection.lasso = listOf(at)
                 }
                 DragKind.SELECTION -> selection.startDrag(handle, mapper.toPage(mapper.indexOf(selection.pageId), at))
+                DragKind.PLACE -> Unit
                 DragKind.SHAPE -> {
                     selection.clear()
                     drag.page = mapper.pageAt(at)
@@ -218,6 +224,7 @@ fun PageCanvas(
                 DragKind.LASSO -> selection.lasso =
                     if (tools.lassoShape == LassoShape.RECT) listOf(selection.lasso.first(), to) else selection.lasso + to
                 DragKind.SELECTION -> selection.drag(mapper.toPage(mapper.indexOf(selection.pageId), to))
+                DragKind.PLACE -> Unit
                 DragKind.SHAPE -> {
                     val point = mapper.toPage(drag.page, to)
                     drag.path += point
@@ -236,6 +243,7 @@ fun PageCanvas(
                     selection.endDrag(ink)
                     if (tools.autoDeselect) selection.clear()
                 }
+                DragKind.PLACE -> Unit
                 DragKind.SHAPE -> {
                     shapePreview = null
                     dragShape(mapper.toPage(drag.page, drag.last))?.let { shape ->
@@ -249,8 +257,23 @@ fun PageCanvas(
         }
 
         override fun tap(at: Offset) {
+            if (selection.text != null) {
+                selection.commitText(ink, resources)?.let { tools.updateTextStyle(it.style) }
+                return
+            }
             selection.clear()
             selection.menuAt = null
+            if (tools.mode == InputMode.PEN && tools.tool == Tool.TEXT) placeText(at)
+        }
+
+        /** Edits the text box under the point, or starts a new one there. */
+        private fun placeText(at: Offset) {
+            val index = mapper.pageAt(at)
+            val page = pages.getOrNull(index) ?: return
+            val point = mapper.toPage(index, at)
+            val existing = ink.content(page.id).objects.lastOrNull { it is TextBox && Geometry.hit(PageContent(objects = listOf(it)), point.x, point.y, 2f) != null }
+            if (existing is TextBox) return selection.startText(page.id, existing, isNew = false)
+            selection.startText(page.id, newTextBox(page.width, point.x, point.y, tools.textStyle), isNew = true)
         }
 
         override fun penDown(at: Offset) {
@@ -385,7 +408,8 @@ fun PageCanvas(
                 detail[i]?.takeIf { it.zoom == zoom }?.let { d ->
                     drawImage(d.bitmap, topLeft = d.topLeft + (offset - d.offset))
                 }
-                val content = ink.content(pages[i].id)
+                val editing = selection.text?.takeIf { it.pageId == pages[i].id }?.box?.id
+                val content = ink.content(pages[i].id).let { c -> if (editing == null) c else c.copy(objects = c.objects.filter { it.id != editing }) }
                 if (!content.isEmpty) {
                     val k = layout.scale * zoom
                     strokeMatrix.setScale(k, k)

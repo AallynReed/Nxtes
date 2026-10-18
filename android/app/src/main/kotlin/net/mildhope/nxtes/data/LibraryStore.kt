@@ -28,6 +28,12 @@ class LibraryStore(
     private val foldersFile = File(root, "folders.json")
     private val templatesDir = File(root, "templates")
     private val templatesFile = File(templatesDir, "templates.json")
+    private val fontsDir = File(root, "fonts")
+    private val fontsFile = File(fontsDir, "fonts.json")
+    private val _fonts = MutableStateFlow<List<FontFile>>(emptyList())
+
+    /** Font files the user added, by name. */
+    val fonts: StateFlow<List<FontFile>> = _fonts.asStateFlow()
     private val _state = MutableStateFlow(Library())
     private val _templates = MutableStateFlow<List<CustomTemplate>>(emptyList())
 
@@ -78,6 +84,7 @@ class LibraryStore(
         }
         _state.value = Library(folders, documents, loaded = true)
         _templates.value = if (templatesFile.exists()) json.decodeFromString(templatesFile.readText()) else emptyList()
+        _fonts.value = if (fontsFile.exists()) json.decodeFromString(fontsFile.readText()) else emptyList()
     }
 
     @Synchronized
@@ -154,6 +161,37 @@ class LibraryStore(
         val template = CustomTemplate(newId(), name, sha256, size.width, size.height, clock())
         writeTemplates(listOf(template) + _templates.value)
         return template
+    }
+
+    /** Adds a .ttf or .otf font; adding the same file twice keeps one. */
+    @Synchronized
+    fun addFont(input: InputStream, name: String): FontFile {
+        val sha256 = storeBlob(input, fontsDir)
+        _fonts.value.find { it.blob == sha256 }?.let { return it }
+        val font = FontFile(sha256, name)
+        writeFonts((_fonts.value + font).sortedBy { it.name.lowercase() })
+        return font
+    }
+
+    @Synchronized
+    fun deleteFont(blob: String) {
+        writeFonts(_fonts.value.filter { it.blob != blob })
+        File(fontsDir, blob).delete()
+    }
+
+    fun fontFile(blob: String) = File(fontsDir, blob)
+
+    /** Copies an added font into the document so its text boxes keep working anywhere; returns its font key. */
+    @Synchronized
+    fun useFont(documentId: String, blob: String): String {
+        val target = blobFile(documentId, blob)
+        if (!target.exists()) writeAtomically(target, File(fontsDir, blob).readBytes())
+        return PageContent.FONT_BLOB + blob
+    }
+
+    private fun writeFonts(fonts: List<FontFile>) {
+        writeAtomically(fontsFile, json.encodeToString(fonts))
+        _fonts.value = fonts
     }
 
     /** Removes a custom template. Documents that used it keep their own copy of its page. */

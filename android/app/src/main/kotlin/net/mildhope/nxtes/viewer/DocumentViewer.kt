@@ -1,6 +1,18 @@
 package net.mildhope.nxtes.viewer
 
 import android.util.Log
+import net.mildhope.nxtes.library.displayName
+import net.mildhope.nxtes.ink.style
+import net.mildhope.nxtes.ink.ToolState
+import net.mildhope.nxtes.edit.newTextBox
+import net.mildhope.nxtes.edit.TextEditor
+import net.mildhope.nxtes.edit.MenuIcon
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.Icons
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.graphics.Typeface
 import net.mildhope.nxtes.edit.SelectionState
 import net.mildhope.nxtes.edit.SelectionMenu
 import net.mildhope.nxtes.edit.SelectionActions
@@ -101,6 +113,26 @@ fun DocumentViewer(
     DisposableEffect(ink) { onDispose { app.scope.launch { ink.flush() } } }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { app.scope.launch { ink.flush() } }
     BackHandler(onBack = onBack)
+    BackHandler(enabled = selection.text != null) { selection.commitText(ink, resources)?.let { tools.updateTextStyle(it.style) } }
+
+    val fontInvalid = stringResource(R.string.font_invalid)
+    val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val key = runLibraryAction(context) {
+                val name = displayName(context, uri)?.substringBeforeLast('.')?.ifBlank { null } ?: fontInvalid
+                val font = requireNotNull(context.contentResolver.openInputStream(uri)).use { addFont(it, name) }
+                if (Typeface.Builder(fontFile(font.blob)).build() == null) {
+                    deleteFont(font.blob)
+                    null
+                } else {
+                    useFont(doc.id, font.blob)
+                }
+            }
+            val edit = selection.text
+            if (key == null) Toast.makeText(context, fontInvalid, Toast.LENGTH_LONG).show() else if (edit != null) selection.updateText(edit.box.copy(font = key))
+        }
+    }
 
     Box(
         Modifier
@@ -137,7 +169,21 @@ fun DocumentViewer(
                     selection = selection,
                     onPageCounter = { goToPage = true },
                     assetsLoaded = { app.assets.loaded },
-                    overlay = { mapper -> EditMenus(doc, mapper, selection, actions, scope) },
+                    overlay = { mapper ->
+                        val edit = selection.text
+                        if (edit == null) {
+                            EditMenus(doc, mapper, selection, actions, scope, tools)
+                        } else {
+                            TextEditor(
+                                edit = edit,
+                                mapper = mapper,
+                                resources = resources,
+                                onChange = selection::updateText,
+                                onDone = { selection.commitText(ink, resources)?.let { tools.updateTextStyle(it.style) } },
+                                onAddFont = { fontPicker.launch(arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf", "application/vnd.ms-opentype", "application/octet-stream")) },
+                            )
+                        }
+                    },
                     modifier = Modifier.fillMaxSize().background(LocalNxtesColors.current.pageBackground),
                 )
                 if (panelOpen) {
@@ -185,7 +231,7 @@ fun DocumentViewer(
 
 /** The lasso selection's menu and the touch-and-hold menu, placed over the page. */
 @Composable
-private fun EditMenus(doc: Document, mapper: PageMapper, selection: SelectionState, actions: SelectionActions, scope: CoroutineScope) {
+private fun EditMenus(doc: Document, mapper: PageMapper, selection: SelectionState, actions: SelectionActions, scope: CoroutineScope, tools: ToolState) {
     val context = LocalContext.current
     val app = context.nxtes
     val box = selection.bounds
@@ -193,7 +239,13 @@ private fun EditMenus(doc: Document, mapper: PageMapper, selection: SelectionSta
     if (selection.active && box != null && index >= 0 && selection.lasso.isEmpty() && selection.preview == Affine()) {
         val topLeft = mapper.toScreen(index, Offset(box.left, box.top))
         val bottomRight = mapper.toScreen(index, Offset(box.right, box.bottom))
-        SelectionMenu(Rect(topLeft, bottomRight), actions)
+        val single = selection.pageId?.let { page -> doc.pages.firstOrNull { it.id == page } }
+        SelectionMenu(Rect(topLeft, bottomRight), actions) {
+            val box = actions.singleText()
+            if (box != null && single != null) {
+                MenuIcon(rememberVectorPainter(Icons.Default.Edit), stringResource(R.string.edit_text)) { selection.startText(single.id, box, isNew = false) }
+            }
+        }
     }
     val (pageId, point) = selection.menuAt ?: return
     val pageIndex = mapper.indexOf(pageId).takeIf { it >= 0 } ?: return
@@ -219,6 +271,8 @@ private fun EditMenus(doc: Document, mapper: PageMapper, selection: SelectionSta
             }
         }
     }
+    val page = doc.pages[pageIndex]
+    items += stringResource(R.string.text_box) to { selection.startText(pageId, newTextBox(page.width, point.x, point.y, tools.textStyle), isNew = true) }
     items += stringResource(R.string.add_bookmark) to { addToDocument(bookmarkAdded) { addBookmark(doc.id, pageId, pageTitle) } }
     items += stringResource(R.string.add_outline) to { addToDocument(outlineAdded) { addOutline(doc.id, pageId, pageTitle) } }
     PageMenu(Rect(at, at), items)

@@ -54,6 +54,10 @@ data class PageTemplate(
     val pdf: PdfSource? = null,
 )
 
+/** A font file the user added; [blob] is its SHA-256 in the fonts folder. */
+@Serializable
+data class FontFile(val blob: String, val name: String)
+
 /** A template made from the user's image or PDF; its page is a blob in the templates folder. */
 @Serializable
 data class CustomTemplate(

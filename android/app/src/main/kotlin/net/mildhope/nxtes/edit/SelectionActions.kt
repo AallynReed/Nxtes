@@ -27,6 +27,13 @@ class SelectionActions(
             return picked.strokes.isNotEmpty() || picked.objects.any { it is Shape || it is TextBox }
         }
 
+    /** The text box, when that's all that's picked. */
+    fun singleText(): TextBox? {
+        val page = selection.pageId ?: return null
+        val picked = selection.picked.of(session.content(page))
+        return (picked.objects.singleOrNull() as? TextBox)?.takeIf { picked.strokes.isEmpty() && picked.notes.isEmpty() && picked.masks.isEmpty() }
+    }
+
     /** Whether anything picked can change its stacking order. */
     val canReorder get() = selection.picked.objects.isNotEmpty()
 

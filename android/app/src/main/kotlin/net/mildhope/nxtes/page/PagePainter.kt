@@ -58,7 +58,6 @@ class PagePainter {
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
-    private val layouts = WeakHashMap<TextBox, StaticLayout>()
 
     /**
      * [pageToCanvas] maps page points to canvas pixels. Masks whose ids are in [revealed] are drawn
@@ -136,23 +135,6 @@ class PagePainter {
                 drawRect(box.x, box.y, box.x + box.width, box.y + box.height, fill)
             }
             withTranslation(box.x, box.y) { layout.draw(this) }
-        }
-    }
-
-    /** The laid-out text of [box]; its height is what the box needs. */
-    fun textLayout(box: TextBox, resources: PageResources): StaticLayout = synchronized(layouts) {
-        layouts.getOrPut(box) {
-            val style = (if (box.bold) Typeface.BOLD else 0) or (if (box.italic) Typeface.ITALIC else 0)
-            val paint = TextPaint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG or Paint.LINEAR_TEXT_FLAG).apply {
-                textSize = box.size
-                color = box.color
-                typeface = Typeface.create(resources.typeface(box.font), style)
-                isUnderlineText = box.underline
-            }
-            StaticLayout.Builder.obtain(box.text, 0, box.text.length, paint, box.width.toInt().coerceAtLeast(1))
-                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-                .setIncludePad(false)
-                .build()
         }
     }
 
@@ -247,6 +229,25 @@ class PagePainter {
     }
 
     companion object {
+        private val layouts = WeakHashMap<TextBox, StaticLayout>()
+
+        /** The laid-out text of [box]; its height is what the box needs. */
+        fun textLayout(box: TextBox, resources: PageResources): StaticLayout = synchronized(layouts) {
+            layouts.getOrPut(box) {
+                val style = (if (box.bold) Typeface.BOLD else 0) or (if (box.italic) Typeface.ITALIC else 0)
+                val paint = TextPaint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG or Paint.LINEAR_TEXT_FLAG).apply {
+                    textSize = box.size
+                    color = box.color
+                    typeface = Typeface.create(resources.typeface(box.font), style)
+                    isUnderlineText = box.underline
+                }
+                StaticLayout.Builder.obtain(box.text, 0, box.text.length, paint, box.width.toInt().coerceAtLeast(1))
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .setIncludePad(false)
+                    .build()
+            }
+        }
+
         /** Sticky note icons are this many points across. */
         const val NOTE_SIZE = 22f
         private const val PLACEHOLDER = 0xFFE6E6E6.toInt()
