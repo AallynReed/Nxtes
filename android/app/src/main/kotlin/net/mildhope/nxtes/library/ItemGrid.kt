@@ -3,6 +3,7 @@ package net.mildhope.nxtes.library
 import android.text.format.Formatter
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -40,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -82,6 +85,7 @@ fun ItemGrid(
     items: List<LibraryItem>,
     library: Library,
     listView: Boolean,
+    selection: List<String>?,
     onClick: (LibraryItem) -> Unit,
     onFavorite: ((LibraryItem) -> Unit)?,
     actions: (LibraryItem) -> List<MenuAction>,
@@ -90,7 +94,7 @@ fun ItemGrid(
     if (listView) {
         LazyColumn(modifier, contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)) {
             items(items, key = { it.id }) { item ->
-                ItemRow(item, info(item, library), { onClick(item) }, onFavorite?.let { { it(item) } }, actions(item))
+                ItemRow(item, info(item, library), selection?.let { it.indexOf(item.id) }, { onClick(item) }, onFavorite?.let { { it(item) } }, actions(item))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
@@ -103,22 +107,25 @@ fun ItemGrid(
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             items(items, key = { it.id }) { item ->
-                ItemCell(item, info(item, library), { onClick(item) }, onFavorite?.let { { it(item) } }, actions(item))
+                ItemCell(item, info(item, library), selection?.let { it.indexOf(item.id) }, { onClick(item) }, onFavorite?.let { { it(item) } }, actions(item))
             }
         }
     }
 }
 
+/** [selected] is null outside selection mode, -1 when not selected, else the selection order. */
 @Composable
-private fun ItemCell(item: LibraryItem, info: String, onClick: () -> Unit, onFavorite: (() -> Unit)?, actions: List<MenuAction>) {
+private fun ItemCell(item: LibraryItem, info: String, selected: Int?, onClick: () -> Unit, onFavorite: (() -> Unit)?, actions: List<MenuAction>) {
     var menuOpen by remember { mutableStateOf(false) }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = { menuOpen = true }),
+        modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = if (selected == null) ({ menuOpen = true }) else null),
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(0.8f).padding(8.dp), contentAlignment = Alignment.BottomCenter) {
             ItemPreview(item)
-            if (onFavorite != null) {
+            if (selected != null) {
+                SelectionMark(selected, Modifier.align(Alignment.Center))
+            } else if (onFavorite != null) {
                 FavoriteStar(item.favorite, onFavorite, Modifier.align(Alignment.TopEnd))
             }
         }
@@ -131,14 +138,14 @@ private fun ItemCell(item: LibraryItem, info: String, onClick: () -> Unit, onFav
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f, fill = false),
             )
-            ItemMenu(menuOpen, { menuOpen = it }, actions)
+            if (selected == null) ItemMenu(menuOpen, { menuOpen = it }, actions)
         }
         Text(info, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun ItemRow(item: LibraryItem, info: String, onClick: () -> Unit, onFavorite: (() -> Unit)?, actions: List<MenuAction>) {
+private fun ItemRow(item: LibraryItem, info: String, selected: Int?, onClick: () -> Unit, onFavorite: (() -> Unit)?, actions: List<MenuAction>) {
     var menuOpen by remember { mutableStateOf(false) }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -146,15 +153,18 @@ private fun ItemRow(item: LibraryItem, info: String, onClick: () -> Unit, onFavo
         modifier = Modifier
             .fillMaxWidth()
             .height(72.dp)
-            .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true }),
+            .combinedClickable(onClick = onClick, onLongClick = if (selected == null) ({ menuOpen = true }) else null),
     ) {
+        if (selected != null) SelectionMark(selected)
         Box(Modifier.width(40.dp).height(52.dp), contentAlignment = Alignment.Center) { ItemPreview(item) }
         Column(Modifier.weight(1f)) {
             Text(item.displayName, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(info, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (onFavorite != null) FavoriteStar(item.favorite, onFavorite)
-        ItemMenu(menuOpen, { menuOpen = it }, actions)
+        if (selected == null) {
+            if (onFavorite != null) FavoriteStar(item.favorite, onFavorite)
+            ItemMenu(menuOpen, { menuOpen = it }, actions)
+        }
     }
 }
 
@@ -172,6 +182,22 @@ private fun ItemMenu(open: Boolean, setOpen: (Boolean) -> Unit, actions: List<Me
                 DropdownMenuItem(text = { Text(action.label) }, onClick = { setOpen(false); action.run() })
             }
         }
+    }
+}
+
+/** An empty circle, or the item's place in the selection, which is also the merge order. */
+@Composable
+private fun SelectionMark(order: Int, modifier: Modifier = Modifier) {
+    val selected = order >= 0
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(30.dp)
+            .clip(CircleShape)
+            .background(if (selected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.85f))
+            .border(1.5.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, CircleShape),
+    ) {
+        if (selected) Text("${order + 1}", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelLarge)
     }
 }
 

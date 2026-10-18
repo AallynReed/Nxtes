@@ -165,6 +165,18 @@
     <string name="outline_name">Name</string>
     <string name="outline_page">Page</string>
     <string name="page_title">Page %d</string>
+    <string name="select">Select</string>
+    <plurals name="items_selected">
+        <item quantity="one">%d item selected</item>
+        <item quantity="other">%d items selected</item>
+    </plurals>
+    <string name="merge">Merge</string>
+    <string name="merged_title">%1$s (merged)</string>
+    <string name="copy_title">%1$s copy</string>
+    <plurals name="delete_items_forever_title">
+        <item quantity="one">Delete %d item forever?</item>
+        <item quantity="other">Delete %d items forever?</item>
+    </plurals>
     <string name="go_to_page">Go to page</string>
     <string name="page_range">1 to %d</string>
     <string name="go">Go</string>

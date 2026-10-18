@@ -360,6 +360,44 @@ class LibraryStoreTest {
         assertTrue(trimmed.outline.isEmpty())
     }
 
+    @Test
+    fun duplicatingAFolderCopiesItsContents() {
+        val outer = store.createFolder("Term", null)
+        val inner = store.createFolder("Week 1", outer.id)
+        val doc = import("Lecture", inner.id)
+        store.writePageInk(doc.id, mapOf(doc.pages[0].id to listOf(stroke())))
+
+        val copyId = store.duplicate(outer.id) { "$it copy" }
+
+        val library = newStore().apply { load() }.state.value
+        assertEquals("Term copy", library.folder(copyId)!!.name)
+        val innerCopy = library.childFolders(copyId).single()
+        assertEquals("Week 1", innerCopy.name)
+        val docCopy = library.childDocuments(innerCopy.id).single()
+        assertEquals("Lecture", docCopy.title)
+        assertEquals(listOf("s1"), store.readPageInk(docCopy.id, doc.pages[0].id).map { it.id })
+        assertEquals(1, library.childDocuments(inner.id).size)
+    }
+
+    @Test
+    fun mergingKeepsPageOrderBookmarksAndTheOriginals() {
+        val folder = store.createFolder("Course", null)
+        val a = import("A", folder.id)
+        val b = store.createNote("B", null, TemplateChoice(), cover = null)
+        store.addBookmark(b.id, b.pages[0].id, "Notes")
+        store.writePageInk(b.id, mapOf(b.pages[0].id to listOf(stroke())))
+
+        val merged = store.merge(listOf(a.id, b.id), "A and B")
+
+        assertEquals(folder.id, merged.folderId)
+        assertEquals(listOf(a.pages[0].pdf, a.pages[1].pdf, null), merged.pages.map { it.pdf })
+        assertEquals(Pattern.PLAIN, merged.pages[2].background!!.pattern)
+        assertEquals(merged.pages[2].id, merged.bookmarks.single().pageId)
+        assertEquals(listOf("s1"), store.readPageInk(merged.id, merged.pages[2].id).map { it.id })
+        assertTrue(store.blobFile(merged.id, sha256(PDF_BYTES)).exists())
+        assertEquals(3, store.state.value.documents.size)
+    }
+
     private fun pages(documentId: String) = store.state.value.document(documentId)!!.pages.map { it.id }
 
     private fun stroke() = InkStroke(

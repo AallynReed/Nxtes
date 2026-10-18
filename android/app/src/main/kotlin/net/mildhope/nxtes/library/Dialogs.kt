@@ -94,13 +94,18 @@ fun ColourDialog(current: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
     )
 }
 
+/** Picks a destination folder for [items]; folders can't move into themselves. */
 @Composable
-fun MoveDialog(library: Library, item: LibraryItem, onMove: (String?) -> Unit, onDismiss: () -> Unit) {
-    val excluded = if (item is Folder) library.subtree(item.id) else emptySet()
-    val current = when (item) {
-        is Folder -> item.parentId
-        is Document -> item.folderId
-    }
+fun MoveDialog(library: Library, items: List<LibraryItem>, onMove: (String?) -> Unit, onDismiss: () -> Unit) {
+    val excluded = items.filterIsInstance<Folder>().flatMap { library.subtree(it.id) }.toSet()
+    val parents = items.map {
+        when (it) {
+            is Folder -> it.parentId
+            is Document -> it.folderId
+        }
+    }.toSet()
+    val current = parents.singleOrNull()
+    val shared = parents.size == 1
     val destinations = buildList<Pair<Folder?, Int>> {
         add(null to 0)
         fun walk(parentId: String?, depth: Int) {
@@ -117,7 +122,7 @@ fun MoveDialog(library: Library, item: LibraryItem, onMove: (String?) -> Unit, o
         text = {
             LazyColumn {
                 items(destinations) { (folder, depth) ->
-                    val isCurrent = folder?.id == current
+                    val isCurrent = shared && folder?.id == current
                     ListItem(
                         headlineContent = { Text(folder?.name ?: stringResource(R.string.library_title)) },
                         leadingContent = {

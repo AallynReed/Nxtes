@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,7 +30,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
@@ -38,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.SmallFloatingActionButton
@@ -47,6 +52,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,8 +63,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -83,7 +91,9 @@ private sealed interface LibraryDialog {
     data class Settings(val doc: Document) : LibraryDialog
     data class ApplyTemplate(val doc: Document, val choice: TemplateChoice) : LibraryDialog
     data class Rename(val item: LibraryItem) : LibraryDialog
-    data class Move(val item: LibraryItem) : LibraryDialog
+    data class Move(val items: List<LibraryItem>) : LibraryDialog
+    data class Merge(val ids: List<String>, val title: String) : LibraryDialog
+    data class DeleteSelected(val items: List<LibraryItem>) : LibraryDialog
     data class Colour(val folder: Folder) : LibraryDialog
     data class DeleteForever(val item: LibraryItem) : LibraryDialog
     data object EmptyTrash : LibraryDialog
@@ -172,11 +182,24 @@ private fun MainPane(
     var dialog by remember { mutableStateOf<LibraryDialog?>(null) }
     var filter by rememberSaveable { mutableStateOf(KindFilter.ALL) }
     var importing by remember { mutableStateOf(false) }
+    var selecting by rememberSaveable { mutableStateOf(false) }
+    var selection by rememberSaveable { mutableStateOf(listOf<String>()) }
+
+    fun stopSelecting() {
+        selecting = false
+        selection = emptyList()
+    }
 
     fun edit(action: LibraryStore.() -> Unit) {
         dialog = null
         scope.launch { runLibraryAction(context, action) }
     }
+
+    val copyName = stringResource(R.string.copy_title)
+    fun duplicate(ids: List<String>) = edit { ids.forEach { duplicate(it) { name -> copyName.format(name) } } }
+
+    BackHandler(enabled = selecting, onBack = ::stopSelecting)
+    LaunchedEffect(section, query, folder?.id) { stopSelecting() }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
@@ -205,10 +228,13 @@ private fun MainPane(
         else -> prefs.arrange(library.childFolders(folder?.id) + library.childDocuments(folder?.id), filter)
     }
     val showsFolder = section == LibrarySection.DOCUMENTS && !searching
+    val selected = selection.mapNotNull { id -> items.find { it.id == id } }
+    val mergedName = stringResource(R.string.merged_title)
 
     val renameLabel = stringResource(R.string.rename)
     val settingsLabel = stringResource(R.string.cover_and_template)
     val moveLabel = stringResource(R.string.move)
+    val duplicateLabel = stringResource(R.string.duplicate)
     val colourLabel = stringResource(R.string.folder_colour)
     val favoriteLabel = stringResource(R.string.add_to_favorites)
     val unfavoriteLabel = stringResource(R.string.remove_from_favorites)
@@ -221,12 +247,64 @@ private fun MainPane(
             TitleBar(
                 title = title,
                 onMenu = onMenu,
-                backLabel = if (showsFolder && folder != null) (library.folder(folder.parentId)?.name ?: stringResource(R.string.documents)) else null,
-                onBack = { onOpenFolder(folder?.parentId) },
+                leading = {
+                    when {
+                        selecting && selected.isEmpty() -> TextButton(onClick = { selection = items.map { it.id } }) {
+                            Icon(Icons.Outlined.CheckCircle, null, Modifier.size(20.dp))
+                            Text(stringResource(R.string.select_all), Modifier.padding(start = 6.dp))
+                        }
+                        selecting -> {
+                            IconButton(onClick = { selection = emptyList() }) { Icon(Icons.Default.Close, stringResource(R.string.deselect_all)) }
+                            Text(pluralStringResource(R.plurals.items_selected, selected.size, selected.size), style = MaterialTheme.typography.titleSmall)
+                        }
+                        showsFolder && folder != null -> TextButton(onClick = { onOpenFolder(folder.parentId) }) {
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, null)
+                            Text(library.folder(folder.parentId)?.name ?: stringResource(R.string.documents))
+                        }
+                    }
+                },
             ) {
-                if (inTrash && items.isNotEmpty()) {
-                    TextButton(onClick = { edit { library.trash().forEach { restore(it.id) } } }) { Text(stringResource(R.string.restore_all)) }
-                    TextButton(onClick = { dialog = LibraryDialog.EmptyTrash }) { Text(stringResource(R.string.empty_trash)) }
+                when {
+                    selecting && selected.isEmpty() -> OutlinedButton(onClick = ::stopSelecting, shape = RoundedCornerShape(50)) {
+                        Text(stringResource(R.string.done))
+                    }
+                    selecting && inTrash -> {
+                        TextButton(onClick = {
+                            val ids = selection
+                            stopSelecting()
+                            edit { ids.forEach { restore(it) } }
+                        }) { Text(restoreLabel) }
+                        TextButton(onClick = { dialog = LibraryDialog.DeleteSelected(selected) }) { Text(deleteLabel) }
+                    }
+                    selecting -> {
+                        val documents = selected.filterIsInstance<Document>()
+                        if (documents.size >= 2 && documents.size == selected.size) {
+                            BarIcon(painterResource(R.drawable.ic_merge), stringResource(R.string.merge)) {
+                                dialog = LibraryDialog.Merge(documents.map { it.id }, mergedName.format(documents.first().title))
+                            }
+                        }
+                        BarIcon(painterResource(R.drawable.ic_duplicate), duplicateLabel) {
+                            val ids = selection
+                            stopSelecting()
+                            duplicate(ids)
+                        }
+                        BarIcon(painterResource(R.drawable.ic_move_to), moveLabel) { dialog = LibraryDialog.Move(selected) }
+                        Box(Modifier.padding(horizontal = 8.dp).width(1.dp).height(22.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                        BarIcon(rememberVectorPainter(Icons.Default.Delete), trashLabel, MaterialTheme.colorScheme.error) {
+                            val ids = selection
+                            stopSelecting()
+                            edit { ids.forEach { trash(it) } }
+                        }
+                    }
+                    else -> {
+                        if (inTrash && items.isNotEmpty()) {
+                            TextButton(onClick = { edit { library.trash().forEach { restore(it.id) } } }) { Text(stringResource(R.string.restore_all)) }
+                            TextButton(onClick = { dialog = LibraryDialog.EmptyTrash }) { Text(stringResource(R.string.empty_trash)) }
+                        }
+                        if (items.isNotEmpty()) {
+                            IconButton(onClick = { selecting = true }) { Icon(Icons.Outlined.CheckCircle, stringResource(R.string.select)) }
+                        }
+                    }
                 }
             }
             FilterRow(filter.takeIf { showsFolder }, { filter = it }, prefs)
@@ -250,7 +328,13 @@ private fun MainPane(
                     items = items,
                     library = library,
                     listView = prefs.listView,
-                    onClick = { if (!inTrash) onOpen(it) },
+                    selection = selection.takeIf { selecting },
+                    onClick = { item ->
+                        when {
+                            selecting -> selection = if (item.id in selection) selection - item.id else selection + item.id
+                            !inTrash -> onOpen(item)
+                        }
+                    },
                     onFavorite = if (inTrash) null else { item -> edit { setFavorite(item.id, !item.favorite) } },
                     actions = { item ->
                         if (inTrash) {
@@ -262,7 +346,8 @@ private fun MainPane(
                             listOfNotNull(
                                 MenuAction(renameLabel) { dialog = LibraryDialog.Rename(item) },
                                 (item as? Document)?.let { MenuAction(settingsLabel) { dialog = LibraryDialog.Settings(it) } },
-                                MenuAction(moveLabel) { dialog = LibraryDialog.Move(item) },
+                                MenuAction(moveLabel) { dialog = LibraryDialog.Move(listOf(item)) },
+                                MenuAction(duplicateLabel) { duplicate(listOf(item.id)) },
                                 (item as? Folder)?.let { MenuAction(colourLabel) { dialog = LibraryDialog.Colour(it) } },
                                 MenuAction(if (item.favorite) unfavoriteLabel else favoriteLabel) { edit { setFavorite(item.id, !item.favorite) } },
                                 MenuAction(trashLabel) { edit { trash(item.id) } },
@@ -273,7 +358,7 @@ private fun MainPane(
                 )
             }
         }
-        if (showsFolder) {
+        if (showsFolder && !selecting) {
             AddMenu(
                 onNewFolder = { dialog = LibraryDialog.NewFolder },
                 onNewNote = { dialog = LibraryDialog.NewNote },
@@ -322,7 +407,24 @@ private fun MainPane(
             onDismiss = { dialog = null },
         )
         is LibraryDialog.Rename -> NameDialog(renameLabel, d.item.displayName, { name -> edit { rename(d.item.id, name) } }, { dialog = null })
-        is LibraryDialog.Move -> MoveDialog(library, d.item, { target -> edit { move(d.item.id, target) } }, { dialog = null })
+        is LibraryDialog.Move -> MoveDialog(library, d.items, { target ->
+            stopSelecting()
+            edit { d.items.forEach { move(it.id, target) } }
+        }, { dialog = null })
+        is LibraryDialog.Merge -> NameDialog(stringResource(R.string.merge), d.title, { name ->
+            stopSelecting()
+            dialog = null
+            scope.launch { runLibraryAction(context) { merge(d.ids, name) }?.let(onOpen) }
+        }, { dialog = null })
+        is LibraryDialog.DeleteSelected -> ConfirmDialog(
+            title = pluralStringResource(R.plurals.delete_items_forever_title, d.items.size, d.items.size),
+            confirm = deleteLabel,
+            onConfirm = {
+                stopSelecting()
+                edit { d.items.forEach { deletePermanently(it.id) } }
+            },
+            onDismiss = { dialog = null },
+        )
         is LibraryDialog.Colour -> ColourDialog(d.folder.color ?: DEFAULT_FOLDER_COLOR, { colour -> edit { setFolderColor(d.folder.id, colour) } }, { dialog = null })
         is LibraryDialog.DeleteForever -> ConfirmDialog(
             title = stringResource(R.string.delete_forever_title, d.item.displayName),
@@ -344,8 +446,7 @@ private fun MainPane(
 private fun TitleBar(
     title: String,
     onMenu: (() -> Unit)?,
-    backLabel: String?,
-    onBack: () -> Unit,
+    leading: @Composable RowScope.() -> Unit,
     actions: @Composable RowScope.() -> Unit,
 ) {
     Box(Modifier.fillMaxWidth().height(56.dp)) {
@@ -353,16 +454,16 @@ private fun TitleBar(
             if (onMenu != null) {
                 IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, stringResource(R.string.open_menu)) }
             }
-            if (backLabel != null) {
-                TextButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, null)
-                    Text(backLabel)
-                }
-            }
+            leading()
         }
         SectionTitle(title, Modifier.align(Alignment.Center))
         Row(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
     }
+}
+
+@Composable
+private fun BarIcon(painter: Painter, label: String, tint: Color = MaterialTheme.colorScheme.onSurface, onClick: () -> Unit) {
+    IconButton(onClick = onClick) { Icon(painter, label, tint = tint, modifier = Modifier.size(22.dp)) }
 }
 
 /** All / PDFs / Notes in the middle (when [filter] is shown), sort and grid/list on the right. */

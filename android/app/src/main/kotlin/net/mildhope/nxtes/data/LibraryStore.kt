@@ -359,6 +359,87 @@ class LibraryStore(
     private fun Page.withTemplate(template: PageTemplate) =
         copy(width = template.width, height = template.height, pdf = template.pdf, background = template.background, turns = 0)
 
+    /**
+     * Copies a document, or a folder with everything in it, next to the original. The copy's name
+     * comes from [name]; what's inside a copied folder keeps its names. Returns the copy's id.
+     */
+    @Synchronized
+    fun duplicate(id: String, name: (String) -> String): String {
+        val library = _state.value
+        val folder = library.folder(id)
+        if (folder == null) {
+            val doc = requireDocument(id)
+            return copyDocument(doc, doc.folderId, name(doc.title)).id
+        }
+
+        val now = clock()
+        val folders = mutableListOf<Folder>()
+        val documents = mutableListOf<Pair<Document, String>>()
+        fun copyFolder(source: Folder, parentId: String?, newName: String): String {
+            val copy = source.copy(id = newId(), name = newName, parentId = parentId, created = now, modified = now, favorite = false)
+            folders += copy
+            library.childFolders(source.id).forEach { copyFolder(it, copy.id, it.name) }
+            library.childDocuments(source.id).forEach { documents += it to copy.id }
+            return copy.id
+        }
+        val copyId = copyFolder(folder, folder.parentId, name(folder.name))
+        writeFolders(library.folders + folders)
+        documents.forEach { (doc, folderId) -> copyDocument(doc, folderId, doc.title) }
+        return copyId
+    }
+
+    private fun copyDocument(source: Document, folderId: String?, title: String): Document {
+        val id = newId()
+        try {
+            documentDir(source.id).copyRecursively(documentDir(id))
+            val now = clock()
+            val copy = source.copy(id = id, title = title, folderId = folderId, created = now, modified = now, opened = null, favorite = false)
+            writeDocument(copy)
+            _state.value = _state.value.let { it.copy(documents = it.documents + copy) }
+            return copy
+        } catch (e: Exception) {
+            documentDir(id).deleteRecursively()
+            throw e
+        }
+    }
+
+    /** Makes a new document from the pages of [ids] in order, next to the first one. The originals stay. */
+    @Synchronized
+    fun merge(ids: List<String>, title: String): Document {
+        val sources = ids.map(::requireDocument)
+        require(sources.size >= 2) { "Merging needs at least two documents" }
+        val first = sources.first()
+        val id = newId()
+        try {
+            val pages = mutableListOf<Page>()
+            val bookmarks = mutableListOf<Bookmark>()
+            val outline = mutableListOf<OutlineItem>()
+            sources.forEach { source ->
+                val newIds = source.pages.associate { it.id to newId() }
+                source.pages.forEach { page ->
+                    page.pdf?.let { copyBlob(source.id, it.blob, id) }
+                    copyInk(source.id, page.id, id, newIds.getValue(page.id))
+                    pages += page.copy(id = newIds.getValue(page.id))
+                }
+                bookmarks += source.bookmarks.mapNotNull { mark -> newIds[mark.pageId]?.let { mark.copy(id = newId(), pageId = it) } }
+                outline += source.outline.mapNotNull { item -> newIds[item.pageId]?.let { item.copy(id = newId(), pageId = it) } }
+            }
+            first.template?.pdf?.let { copyBlob(first.id, it.blob, id) }
+            val now = clock()
+            val doc = Document(
+                id = id, title = title, folderId = first.folderId, created = now, modified = now,
+                note = first.note, cover = first.cover, template = first.template,
+                bookmarks = bookmarks, outline = outline, pages = pages,
+            )
+            writeDocument(doc)
+            _state.value = _state.value.let { it.copy(documents = it.documents + doc) }
+            return doc
+        } catch (e: Exception) {
+            documentDir(id).deleteRecursively()
+            throw e
+        }
+    }
+
     @Synchronized
     fun createFolder(name: String, parentId: String?): Folder {
         val now = clock()
