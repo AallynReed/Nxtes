@@ -250,6 +250,16 @@
     <string name="crop_reset">Whole image</string>
     <string name="sticky_note">Sticky note</string>
     <string name="note_colour">Note colour</string>
+    <string name="palette_basic">Basic</string>
+    <string name="palette_number">Palette %1$d</string>
+    <string name="palette_new">New palette</string>
+    <string name="palette_add_colour">Add this colour to the palette</string>
+    <string name="palette_hint">Tap + to add the current colour. Touch and hold a colour to remove it.</string>
+    <string name="palette_rename">Rename palette</string>
+    <string name="palette_options">Palette options</string>
+    <string name="custom_colour">Custom colour</string>
+    <string name="custom_colour_hide">Hide custom colour</string>
+    <string name="hex_colour">Hex</string>
     <string name="edit_note">Open note</string>
     <string name="sticker">Sticker</string>
     <string name="stickers_recent">Recent</string>

@@ -23,7 +23,9 @@ import net.mildhope.nxtes.pdf.Thumbnails
 import net.mildhope.nxtes.search.SearchIndex
 import net.mildhope.nxtes.search.SearchIndexer
 import net.mildhope.nxtes.sync.SyncManager
+import net.mildhope.nxtes.ui.Palettes
 import net.mildhope.nxtes.viewer.ViewSettings
+import androidx.core.content.edit
 import java.io.File
 import java.util.zip.ZipException
 import kotlin.concurrent.thread
@@ -34,6 +36,10 @@ class NxtesApplication : Application() {
     val tools by lazy { ToolState(getSharedPreferences("tools", MODE_PRIVATE)) }
     val view by lazy { ViewSettings(getSharedPreferences("view", MODE_PRIVATE)) }
     val libraryPrefs by lazy { LibraryPrefs(getSharedPreferences("library", MODE_PRIVATE)) }
+    val palettes by lazy {
+        val prefs = getSharedPreferences("palettes", MODE_PRIVATE)
+        Palettes({ prefs.getString("palettes", null) }, { prefs.edit { putString("palettes", it) } })
+    }
 
     /** Pages copied in the page navigator, waiting to be pasted. */
     var copiedPages by mutableStateOf<CopiedPages?>(null)

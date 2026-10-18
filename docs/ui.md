@@ -100,7 +100,9 @@ Full screen, for New note and for an item's "Cover and template".
 - **Toolbar (48 dp, white).**
   - Left: back to the library, and the page navigator.
   - Centre: the pen/gesture mode switch, then the pens as small upright pen glyphs in their
-    colours. The selected pen sits raised; tapping it again opens its settings. A shape pen is a
+    colours. The selected pen sits raised; tapping it again opens its settings. Every colour
+    choice (pens, text, notes, masking, laser, folders) offers its own colours, the saved palettes,
+    and a custom colour from a shade square, hue bar or hex code that can be added to a palette. A shape pen is a
     pen type with a shape, line style, fill and polygon sides. After a "+" to add a pen come the
     eraser, lasso, image, text box, sticky note, sticker, masking and laser. Tapping a selected
     tool opens its settings.

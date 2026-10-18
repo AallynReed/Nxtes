@@ -76,6 +76,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.R
+import net.mildhope.nxtes.ui.ColourChooser
 import net.mildhope.nxtes.edit.StickerPanel
 import net.mildhope.nxtes.edit.importSticker
 import net.mildhope.nxtes.edit.ref
@@ -481,19 +482,7 @@ private fun MaskSettings(tools: ToolState) {
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-            ToolState.MASK_COLORS.forEach { colour ->
-                val selected = colour == tools.maskColor
-                Box(
-                    Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color(colour))
-                        .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                        .clickable { tools.updateMask(tools.maskKind, colour, tools.maskWidth) },
-                )
-            }
-        }
+        ColourChooser(tools.maskColor, ToolState.MASK_COLORS, { tools.updateMask(tools.maskKind, it, tools.maskWidth) }, Modifier.padding(vertical = 8.dp))
         if (tools.maskKind == MaskKind.PEN) {
             Text(stringResource(R.string.mask_size, tools.maskWidth.roundToInt()), style = MaterialTheme.typography.labelLarge)
             Slider(
@@ -509,7 +498,7 @@ private fun MaskSettings(tools: ToolState) {
 /** Dot or trailing line, and the laser's colour. */
 @Composable
 private fun LaserSettings(tools: ToolState) {
-    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(280.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(LaserMode.DOT to R.string.laser_dot, LaserMode.LINE to R.string.laser_line).forEach { (mode, label) ->
                 FilterChip(
@@ -519,40 +508,16 @@ private fun LaserSettings(tools: ToolState) {
                 )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-            ToolState.LASER_COLORS.forEach { colour ->
-                val selected = colour == tools.laserColor
-                Box(
-                    Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color(colour))
-                        .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                        .clickable { tools.updateLaser(tools.laserMode, colour) },
-                )
-            }
-        }
+        ColourChooser(tools.laserColor, ToolState.LASER_COLORS, { tools.updateLaser(tools.laserMode, it) }, Modifier.padding(top = 8.dp))
     }
 }
 
 /** The colour new sticky notes get. */
 @Composable
 private fun NoteSettings(tools: ToolState) {
-    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(280.dp)) {
         Text(stringResource(R.string.note_colour), style = MaterialTheme.typography.labelLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-            ToolState.NOTE_COLORS.forEach { colour ->
-                val selected = colour == tools.noteColor
-                Box(
-                    Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color(colour))
-                        .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                        .clickable { tools.updateNoteColor(colour) },
-                )
-            }
-        }
+        ColourChooser(tools.noteColor, ToolState.NOTE_COLORS, { tools.updateNoteColor(it) }, Modifier.padding(top = 8.dp))
     }
 }
 
@@ -679,21 +644,7 @@ private fun PenSettings(preset: PenPreset, onChange: (PenPreset) -> Unit, onDele
                 )
             }
         }
-        ToolState.PALETTE.chunked(6).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                row.forEach { swatch ->
-                    val chosen = (swatch and 0xFFFFFF) == (preset.color and 0xFFFFFF)
-                    Box(
-                        Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Color(swatch))
-                            .border(if (chosen) 3.dp else 1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                            .clickable { onChange(preset.copy(color = withAlpha(swatch, preset.color ushr 24))) },
-                    )
-                }
-            }
-        }
+        ColourChooser(preset.color, ToolState.PALETTE, { onChange(preset.copy(color = withAlpha(it, preset.color ushr 24))) })
         if (preset.pen == Pen.SHAPE) ShapeSettings(preset, onChange)
         LabelledSlider(
             label = stringResource(R.string.pen_size, preset.size),

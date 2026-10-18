@@ -24,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -36,6 +37,10 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import net.mildhope.nxtes.R
+import net.mildhope.nxtes.ui.ColourChooser
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Alignment
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.data.Folder
 import net.mildhope.nxtes.data.Library
@@ -66,30 +71,20 @@ fun NameDialog(title: String, initial: String, onConfirm: (String) -> Unit, onDi
     )
 }
 
+/** Picks a folder colour, previewed on a folder, applied with OK. */
 @Composable
 fun ColourDialog(current: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    var colour by remember { mutableIntStateOf(current) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.folder_colour)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                FOLDER_COLORS.chunked(4).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        row.forEach { colour ->
-                            Box(
-                                Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(colour))
-                                    .border(if (colour == current) 3.dp else 0.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                    .clickable { onPick(colour) },
-                            )
-                        }
-                    }
-                }
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(painterResource(R.drawable.ic_folder), null, tint = Color(colour), modifier = Modifier.size(64.dp).align(Alignment.CenterHorizontally))
+                ColourChooser(colour, FOLDER_COLORS, { colour = it })
             }
         },
-        confirmButton = {},
+        confirmButton = { TextButton(onClick = { onPick(colour) }) { Text(stringResource(R.string.ok)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }

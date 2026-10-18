@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import net.mildhope.nxtes.R
+import net.mildhope.nxtes.ui.ColourChooser
 import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.ink.ToolState
@@ -234,30 +236,14 @@ private fun ColourDot(colour: Color?, label: String, allowNone: Boolean, onPick:
                 .clickable(onClickLabel = label) { open = true },
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.padding(horizontal = 12.dp).width(280.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (allowNone) {
                     TextButton(onClick = {
                         open = false
                         onPick(0)
                     }) { Text(stringResource(R.string.no_fill)) }
                 }
-                ToolState.PALETTE.chunked(6).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        row.forEach { swatch ->
-                            Box(
-                                Modifier
-                                    .size(30.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(if (allowNone) (swatch and 0xFFFFFF) or 0x55000000 else swatch))
-                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                                    .clickable {
-                                        open = false
-                                        onPick(if (allowNone) (swatch and 0xFFFFFF) or 0x55000000 else swatch)
-                                    },
-                            )
-                        }
-                    }
-                }
+                ColourChooser(colour?.toArgb() ?: 0, ToolState.PALETTE, { onPick(if (allowNone) (it and 0xFFFFFF) or 0x55000000 else it) })
             }
         }
     }
