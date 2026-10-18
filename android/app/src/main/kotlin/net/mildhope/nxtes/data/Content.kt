@@ -1,5 +1,6 @@
 package net.mildhope.nxtes.data
 
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -10,7 +11,7 @@ import kotlin.math.sqrt
 
 /**
  * Everything on a page besides its background, in page points. Drawn bottom to top: text marks,
- * objects (in list order), highlighter ink, other ink, sticky notes, masks.
+ * objects (in list order), highlighter ink, other ink, sticky notes, masks. Links aren't drawn.
  */
 data class PageContent(
     val strokes: List<InkStroke> = emptyList(),
@@ -18,8 +19,9 @@ data class PageContent(
     val notes: List<StickyNote> = emptyList(),
     val masks: List<Mask> = emptyList(),
     val marks: List<TextMark> = emptyList(),
+    val links: List<Link> = emptyList(),
 ) {
-    val isEmpty get() = strokes.isEmpty() && objects.isEmpty() && notes.isEmpty() && masks.isEmpty() && marks.isEmpty()
+    val isEmpty get() = strokes.isEmpty() && objects.isEmpty() && notes.isEmpty() && masks.isEmpty() && marks.isEmpty() && links.isEmpty()
 
     /** Blobs in the document package that this content refers to. */
     val blobs: Set<String>
@@ -37,6 +39,7 @@ data class PageContent(
         notes = notes.map { note -> t.map(note.x, note.y).let { (x, y) -> note.copy(x = x, y = y) } },
         masks = masks.map { it.transformed(t) },
         marks = marks.map { it.transformed(t) },
+        links = links.map { it.transformed(t) },
     )
 
     /** A copy whose items all have fresh ids, for pasting. */
@@ -54,11 +57,12 @@ data class PageContent(
         notes = notes.map { it.copy(id = newId()) },
         masks = masks.map { it.copy(id = newId()) },
         marks = marks.map { TextMark(newId(), it.kind, it.color, it.rects, it.text) },
+        links = links.map { it.copy(id = newId()) },
     )
 
     /** This content with [other]'s items added on top of their kinds. */
     operator fun plus(other: PageContent) = PageContent(
-        strokes + other.strokes, objects + other.objects, notes + other.notes, masks + other.masks, marks + other.marks,
+        strokes + other.strokes, objects + other.objects, notes + other.notes, masks + other.masks, marks + other.marks, links + other.links,
     )
 
     companion object {
@@ -246,6 +250,25 @@ class TextMark(val id: String, val kind: MarkKind, val color: Int, val rects: Fl
             out[i + 2] = max(x0, x1) - out[i]; out[i + 3] = max(y0, y1) - out[i + 1]
         }
         return TextMark(id, kind, color, out, text)
+    }
+}
+
+/** A tappable box that isn't drawn: it goes to page [pageId] of the same document, or else opens [url]. */
+data class Link(
+    val id: String,
+    val x: Float,
+    val y: Float,
+    val width: Float,
+    val height: Float,
+    val pageId: String? = null,
+    val url: String? = null,
+) {
+    fun contains(px: Float, py: Float, slop: Float = 0f) = px >= x - slop && px <= x + width + slop && py >= y - slop && py <= y + height + slop
+
+    fun transformed(t: Affine): Link {
+        val (x0, y0) = t.map(x, y)
+        val (x1, y1) = t.map(x + width, y + height)
+        return copy(x = min(x0, x1), y = min(y0, y1), width = abs(x1 - x0), height = abs(y1 - y0))
     }
 }
 

@@ -4,13 +4,14 @@ package nxtes;
 
 // What's on one page besides its background: pages/<page-id>.pb inside a document package.
 // Coordinates are page points from the top-left corner. Drawn bottom to top: marks, objects in
-// order, highlighter strokes, other strokes, notes, masks.
+// order, highlighter strokes, other strokes, notes, masks. Links aren't drawn.
 message PageContent {
   repeated InkStroke strokes = 1;
   repeated PageObject objects = 2;
   repeated StickyNote notes = 3;
   repeated Mask masks = 4;
   repeated TextMark marks = 5;
+  repeated Link links = 6;
 }
 
 message InkStroke {
@@ -159,4 +160,15 @@ message TextMark {
   fixed32 color = 3;
   repeated float rects = 4;
   string text = 5;
+}
+
+// A tappable box that goes to a page of the same document, or else opens a URL.
+message Link {
+  string id = 1;
+  float x = 2;
+  float y = 3;
+  float width = 4;
+  float height = 5;
+  string page = 6;  // target page id
+  string url = 7;
 }

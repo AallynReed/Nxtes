@@ -287,6 +287,24 @@ class LibraryStoreTest {
     }
 
     @Test
+    fun pageLinksFollowCopiedAndMergedPages() {
+        val doc = import()
+        val (first, second) = doc.pages
+        val links = listOf(Link("l1", 0f, 0f, 10f, 10f, pageId = second.id), Link("l2", 0f, 20f, 10f, 10f, url = "https://example.org"))
+        store.writePages(doc.id, mapOf(first.id to PageContent(links = links)))
+        val note = store.createNote("Ideas", null, TemplateChoice(), cover = null)
+
+        val copies = store.copyPages(doc.id, listOf(first.id, second.id), note.id)
+        assertEquals(copies[1].id, store.readPage(note.id, copies[0].id).links[0].pageId)
+
+        val merged = store.merge(listOf(doc.id, note.id), "Both")
+        val relinked = store.readPage(merged.id, merged.pages[0].id).links
+        assertEquals(listOf(merged.pages[1].id, null), relinked.map { it.pageId })
+        assertEquals("https://example.org", relinked[1].url)
+        assertEquals(links, store.readPage(doc.id, first.id).links)
+    }
+
+    @Test
     fun movingEveryPageTrashesTheSourceAndPrunesItsBlobs() {
         val pdf = import()
         val note = store.createNote("Ideas", null, TemplateChoice(), cover = null)

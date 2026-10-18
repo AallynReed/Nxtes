@@ -425,9 +425,11 @@ class LibraryStore(
     /** Copies pages, with their content and PDF pages, into another document at [index], or at the end. */
     @Synchronized
     fun copyPages(fromId: String, pageIds: Collection<String>, toId: String, index: Int? = null): List<Page> {
-        val copies = requireDocument(fromId).pages.filter { it.id in pageIds }.map { page ->
+        val sources = requireDocument(fromId).pages.filter { it.id in pageIds }
+        val newIds = sources.associate { it.id to newId() }
+        val copies = sources.map { page ->
             page.pdf?.let { copyBlob(fromId, it.blob, toId) }
-            page.copy(id = newId()).also { copyContent(fromId, page.id, toId, it.id) }
+            page.copy(id = newIds.getValue(page.id)).also { copyContent(fromId, page.id, toId, it.id, newIds) }
         }
         updateDocument(toId) { doc ->
             val at = (index ?: doc.pages.size).coerceIn(0, doc.pages.size)
@@ -459,13 +461,17 @@ class LibraryStore(
         Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
     }
 
-    /** Copies a page's content and the blobs it uses. */
-    private fun copyContent(fromDocument: String, fromPage: String, toDocument: String, toPage: String) {
+    /** Copies a page's content and the blobs it uses, pointing links to copied pages at the copies in [pageIds]. */
+    private fun copyContent(fromDocument: String, fromPage: String, toDocument: String, toPage: String, pageIds: Map<String, String> = emptyMap()) {
         val source = pageFile(fromDocument, fromPage)
         if (!source.exists()) return
         val bytes = source.readBytes()
-        PageCodec.decode(bytes).blobs.forEach { copyBlob(fromDocument, it, toDocument) }
-        writeAtomically(pageFile(toDocument, toPage), bytes)
+        val content = PageCodec.decode(bytes)
+        content.blobs.forEach { copyBlob(fromDocument, it, toDocument) }
+        val relinked = if (content.links.none { pageIds[it.pageId] != null }) bytes else PageCodec.encode(
+            content.copy(links = content.links.map { link -> pageIds[link.pageId]?.let { link.copy(pageId = it) } ?: link }),
+        )
+        writeAtomically(pageFile(toDocument, toPage), relinked)
     }
 
     /** Deletes blobs that no page, page content, template or recording of the document refers to any more. */
@@ -560,7 +566,7 @@ class LibraryStore(
                 val newIds = source.pages.associate { it.id to newId() }
                 source.pages.forEach { page ->
                     page.pdf?.let { copyBlob(source.id, it.blob, id) }
-                    copyContent(source.id, page.id, id, newIds.getValue(page.id))
+                    copyContent(source.id, page.id, id, newIds.getValue(page.id), newIds)
                     pages += page.copy(id = newIds.getValue(page.id))
                 }
                 bookmarks += source.bookmarks.mapNotNull { mark -> newIds[mark.pageId]?.let { mark.copy(id = newId(), pageId = it) } }

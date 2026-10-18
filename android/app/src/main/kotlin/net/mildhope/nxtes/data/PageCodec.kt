@@ -25,6 +25,7 @@ object PageCodec {
         @ProtoNumber(3) val notes: List<WireNote> = emptyList(),
         @ProtoNumber(4) val masks: List<WireMask> = emptyList(),
         @ProtoNumber(5) val marks: List<WireMark> = emptyList(),
+        @ProtoNumber(6) val links: List<WireLink> = emptyList(),
     )
 
     @Serializable
@@ -128,6 +129,17 @@ object PageCodec {
         @ProtoNumber(5) val text: String = "",
     )
 
+    @Serializable
+    private class WireLink(
+        @ProtoNumber(1) val id: String,
+        @ProtoNumber(2) val x: Float,
+        @ProtoNumber(3) val y: Float,
+        @ProtoNumber(4) val width: Float,
+        @ProtoNumber(5) val height: Float,
+        @ProtoNumber(6) val page: String = "",
+        @ProtoNumber(7) val url: String = "",
+    )
+
     fun encode(content: PageContent): ByteArray = ProtoBuf.encodeToByteArray(
         WirePage(
             strokes = content.strokes.map(::toWire),
@@ -135,6 +147,7 @@ object PageCodec {
             notes = content.notes.map { WireNote(it.id, it.x, it.y, it.text, it.color, it.created) },
             masks = content.masks.map { WireMask(it.id, it.kind.code, it.xs.toList(), it.ys.toList(), it.width, it.color, it.tries, it.correct) },
             marks = content.marks.map { WireMark(it.id, it.kind.code, it.color, it.rects.toList(), it.text) },
+            links = content.links.map { WireLink(it.id, it.x, it.y, it.width, it.height, it.pageId.orEmpty(), it.url.orEmpty()) },
         ),
     )
 
@@ -146,6 +159,7 @@ object PageCodec {
             notes = wire.notes.map { StickyNote(it.id, it.x, it.y, it.text, it.color, it.created) },
             masks = wire.masks.map { Mask(it.id, MaskKind.fromCode(it.kind), it.x.toFloatArray(), it.y.toFloatArray(), it.width, it.color, it.tries, it.correct) },
             marks = wire.marks.map { TextMark(it.id, MarkKind.fromCode(it.kind), it.color, it.rects.toFloatArray(), it.text) },
+            links = wire.links.map { Link(it.id, it.x, it.y, it.width, it.height, it.page.ifEmpty { null }, it.url.ifEmpty { null }) },
         )
     }
 

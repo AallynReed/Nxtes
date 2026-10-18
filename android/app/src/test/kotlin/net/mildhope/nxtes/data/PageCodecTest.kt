@@ -58,7 +58,7 @@ class PageCodecTest {
     }
 
     @Test
-    fun objectsNotesMasksAndMarksRoundTrip() {
+    fun objectsNotesMasksMarksAndLinksRoundTrip() {
         val content = PageContent(
             objects = listOf(
                 Shape("sh", ShapeKind.ELLIPSE, floatArrayOf(1f, 9f, 9f, 1f), floatArrayOf(2f, 2f, 8f, 8f), 0xFF112233.toInt(), 2f, fill = 0x40FF0000, line = LineStyle.DASHED),
@@ -68,6 +68,7 @@ class PageCodecTest {
             notes = listOf(StickyNote("no", 5f, 6f, "Remember", 0xFFFFE082.toInt(), 99)),
             masks = listOf(Mask("ma", MaskKind.PEN, floatArrayOf(1f, 2f), floatArrayOf(3f, 4f), 12f, 0xFFFF8A65.toInt(), tries = 3, correct = 2)),
             marks = listOf(TextMark("mk", MarkKind.UNDERLINE, 0xFF0000FF.toInt(), floatArrayOf(1f, 2f, 3f, 4f), "text")),
+            links = listOf(Link("lp", 1f, 2f, 30f, 40f, pageId = "p2"), Link("lu", 5f, 6f, 7f, 8f, url = "https://example.org")),
         )
 
         val decoded = PageCodec.decode(PageCodec.encode(content))
@@ -81,6 +82,7 @@ class PageCodecTest {
         assertEquals(content.notes, decoded.notes)
         assertEquals(Triple(MaskKind.PEN, 3, 2), decoded.masks.single().let { Triple(it.kind, it.tries, it.correct) })
         assertEquals("text", decoded.marks.single().text)
+        assertEquals(content.links, decoded.links)
         assertEquals(setOf("abc", "def"), decoded.blobs)
     }
 
@@ -92,5 +94,7 @@ class PageCodecTest {
         assertEquals(200f - 25f, box.centerX, 0.001f)
         assertEquals(25f, box.centerY, 0.001f)
         assertEquals(90f, box.rotation, 0.001f)
+        val link = Link("l", 10f, 20f, 30f, 10f, url = "u").transformed(turn)
+        assertEquals(listOf(170f, 10f, 10f, 30f), listOf(link.x, link.y, link.width, link.height))
     }
 }
