@@ -1,6 +1,7 @@
 package net.mildhope.nxtes.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -62,7 +63,10 @@ private val DarkScheme = darkColorScheme(
 @Composable
 fun NxtesTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
+    val scheme = if (dark) DarkScheme else LightScheme
     CompositionLocalProvider(LocalNxtesColors provides if (dark) DarkNxtes else LightNxtes) {
-        MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme, content = content)
+        MaterialTheme(colorScheme = scheme) {
+            CompositionLocalProvider(LocalContentColor provides scheme.onSurface, content = content)
+        }
     }
 }
