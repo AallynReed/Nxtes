@@ -62,6 +62,8 @@ data class Page(
     val background: Background? = null,
     /** Clockwise quarter turns applied to the PDF page or background, 0 to 3. */
     val turns: Int = 0,
+    /** Whether the PDF page's own annotations show; off where another app took them over. */
+    val pdfAnnotations: Boolean = true,
 )
 
 @Serializable

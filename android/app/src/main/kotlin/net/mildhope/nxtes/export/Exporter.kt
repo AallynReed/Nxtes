@@ -160,6 +160,7 @@ class Exporter(
                 val source = original(page)
                 val (target, toPage) = if (source != null) {
                     val imported = output.importPage(source)
+                    if (!page.pdfAnnotations) imported.annotations = imported.annotations.filter { it.subtype == "Link" }
                     val rotation = (source.rotation + 90 * page.turns).mod(360)
                     imported.rotation = rotation
                     val matrix = overlayToPage(imported.cropBox, rotation, width, height)

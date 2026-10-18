@@ -60,7 +60,13 @@ internal class FPoint(val x: Float = 0f, val y: Float = 0f)
 internal class AttachmentPage(val file: String = "", val index: Int = 0)
 
 @Serializable
-internal class PageEntry(val key: String = "", val frame: FRect = FRect(), val rotate: Float = 0f, val attachmentPage: AttachmentPage? = null)
+internal class PageEntry(
+    val key: String = "",
+    val frame: FRect = FRect(),
+    val rotate: Float = 0f,
+    val attachmentPage: AttachmentPage? = null,
+    val annotationSubtypes: List<Int> = emptyList(),
+)
 
 @Serializable
 internal class ObjectRef(val type: Int = 0, val key: String = "")

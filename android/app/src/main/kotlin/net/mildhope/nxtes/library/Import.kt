@@ -49,7 +49,12 @@ suspend fun importFlexcil(context: Context, uri: Uri, folderId: String?): Int {
             val copy = File(context.cacheDir, "flexcil-import")
             try {
                 requireNotNull(context.contentResolver.openInputStream(uri)).use { input -> copy.outputStream().use { input.copyTo(it) } }
-                FlexcilImporter(context.nxtes.library, File(context.cacheDir, "flexcil"), context.getString(R.string.recording_now)).import(copy, folderId)
+                FlexcilImporter(
+                    store = context.nxtes.library,
+                    workDir = File(context.cacheDir, "flexcil"),
+                    recordingTitle = context.getString(R.string.recording_now),
+                    onFailure = { entry, error -> Log.w(TAG, "Couldn't import $entry from Flexcil", error) },
+                ).import(copy, folderId)
             } finally {
                 copy.delete()
             }

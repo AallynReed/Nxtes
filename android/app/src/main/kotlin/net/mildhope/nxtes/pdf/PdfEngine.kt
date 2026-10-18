@@ -82,7 +82,7 @@ class PdfEngine(context: Context) {
      * Draws the page at [left],[top] with size [width]x[height] in bitmap pixels, turned clockwise
      * by [turns] quarter turns. Offsets may be negative to render only part of a zoomed page.
      */
-    suspend fun render(file: File, pageIndex: Int, bitmap: Bitmap, left: Int, top: Int, width: Int, height: Int, turns: Int = 0) =
+    suspend fun render(file: File, pageIndex: Int, bitmap: Bitmap, left: Int, top: Int, width: Int, height: Int, turns: Int = 0, annotations: Boolean = true) =
         withContext(Dispatchers.IO) {
             synchronized(open) {
                 val doc = open.getOrPut(file.path) { openFile(file) }
@@ -90,14 +90,14 @@ class PdfEngine(context: Context) {
                     if (turns % 4 == 0) {
                         page.renderPageBitmap(
                             bitmap, left, top, width, height,
-                            renderAnnot = true,
+                            renderAnnot = annotations,
                             canvasColor = 0,
                             pageBackgroundColor = WHITE,
                         )
                     } else {
                         val matrix = turnMatrix(page.getPageWidthPoint(), page.getPageHeightPoint(), turns, left, top, width, height)
                         val clip = RectF(0f, 0f, bitmap.width.toFloat(), bitmap.height.toFloat())
-                        page.renderPageBitmap(bitmap, matrix, clip, true, false, 0, WHITE)
+                        page.renderPageBitmap(bitmap, matrix, clip, annotations, false, 0, WHITE)
                     }
                 }
             }

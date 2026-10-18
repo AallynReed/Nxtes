@@ -68,6 +68,7 @@ class FlexcilImporterTest {
         assertEquals(listOf(pdf, pdf, null), lecture.pages.map { it.pdf?.blob })
         assertEquals(listOf(0, 1), lecture.pages.mapNotNull { it.pdf?.index })
         assertEquals(listOf(0, 1, 0), lecture.pages.map { it.turns })
+        assertEquals(listOf(false, true, true), lecture.pages.map { it.pdfAnnotations })
         assertTrue(store.blobFile(lecture.id, pdf).exists())
         assertEquals(listOf("Start", "Second"), lecture.bookmarks.map { it.title })
         assertEquals(lecture.pages[1].id, lecture.bookmarks[1].pageId)
@@ -162,12 +163,13 @@ class FlexcilImporterTest {
         assertEquals(listOf("A", "B"), decodeArray(text, ObjectRef.serializer()).map { it.key })
     }
 
-    private fun lecture(): ByteArray = zip(
+    private fun lecture(slashed: Boolean = false): ByteArray = zip(
+        slashed,
         "info" to """{"key":"DOC1","name":"Lecture <1>","type":4,"createDate":1.7E9,"modifiedDate":1.7E9,"attachments":{"PDF1":""},"version":"0.0.5"}""",
         ".itemInfo" to envelope("""{"originKey":"F1","favorite":true}"""),
         "pages.index" to """[
-            {"key":"P1","frame":{"x":0.0,"y":0.0,"width":600.0,"height":800.0},"rotate":0.0,"attachmentPage":{"file":"PDF1","index":0}},
-            {"key":"P2","frame":{"x":0.0,"y":0.0,"width":600.0,"height":800.0},"rotate":90.0,"attachmentPage":{"file":"PDF1","index":1}},
+            {"key":"P1","frame":{"x":0.0,"y":0.0,"width":600.0,"height":800.0},"rotate":0.0,"attachmentPage":{"file":"PDF1","index":0},"annotationSubtypes":[1,2,3,9,15]},
+            {"key":"P2","frame":{"x":0.0,"y":0.0,"width":600.0,"height":800.0},"rotate":90.0,"attachmentPage":{"file":"PDF1","index":1},"annotationSubtypes":[2]},
             {"key":"P3","frame":{"x":0.0,"y":0.0,"width":600.0,"height":800.0},"rotate":0.0}]""",
         "attachment/PDF/PDF1" to PDF,
         "attachment/image/IMG1" to "pixels".toByteArray(),
@@ -207,10 +209,11 @@ class FlexcilImporterTest {
     )
 
     private fun backup(): ByteArray = zip(
+        true,
         "flexcilbackup/info" to """{"appName":"FlexcilNote_Android","backupDate":"2026-10-18 10.00.00","appVersion":"1.5.0.13","version":"4.0.0"}""",
         "flexcilbackup/Documents/School_Work/.itemInfo" to envelope("""{"originKey":"F1","name":"School/Work","color":"Green","createDate":1.6E9,"modifiedDate":1.6E9,"favorite":true}"""),
         "flexcilbackup/Documents/School_Work/Math/.itemInfo" to envelope("""{"originKey":"F2","name":"Math"}"""),
-        "flexcilbackup/Documents/School_Work/Math/Lecture _1_.flx" to lecture(),
+        "flexcilbackup/Documents/School_Work/Math/Lecture _1_.flx" to lecture(slashed = true),
         "flexcilbackup/Documents/Paper.flx" to paper(),
         "flexcilbackup/Documents/Broken.flx" to "not a document".toByteArray(),
         "flexcilbackup/Recordings/AUD1.fab" to recording(),
@@ -220,12 +223,15 @@ class FlexcilImporterTest {
     private companion object {
         val PDF = "%PDF-1.4 pretend".toByteArray()
 
-        fun zip(vararg entries: Pair<String, Any>): ByteArray {
+        fun zip(vararg entries: Pair<String, Any>): ByteArray = zip(false, *entries)
+
+        /** A ZIP; [slashed] starts file names with a slash, as some Flexcil versions write them. */
+        fun zip(slashed: Boolean, vararg entries: Pair<String, Any>): ByteArray {
             val out = ByteArrayOutputStream()
             ZipOutputStream(out).use { zip ->
                 zip.setLevel(0)
                 entries.forEach { (name, content) ->
-                    zip.putNextEntry(ZipEntry(name))
+                    zip.putNextEntry(ZipEntry(if (slashed && !name.endsWith("/")) "/$name" else name))
                     zip.write(if (content is ByteArray) content else (content as String).toByteArray())
                     zip.closeEntry()
                 }

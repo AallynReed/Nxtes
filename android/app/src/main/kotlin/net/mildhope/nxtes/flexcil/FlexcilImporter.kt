@@ -26,7 +26,9 @@ import net.mildhope.nxtes.data.StickyNote
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.data.TextMark
 import net.mildhope.nxtes.ink.ToolState
+import java.io.Closeable
 import java.io.File
+import java.io.InputStream
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.zip.ZipFile
@@ -48,6 +50,7 @@ class FlexcilImporter(
     private val recordingTitle: String = "Recording",
     private val clock: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    private val onFailure: (entry: String, error: Throwable) -> Unit = { _, _ -> },
 ) {
     data class Result(val documents: Int, val failed: Int)
 
@@ -59,16 +62,16 @@ class FlexcilImporter(
         workDir.deleteRecursively()
         workDir.mkdirs()
         try {
-            val zip = runCatching { ZipFile(file) }.getOrElse { throw NotFlexcil() }
+            val zip = runCatching { Archive(ZipFile(file)) }.getOrElse { throw NotFlexcil() }
             return zip.use { importFrom(it, file.nameWithoutExtension, folderId) }
         } finally {
             workDir.deleteRecursively()
         }
     }
 
-    private fun importFrom(zip: ZipFile, name: String, folderId: String?): Result {
-        val names = zip.entries().asSequence().map { it.name }.toList()
-        if (zip.getEntry("pages.index") != null || zip.getEntry("pages.index_back") != null) {
+    private fun importFrom(zip: Archive, name: String, folderId: String?): Result {
+        val names = zip.names.toList()
+        if ("pages.index" in zip.names || "pages.index_back" in zip.names) {
             importDocument(zip, name, folderId, emptyMap(), emptyMap())
             return Result(1, 0)
         }
@@ -110,18 +113,21 @@ class FlexcilImporter(
             val dir = if ('/' in relative) relative.substringBeforeLast('/') + "/" else ""
             runCatching {
                 val flx = extract(zip, entry)
-                ZipFile(flx).use { importDocument(it, relative.substringAfterLast('/').removeSuffix(".flx"), folderFor(dir), recordings, times) }
+                Archive(ZipFile(flx)).use { importDocument(it, relative.substringAfterLast('/').removeSuffix(".flx"), folderFor(dir), recordings, times) }
                 flx.delete()
-            }.onSuccess { imported++ }.onFailure { failed++ }
+            }.onSuccess { imported++ }.onFailure {
+                failed++
+                onFailure(entry, it)
+            }
         }
         return Result(imported, failed)
     }
 
-    private fun readRecording(zip: ZipFile, entry: String, into: MutableMap<String, Audio>, times: MutableMap<String, Long>) {
+    private fun readRecording(zip: Archive, entry: String, into: MutableMap<String, Audio>, times: MutableMap<String, Long>) {
         val key = entry.substringAfterLast('/').removeSuffix(".fab")
         val fab = extract(zip, entry)
-        ZipFile(fab).use { inner ->
-            val names = inner.entries().asSequence().map { it.name }.toList()
+        Archive(ZipFile(fab)).use { inner ->
+            val names = inner.names.toList()
             val audio = names.firstOrNull { it.endsWith(".flxa") } ?: names.firstOrNull { it.endsWith(".flxa_back") } ?: return
             val info = names.firstOrNull { it.endsWith(".rinfo") }?.let { inner.decode(it, RecordingInfo.serializer()) } ?: return
             names.firstOrNull { it.endsWith(".rsync") }?.let { inner.decode(it, SyncList.serializer()) }?.items?.forEach {
@@ -131,12 +137,12 @@ class FlexcilImporter(
         }
     }
 
-    private fun importDocument(zip: ZipFile, fallbackTitle: String, folderId: String?, recordings: Map<String, Audio>, times: Map<String, Long>) {
+    private fun importDocument(zip: Archive, fallbackTitle: String, folderId: String?, recordings: Map<String, Audio>, times: Map<String, Long>) {
         val info = zip.decode("info", DocumentInfo.serializer()) ?: DocumentInfo()
         val favorite = zip.bytes(".itemInfo")?.let { runCatching { flexJson.decodeFromString(DocumentItemInfo.serializer(), inflateEnvelope(it)).favorite }.getOrNull() } ?: false
         val entries = zip.list("pages.index", PageEntry.serializer())
         require(entries.isNotEmpty()) { "The document has no pages" }
-        val names = zip.entries().asSequence().map { it.name }.toList()
+        val names = zip.names.toList()
         val blobs = mutableMapOf<String, File>()
         fun keep(file: File) = sha256(file).also { blobs[it] = file }
         fun attachments(prefix: String) = names.filter { it.startsWith(prefix) && !it.endsWith("/") && !it.endsWith("_back") }
@@ -154,7 +160,8 @@ class FlexcilImporter(
             val frameHeight = entry.frame.height.takeIf { it > 0 } ?: DEFAULT_HEIGHT
             val (width, height) = if (turns % 2 == 1) frameHeight to frameWidth else frameWidth to frameHeight
             val pdf = entry.attachmentPage?.let { source -> pdfs[source.file]?.let { PdfSource(it, source.index) } }
-            val page = Page(newId(), width, height, pdf, turns = if (pdf != null) turns else 0)
+            val hidden = entry.annotationSubtypes.ifEmpty { listOf(PDF_LINK) }
+            val page = Page(newId(), width, height, pdf, turns = if (pdf != null) turns else 0, pdfAnnotations = hidden.all { it == PDF_LINK })
             pageIds[entry.key] = page.id
             pages += page
             val content = PageConverter(width, images, times, modified).convert(zip, entry.key)
@@ -205,7 +212,7 @@ class FlexcilImporter(
 
         private fun timeOf(key: String) = times[key] ?: (fallbackTime + order++)
 
-        fun convert(zip: ZipFile, pageKey: String): PageContent {
+        fun convert(zip: Archive, pageKey: String): PageContent {
             val base = "objects/$pageKey"
             val items = LinkedHashMap<String, Any>()
             fun put(key: String, item: Any?) {
@@ -442,9 +449,22 @@ class FlexcilImporter(
         }
     }
 
-    private fun extract(zip: ZipFile, name: String): File {
+    /** A ZIP read by entry names without a leading slash, since Flexcil writes names both ways. */
+    private class Archive(private val zip: ZipFile) : Closeable {
+        private val entries = zip.entries().asSequence().filter { !it.isDirectory }.associateBy { it.name.trimStart('/') }
+
+        val names: Set<String> get() = entries.keys
+
+        fun bytes(name: String): ByteArray? = entries[name]?.let { entry -> zip.getInputStream(entry).use { it.readBytes() } }
+
+        fun open(name: String): InputStream = zip.getInputStream(entries.getValue(name))
+
+        override fun close() = zip.close()
+    }
+
+    private fun extract(zip: Archive, name: String): File {
         val target = File(workDir, newId())
-        zip.getInputStream(zip.getEntry(name)).use { input -> target.outputStream().use { input.copyTo(it) } }
+        zip.open(name).use { input -> target.outputStream().use { input.copyTo(it) } }
         return target
     }
 
@@ -460,6 +480,7 @@ class FlexcilImporter(
         const val FREE_CROP_GAP = -9f
         const val OPAQUE = 0xFF000000.toInt()
         const val TYPE_PDF = 0
+        const val PDF_LINK = 2
         const val TYPE_NOTE = 4
         const val TYPE_PLANNER = 5
         const val TYPE_HIGHLIGHTER_INK = 2
@@ -544,17 +565,15 @@ class FlexcilImporter(
             return digest.digest().joinToString("") { "%02x".format(it) }
         }
 
-        fun ZipFile.bytes(name: String): ByteArray? = getEntry(name)?.let { entry -> getInputStream(entry).use { it.readBytes() } }
-
         /** A file's text, or its `_back` copy when the file is missing or empty. */
-        fun ZipFile.text(name: String): String? =
+        fun Archive.text(name: String): String? =
             sequenceOf(name, "${name}_back").mapNotNull { bytes(it)?.toString(Charsets.UTF_8)?.takeIf(String::isNotBlank) }.firstOrNull()
 
-        fun <T> ZipFile.decode(name: String, serializer: KSerializer<T>): T? =
+        fun <T> Archive.decode(name: String, serializer: KSerializer<T>): T? =
             sequenceOf(name, "${name}_back").mapNotNull { file ->
                 bytes(file)?.toString(Charsets.UTF_8)?.takeIf(String::isNotBlank)?.let { runCatching { flexJson.decodeFromString(serializer, it) }.getOrNull() }
             }.firstOrNull()
 
-        fun <T> ZipFile.list(name: String, serializer: KSerializer<T>): List<T> = text(name)?.let { decodeArray(it, serializer) }.orEmpty()
+        fun <T> Archive.list(name: String, serializer: KSerializer<T>): List<T> = text(name)?.let { decodeArray(it, serializer) }.orEmpty()
     }
 }

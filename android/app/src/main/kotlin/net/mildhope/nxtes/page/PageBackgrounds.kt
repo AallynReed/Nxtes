@@ -18,7 +18,7 @@ class PageBackgrounds(private val pdf: PdfEngine, private val blobFile: (documen
         val source = page.pdf
         val background = page.background
         when {
-            source != null -> pdf.render(blobFile(documentId, source.blob), source.index, bitmap, left, top, width, height, page.turns)
+            source != null -> pdf.render(blobFile(documentId, source.blob), source.index, bitmap, left, top, width, height, page.turns, page.pdfAnnotations)
             background != null -> withContext(Dispatchers.Default) {
                 val scale = width / page.width
                 Canvas(bitmap).withTranslation(left.toFloat(), top.toFloat()) {

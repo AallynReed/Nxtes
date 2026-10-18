@@ -2,6 +2,8 @@ package net.mildhope.nxtes
 
 import android.app.Application
 import android.content.Context
+import android.os.Build
+import dalvik.system.ZipPathValidator
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -23,6 +25,7 @@ import net.mildhope.nxtes.search.SearchIndexer
 import net.mildhope.nxtes.sync.SyncManager
 import net.mildhope.nxtes.viewer.ViewSettings
 import java.io.File
+import java.util.zip.ZipException
 import kotlin.concurrent.thread
 
 class NxtesApplication : Application() {
@@ -61,6 +64,7 @@ class NxtesApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        allowLeadingSlashInZips()
         pdf = PdfEngine(this)
         library = LibraryStore(File(filesDir, "library"), pdf::pageSizes)
         backgrounds = PageBackgrounds(pdf, library::blobFile)
@@ -73,6 +77,21 @@ class NxtesApplication : Application() {
         sync.schedule()
         thread(name = "library-load") { library.load() }
     }
+}
+
+/**
+ * Android 14 refuses ZIP entries whose names start with a slash, which Flexcil backups use. Nothing
+ * here turns entry names into paths unchecked, so only `..` is still refused.
+ */
+private fun allowLeadingSlashInZips() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
+    ZipPathValidator.setCallback(
+        object : ZipPathValidator.Callback {
+            override fun onZipEntryAccess(path: String) {
+                if (path.split('/', '\\').any { it == ".." }) throw ZipException("Invalid zip entry path: $path")
+            }
+        },
+    )
 }
 
 data class CopiedPages(val documentId: String, val pageIds: List<String>)
