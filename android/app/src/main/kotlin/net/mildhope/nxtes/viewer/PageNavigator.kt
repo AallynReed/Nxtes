@@ -1,7 +1,11 @@
 package net.mildhope.nxtes.viewer
 
 import android.widget.Toast
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -56,6 +60,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -80,6 +85,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -98,8 +104,11 @@ import net.mildhope.nxtes.data.Folder
 import net.mildhope.nxtes.data.Library
 import net.mildhope.nxtes.data.LibraryItem
 import net.mildhope.nxtes.data.LibraryStore
+import net.mildhope.nxtes.data.TemplateChoice
 import net.mildhope.nxtes.library.DEFAULT_FOLDER_COLOR
+import net.mildhope.nxtes.notes.NoteSettingsDialog
 import net.mildhope.nxtes.nxtes
+import net.mildhope.nxtes.page.openAsPdf
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -109,6 +118,12 @@ enum class PageFilter { ALL, ANNOTATED }
 private enum class FilesTab { DOCUMENTS, RECENTS, FAVORITES }
 
 /** A page being dragged: [centre] is where it started, in root coordinates. */
+/** What a picked template is for: the selected pages, or a new page at an index. */
+private sealed interface TemplateUse {
+    data object Selected : TemplateUse
+    data class Insert(val index: Int) : TemplateUse
+}
+
 private class PageDrag(val key: String, val offset: Offset, val centre: Offset)
 
 private const val ADD_KEY = "add"
@@ -140,12 +155,24 @@ fun PageNavigator(
     var filter by rememberSaveable { mutableStateOf(PageFilter.ALL) }
     var confirmDelete by remember { mutableStateOf(false) }
     var choosingTarget by remember { mutableStateOf(false) }
+    var templateUse by remember { mutableStateOf<TemplateUse?>(null) }
+    var insertAt by remember { mutableIntStateOf(0) }
     var dropTarget by remember { mutableStateOf<String?>(null) }
     val documentBounds = remember { mutableStateMapOf<String, Rect>() }
     val context = LocalContext.current
+    val resources = LocalResources.current
     val copied = app.copiedPages
     val pasteCount = copied?.takeIf { library.document(it.documentId)?.trashedAt == null }?.pageIds?.size ?: 0
     val selected = picked.intersect(shown.pages.map { it.id }.toSet())
+
+    fun insertFile(uri: Uri?, image: Boolean) {
+        uri ?: return
+        val index = insertAt
+        onEdit(shown.id) { openAsPdf(context, uri, image) { insertPdfPages(shown.id, index, it) } }
+    }
+
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { insertFile(it, image = true) }
+    val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { insertFile(it, image = false) }
     val annotated by produceState(emptySet<String>(), shown.id, shown.modified) {
         value = withContext(Dispatchers.IO) { app.library.annotatedPages(shown.id) }
     }
@@ -177,6 +204,9 @@ fun PageNavigator(
                     onClose = onClose,
                 ) {
                     val enabled = selected.isNotEmpty()
+                    ToolButton(painterResource(R.drawable.ic_template), stringResource(R.string.change_template), enabled) {
+                        templateUse = TemplateUse.Selected
+                    }
                     ToolButton(painterResource(R.drawable.ic_rotate_left), stringResource(R.string.turn_left), enabled) {
                         onEdit(shown.id) { turnPages(shown.id, selected, clockwise = false) }
                     }
@@ -189,7 +219,7 @@ fun PageNavigator(
                     }
                     ToolButton(painterResource(R.drawable.ic_copy), stringResource(R.string.copy_pages), enabled) {
                         app.copiedPages = CopiedPages(shown.id, shown.pages.map { it.id }.filter { it in selected })
-                        val message = context.resources.getQuantityString(R.plurals.pages_copied, selected.size, selected.size)
+                        val message = resources.getQuantityString(R.plurals.pages_copied, selected.size, selected.size)
                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                     }
                     Box(Modifier.padding(horizontal = 8.dp).width(1.dp).height(22.dp).background(MaterialTheme.colorScheme.outlineVariant))
@@ -221,7 +251,16 @@ fun PageNavigator(
                     },
                     pasteCount = pasteCount,
                     onInsert = { index -> onEdit(shown.id) { insertPage(shown.id, index) } },
-                    onPaste = { index ->
+                    onInsertTemplate = { templateUse = TemplateUse.Insert(it) },
+                    onInsertImage = {
+                        insertAt = it
+                        imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    },
+                    onInsertPdf = {
+                        insertAt = it
+                        pdfPicker.launch(arrayOf("application/pdf"))
+                    },
+                    onPaste = { index: Int ->
                         copied?.let { clip -> onEdit(shown.id) { copyPages(clip.documentId, clip.pageIds, shown.id, index) } }
                     },
                     onReorder = { moving, toIndex -> onEdit(shown.id) { reorderPages(shown.id, moving, toIndex) } },
@@ -234,6 +273,22 @@ fun PageNavigator(
                 )
             }
         }
+    }
+
+    templateUse?.let { use ->
+        NoteSettingsDialog(
+            title = null,
+            cover = null,
+            choice = TemplateChoice.of(shown.template, app.libraryPrefs.lastTemplate),
+            onDone = { _, _, choice ->
+                templateUse = null
+                when (use) {
+                    TemplateUse.Selected -> onEdit(shown.id) { setPagesTemplate(shown.id, selected, choice) }
+                    is TemplateUse.Insert -> onEdit(shown.id) { insertPage(shown.id, use.index, choice) }
+                }
+            },
+            onDismiss = { templateUse = null },
+        )
     }
 
     if (choosingTarget) {
@@ -351,6 +406,9 @@ private fun PageGrid(
     onLongPage: (Int) -> Unit,
     pasteCount: Int,
     onInsert: (Int) -> Unit,
+    onInsertTemplate: (Int) -> Unit,
+    onInsertImage: (Int) -> Unit,
+    onInsertPdf: (Int) -> Unit,
     onPaste: (Int) -> Unit,
     onReorder: (moving: Set<String>, toIndex: Int) -> Unit,
     documentBounds: Map<String, Rect>,
@@ -403,7 +461,7 @@ private fun PageGrid(
                     },
             ) {
                 if (all) {
-                    AddPageMenu(pasteCount, { onInsert(index) }, { onPaste(index) }) { open -> InsertButton(open) }
+                    AddPageMenu(index, pasteCount, onInsert, onInsertTemplate, onInsertImage, onInsertPdf, onPaste) { open -> InsertButton(open) }
                 } else {
                     Spacer(Modifier.width(INSERT_WIDTH))
                 }
@@ -446,7 +504,7 @@ private fun PageGrid(
                 Row(Modifier.height(CELL_HEIGHT)) {
                     Spacer(Modifier.width(INSERT_WIDTH))
                     Box(Modifier.weight(1f).fillMaxHeight()) {
-                        AddPageMenu(pasteCount, { onInsert(doc.pages.size) }, { onPaste(doc.pages.size) }) { open ->
+                        AddPageMenu(doc.pages.size, pasteCount, onInsert, onInsertTemplate, onInsertImage, onInsertPdf, onPaste) { open ->
                             AddPageTile(Modifier.fillMaxSize(), open)
                         }
                     }
@@ -509,21 +567,38 @@ private fun PageCellContent(doc: Document, index: Int, current: Boolean, editing
     }
 }
 
-/** A menu to add a blank page or paste copied pages; [anchor] is the button that opens it. */
+/** A menu to add pages at [index]: blank, from another template, from an image or PDF, or pasted. */
 @Composable
-private fun AddPageMenu(pasteCount: Int, onBlank: () -> Unit, onPaste: () -> Unit, anchor: @Composable (open: () -> Unit) -> Unit) {
+private fun AddPageMenu(
+    index: Int,
+    pasteCount: Int,
+    onBlank: (Int) -> Unit,
+    onTemplate: (Int) -> Unit,
+    onImage: (Int) -> Unit,
+    onPdf: (Int) -> Unit,
+    onPaste: (Int) -> Unit,
+    anchor: @Composable (open: () -> Unit) -> Unit,
+) {
     var open by remember { mutableStateOf(false) }
+    @Composable
+    fun Item(label: String, icon: Painter, enabled: Boolean = true, action: (Int) -> Unit) {
+        DropdownMenuItem(
+            text = { Text(label) },
+            leadingIcon = { Icon(icon, null) },
+            enabled = enabled,
+            onClick = {
+                open = false
+                action(index)
+            },
+        )
+    }
     Box {
         anchor { open = true }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.blank_page)) },
-                leadingIcon = { Icon(Icons.Default.Add, null) },
-                onClick = {
-                    open = false
-                    onBlank()
-                },
-            )
+            Item(stringResource(R.string.blank_page), rememberVectorPainter(Icons.Default.Add), action = onBlank)
+            Item(stringResource(R.string.page_from_template), painterResource(R.drawable.ic_template), action = onTemplate)
+            Item(stringResource(R.string.page_from_image), painterResource(R.drawable.ic_image), action = onImage)
+            Item(stringResource(R.string.page_from_pdf), painterResource(R.drawable.ic_document), action = onPdf)
             DropdownMenuItem(
                 text = {
                     Text(
@@ -538,7 +613,7 @@ private fun AddPageMenu(pasteCount: Int, onBlank: () -> Unit, onPaste: () -> Uni
                 enabled = pasteCount > 0,
                 onClick = {
                     open = false
-                    onPaste()
+                    onPaste(index)
                 },
             )
         }

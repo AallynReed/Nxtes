@@ -1,5 +1,31 @@
 package net.mildhope.nxtes.notes
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.painterResource
+import androidx.core.graphics.createBitmap
+import kotlinx.coroutines.launch
+import net.mildhope.nxtes.data.CustomTemplate
+import net.mildhope.nxtes.library.displayName
+import net.mildhope.nxtes.library.runLibraryAction
+import net.mildhope.nxtes.nxtes
+import net.mildhope.nxtes.page.openAsPdf
+import kotlin.math.roundToInt
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -78,12 +104,15 @@ import net.mildhope.nxtes.page.TemplatePainter
 
 private enum class SettingsTab { COVER, TEMPLATE }
 
+private enum class TemplateTab { BUILT_IN, CUSTOM }
+
 private val BASIC = listOf(Pattern.PLAIN, Pattern.LINED, Pattern.DOTTED, Pattern.GRAPH, Pattern.LEGAL, Pattern.CORNELL, Pattern.VERTICAL)
 private val COLUMNS = listOf(Pattern.COLUMNS, Pattern.COLUMNS_LINED, Pattern.COLUMNS_DOTTED, Pattern.COLUMNS_GRAPH)
 private val ITEM_SHORT = 84.dp
 private val ITEM_LONG = 119.dp
 private val PREVIEW_SHORT = 96.dp
 private val PREVIEW_LONG = 136.dp
+private const val CUSTOM_THUMBNAIL_PX = 240
 
 /**
  * The full-screen note editor (docs/ui.md): cover and template previews and the title on top,
@@ -97,13 +126,33 @@ fun NoteSettingsDialog(
     choice: TemplateChoice,
     onDone: (title: String, cover: Int?, choice: TemplateChoice) -> Unit,
     onDismiss: () -> Unit,
-    noCover: @Composable (Modifier) -> Unit = { TemplateThumb(choice.background, choice.width, choice.height, it) },
+    noCover: (@Composable (Modifier) -> Unit)? = null,
 ) {
     var name by rememberSaveable { mutableStateOf(title.orEmpty()) }
     var pickedCover by rememberSaveable { mutableStateOf(cover) }
     var picked by remember { mutableStateOf(choice) }
     var tab by rememberSaveable { mutableStateOf(SettingsTab.TEMPLATE) }
+    var templateTab by rememberSaveable { mutableStateOf(if (choice.customId != null) TemplateTab.CUSTOM else TemplateTab.BUILT_IN) }
+    var deleting by remember { mutableStateOf<CustomTemplate?>(null) }
     val defaultTitle = stringResource(R.string.default_note_title)
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val scope = rememberCoroutineScope()
+    val templates by context.nxtes.library.templates.collectAsState()
+
+    fun addTemplate(uri: Uri?, image: Boolean) {
+        uri ?: return
+        val fileName = if (image) null else displayName(context, uri)?.substringBeforeLast('.')?.ifBlank { null }
+        val name = fileName ?: resources.getString(R.string.custom_template_number, templates.size + 1)
+        scope.launch {
+            runLibraryAction(context) { openAsPdf(context, uri, image) { addCustomTemplate(it, name) } }
+                ?.let { picked = picked.copy(customId = it.id) }
+        }
+    }
+
+    val firstPage: @Composable (Modifier) -> Unit = noCover ?: { ChoiceThumb(picked, templates, it) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { addTemplate(it, image = true) }
+    val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { addTemplate(it, image = false) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize()) {
@@ -124,11 +173,11 @@ fun NoteSettingsDialog(
                         PreviewTile(stringResource(R.string.cover), tab == SettingsTab.COVER, { tab = SettingsTab.COVER }) {
                             val art = Covers.get(pickedCover)
                             val box = Modifier.width(PREVIEW_SHORT).aspectRatio(1 / 1.414f)
-                            if (art != null) CoverArt(art, box) else noCover(Modifier.width(PREVIEW_SHORT))
+                            if (art != null) CoverArt(art, box) else firstPage(Modifier.width(PREVIEW_SHORT))
                         }
                     }
                     PreviewTile(stringResource(R.string.template), tab == SettingsTab.TEMPLATE, { tab = SettingsTab.TEMPLATE }) {
-                        TemplateThumb(picked.background, picked.width, picked.height, Modifier.width(if (picked.landscape) PREVIEW_LONG else PREVIEW_SHORT))
+                        ChoiceThumb(picked, templates, Modifier.width(if (isLandscape(picked, templates)) PREVIEW_LONG else PREVIEW_SHORT))
                     }
                     if (title != null) {
                         Spacer(Modifier.weight(1f))
@@ -137,17 +186,54 @@ fun NoteSettingsDialog(
                     }
                 }
                 if (tab == SettingsTab.TEMPLATE) {
-                    TemplateOptions(picked, { picked = it }, Modifier.align(Alignment.End).padding(horizontal = 24.dp))
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TemplateTab.entries.forEach { option ->
+                            val active = option == templateTab
+                            Text(
+                                stringResource(if (option == TemplateTab.BUILT_IN) R.string.templates_built_in else R.string.templates_custom),
+                                color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                                modifier = Modifier.clickable { templateTab = option }.padding(end = 24.dp, top = 12.dp, bottom = 12.dp),
+                            )
+                        }
+                        Spacer(Modifier.weight(1f))
+                        if (templateTab == TemplateTab.BUILT_IN) TemplateOptions(picked, { picked = it.copy(customId = null) })
+                    }
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
                     when (tab) {
-                        SettingsTab.TEMPLATE -> templateSections(picked) { picked = it }
-                        SettingsTab.COVER -> coverSections(pickedCover, noCover) { pickedCover = it }
+                        SettingsTab.TEMPLATE -> when (templateTab) {
+                            TemplateTab.BUILT_IN -> templateSections(picked) { picked = it }
+                            TemplateTab.CUSTOM -> customSection(
+                                templates = templates,
+                                choice = picked,
+                                onPick = { picked = picked.copy(customId = it.id) },
+                                onDelete = { deleting = it },
+                                onAddImage = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                onAddPdf = { pdfPicker.launch(arrayOf("application/pdf")) },
+                            )
+                        }
+                        SettingsTab.COVER -> coverSections(pickedCover, firstPage) { pickedCover = it }
                     }
                 }
             }
         }
+    }
+    deleting?.let { doomed ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text(stringResource(R.string.delete_template_title, doomed.name)) },
+            text = { Text(stringResource(R.string.delete_template_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleting = null
+                    if (picked.customId == doomed.id) picked = picked.copy(customId = null)
+                    scope.launch { runLibraryAction(context) { deleteCustomTemplate(doomed.id) } }
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 }
 
@@ -258,6 +344,77 @@ private fun LazyListScope.templateSections(choice: TemplateChoice, onPick: (Temp
     }
 }
 
+private fun LazyListScope.customSection(
+    templates: List<CustomTemplate>,
+    choice: TemplateChoice,
+    onPick: (CustomTemplate) -> Unit,
+    onDelete: (CustomTemplate) -> Unit,
+    onAddImage: () -> Unit,
+    onAddPdf: () -> Unit,
+) {
+    item(key = "custom") {
+        FlowRow(
+            modifier = Modifier.padding(top = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            AddTemplateTile(onAddImage, onAddPdf)
+            templates.forEach { template ->
+                val width = if (template.width > template.height) ITEM_LONG else ITEM_SHORT
+                PickItem(template.name, choice.customId == template.id, width, { onPick(template) }, onLongClick = { onDelete(template) }) {
+                    CustomTemplateThumb(template, it)
+                }
+            }
+        }
+        if (templates.isNotEmpty()) {
+            Text(
+                stringResource(R.string.custom_template_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AddTemplateTile(onAddImage: () -> Unit, onAddPdf: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val outline = MaterialTheme.colorScheme.outline
+    Box {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(ITEM_SHORT).clickable { open = true }) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .width(ITEM_SHORT)
+                    .aspectRatio(1 / 1.414f)
+                    .drawBehind {
+                        drawRect(outline, style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))))
+                    },
+            ) { Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Text(stringResource(R.string.add_template), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.template_from_image)) },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_image), null) },
+                onClick = {
+                    open = false
+                    onAddImage()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.template_from_pdf)) },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_document), null) },
+                onClick = {
+                    open = false
+                    onAddPdf()
+                },
+            )
+        }
+    }
+}
+
 private fun LazyListScope.coverSections(cover: Int?, noCover: @Composable (Modifier) -> Unit, onPick: (Int?) -> Unit) {
     item(key = "solid") {
         SectionHeading(stringResource(R.string.covers_solid))
@@ -286,8 +443,18 @@ private fun SectionHeading(text: String) {
 
 /** A cover or template to pick, with a check when selected. */
 @Composable
-private fun PickItem(label: String?, selected: Boolean, width: Dp, onClick: () -> Unit, content: @Composable (Modifier) -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(width).clickable(onClick = onClick)) {
+private fun PickItem(
+    label: String?,
+    selected: Boolean,
+    width: Dp,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    content: @Composable (Modifier) -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(width).combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    ) {
         Box(contentAlignment = Alignment.BottomEnd) {
             content(
                 Modifier.width(width).border(
@@ -308,6 +475,34 @@ private fun PickItem(label: String?, selected: Boolean, width: Dp, onClick: () -
             Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
         }
     }
+}
+
+private fun isLandscape(choice: TemplateChoice, templates: List<CustomTemplate>): Boolean {
+    val custom = choice.customId?.let { id -> templates.find { it.id == id } }
+    return if (custom != null) custom.width > custom.height else choice.landscape
+}
+
+/** The picked template's preview: a custom template's page or a generated one, sized by [modifier]'s width. */
+@Composable
+fun ChoiceThumb(choice: TemplateChoice, templates: List<CustomTemplate>, modifier: Modifier = Modifier) {
+    val custom = choice.customId?.let { id -> templates.find { it.id == id } }
+    if (custom != null) CustomTemplateThumb(custom, modifier) else TemplateThumb(choice.background, choice.width, choice.height, modifier)
+}
+
+/** The first page of a custom template, rendered at a small size. */
+@Composable
+fun CustomTemplateThumb(template: CustomTemplate, modifier: Modifier = Modifier) {
+    val app = LocalContext.current.nxtes
+    val bitmap by produceState<ImageBitmap?>(null, template.id) {
+        value = runCatching {
+            val width = CUSTOM_THUMBNAIL_PX
+            val height = (width * template.height / template.width).roundToInt().coerceAtLeast(1)
+            createBitmap(width, height).also { app.pdf.render(app.library.templateFile(template), 0, it, 0, 0, width, height) }.asImageBitmap()
+        }.getOrNull()
+    }
+    val box = modifier.aspectRatio(template.width / template.height).background(Color.White)
+    val image = bitmap
+    if (image == null) Box(box) else Image(image, null, contentScale = ContentScale.FillBounds, modifier = box)
 }
 
 /** A generated template drawn at the size of [modifier]'s width. */

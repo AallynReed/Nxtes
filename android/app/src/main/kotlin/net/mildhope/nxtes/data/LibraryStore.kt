@@ -26,9 +26,17 @@ class LibraryStore(
     }
     private val documentsDir = File(root, "documents")
     private val foldersFile = File(root, "folders.json")
+    private val templatesDir = File(root, "templates")
+    private val templatesFile = File(templatesDir, "templates.json")
     private val _state = MutableStateFlow(Library())
+    private val _templates = MutableStateFlow<List<CustomTemplate>>(emptyList())
 
     val state: StateFlow<Library> = _state.asStateFlow()
+
+    /** Templates made from the user's images and PDFs, newest first. */
+    val templates: StateFlow<List<CustomTemplate>> = _templates.asStateFlow()
+
+    fun templateFile(template: CustomTemplate) = File(templatesDir, "blobs/${template.blob}")
 
     fun documentDir(id: String) = File(documentsDir, id)
 
@@ -63,6 +71,7 @@ class LibraryStore(
             if (file.exists()) runCatching { json.decodeFromString<Document>(file.readText()) }.getOrNull() else null
         }
         _state.value = Library(folders, documents, loaded = true)
+        _templates.value = if (templatesFile.exists()) json.decodeFromString(templatesFile.readText()) else emptyList()
     }
 
     @Synchronized
@@ -70,12 +79,8 @@ class LibraryStore(
         val id = newId()
         val dir = documentDir(id)
         try {
-            val blobs = File(dir, "blobs").apply { mkdirs() }
-            val tmp = File(blobs, "import.tmp")
-            val sha256 = tmp.outputStream().use { out -> copyHashing(input, out) }
-            val blob = File(blobs, sha256)
-            check(tmp.renameTo(blob)) { "Could not store $blob" }
-            val pages = inspectPdf(blob).mapIndexed { i, size ->
+            val sha256 = storeBlob(input, File(dir, "blobs"))
+            val pages = inspectPdf(blobFile(id, sha256)).mapIndexed { i, size ->
                 Page(newId(), size.width, size.height, PdfSource(sha256, i))
             }
             require(pages.isNotEmpty()) { "The PDF has no pages" }
@@ -126,6 +131,47 @@ class LibraryStore(
         }
     }
 
+    /** Gives the pages [choice]'s background and size, keeping their ink. */
+    @Synchronized
+    fun setPagesTemplate(documentId: String, pageIds: Collection<String>, choice: TemplateChoice) {
+        val template = pageTemplate(documentId, choice)
+        updateDocument(documentId) { doc -> doc.copy(pages = doc.pages.map { if (it.id in pageIds) it.withTemplate(template) else it }) }
+        pruneBlobs(documentId)
+    }
+
+    /** Saves the first page of a PDF as a custom template. */
+    @Synchronized
+    fun addCustomTemplate(input: InputStream, name: String): CustomTemplate {
+        val sha256 = storeBlob(input, File(templatesDir, "blobs"))
+        val size = inspectPdf(File(templatesDir, "blobs/$sha256")).firstOrNull()
+        requireNotNull(size) { "The PDF has no pages" }
+        val template = CustomTemplate(newId(), name, sha256, size.width, size.height, clock())
+        writeTemplates(listOf(template) + _templates.value)
+        return template
+    }
+
+    /** Removes a custom template. Documents that used it keep their own copy of its page. */
+    @Synchronized
+    fun deleteCustomTemplate(id: String) {
+        val doomed = _templates.value.find { it.id == id } ?: return
+        val remaining = _templates.value - doomed
+        writeTemplates(remaining)
+        if (remaining.none { it.blob == doomed.blob }) templateFile(doomed).delete()
+    }
+
+    /** Inserts every page of a PDF at [index]. */
+    @Synchronized
+    fun insertPdfPages(documentId: String, index: Int, input: InputStream): List<Page> {
+        val sha256 = storeBlob(input, File(documentDir(documentId), "blobs"))
+        val pages = inspectPdf(blobFile(documentId, sha256)).mapIndexed { i, size -> Page(newId(), size.width, size.height, PdfSource(sha256, i)) }
+        require(pages.isNotEmpty()) { "The PDF has no pages" }
+        updateDocument(documentId) { doc ->
+            val at = index.coerceIn(0, doc.pages.size)
+            doc.copy(pages = doc.pages.take(at) + pages + doc.pages.drop(at))
+        }
+        return pages
+    }
+
     /** Pages that have ink, judged by their ink files. */
     fun annotatedPages(documentId: String): Set<String> =
         File(documentDir(documentId), "pages").listFiles().orEmpty()
@@ -133,14 +179,18 @@ class LibraryStore(
             .map { it.name.removeSuffix(".pb") }
             .toSet()
 
-    /** Inserts a blank page at [index]: the document's template, or else a white page sized like its neighbour. */
+    /**
+     * Inserts a blank page at [index] from [choice], or else from the document's template, or else
+     * as a white page sized like its neighbour.
+     */
     @Synchronized
-    fun insertPage(documentId: String, index: Int): Page {
+    fun insertPage(documentId: String, index: Int, choice: TemplateChoice? = null): Page {
         lateinit var page: Page
+        val picked = choice?.let { pageTemplate(documentId, it) }
         updateDocument(documentId) { doc ->
             val at = index.coerceIn(0, doc.pages.size)
             val neighbour = doc.pages.getOrNull(at - 1) ?: doc.pages[at]
-            page = newPage(doc.template ?: PageTemplate(neighbour.width, neighbour.height))
+            page = newPage(picked ?: doc.template ?: PageTemplate(neighbour.width, neighbour.height))
             doc.copy(pages = doc.pages.toMutableList().apply { add(at, page) })
         }
         return page
@@ -254,9 +304,14 @@ class LibraryStore(
         updateItem(id, { it }) { change(it).copy(modified = now) }
     }
 
-    /** Resolves a picked template into one this document can use. */
-    private fun pageTemplate(documentId: String, choice: TemplateChoice): PageTemplate =
-        PageTemplate(choice.width, choice.height, background = choice.background)
+    /** Resolves a picked template into one this document can use, copying a custom template's page into it. */
+    private fun pageTemplate(documentId: String, choice: TemplateChoice): PageTemplate {
+        val custom = choice.customId?.let { id -> _templates.value.find { it.id == id } }
+            ?: return PageTemplate(choice.width, choice.height, background = choice.background)
+        val target = blobFile(documentId, custom.blob)
+        if (!target.exists()) writeAtomically(target, templateFile(custom).readBytes())
+        return PageTemplate(custom.width, custom.height, pdf = PdfSource(custom.blob, 0))
+    }
 
     private fun newPage(template: PageTemplate) =
         Page(newId(), template.width, template.height, template.pdf, template.background)
@@ -350,6 +405,24 @@ class LibraryStore(
             val updated = document(requireNotNull(library.document(id)) { "No item $id" })
             writeDocument(updated)
             _state.value = library.copy(documents = library.documents.map { if (it.id == id) updated else it })
+        }
+    }
+
+    private fun writeTemplates(templates: List<CustomTemplate>) {
+        writeAtomically(templatesFile, json.encodeToString(templates))
+        _templates.value = templates
+    }
+
+    /** Copies [input] into [dir] named by its SHA-256, which it returns. */
+    private fun storeBlob(input: InputStream, dir: File): String {
+        dir.mkdirs()
+        val tmp = File(dir, "${newId()}.tmp")
+        try {
+            val sha256 = tmp.outputStream().use { out -> copyHashing(input, out) }
+            Files.move(tmp.toPath(), File(dir, sha256).toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            return sha256
+        } finally {
+            tmp.delete()
         }
     }
 

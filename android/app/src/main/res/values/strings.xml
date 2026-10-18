@@ -143,6 +143,19 @@
         <item quantity="other">Paste %d pages</item>
     </plurals>
     <string name="paste_nothing">Paste (copy pages first)</string>
+    <string name="change_template">Change template</string>
+    <string name="page_from_template">Page from another template</string>
+    <string name="page_from_image">Page from an image</string>
+    <string name="page_from_pdf">Pages from a PDF</string>
+    <string name="templates_built_in">Templates</string>
+    <string name="templates_custom">Custom</string>
+    <string name="custom_template_number">Custom template %d</string>
+    <string name="add_template">Add</string>
+    <string name="template_from_image">From an image</string>
+    <string name="template_from_pdf">From a PDF</string>
+    <string name="custom_template_hint">Touch and hold a template to delete it.</string>
+    <string name="delete_template_title">Delete “%1$s”?</string>
+    <string name="delete_template_text">Notes that already use it keep their pages.</string>
     <string name="go_to_page">Go to page</string>
     <string name="page_range">1 to %d</string>
     <string name="go">Go</string>

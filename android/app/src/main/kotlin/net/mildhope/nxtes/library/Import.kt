@@ -35,7 +35,7 @@ suspend fun importPdfs(context: Context, uris: List<Uri>, folderId: String?): Li
     return results.mapNotNull { it.getOrNull() }
 }
 
-private fun displayName(context: Context, uri: Uri): String? =
+fun displayName(context: Context, uri: Uri): String? =
     context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
         if (cursor.moveToFirst()) cursor.getString(0) else null
     }

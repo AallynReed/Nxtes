@@ -301,6 +301,46 @@ class LibraryStoreTest {
         assertEquals(3, store.state.value.document(note.id)!!.pages.size)
     }
 
+    @Test
+    fun customTemplatePagesKeepTheirCopyAfterTheTemplateIsDeleted() {
+        val template = store.addCustomTemplate(ByteArrayInputStream(PDF_BYTES), "Planner")
+        assertEquals(listOf(template), newStore().apply { load() }.templates.value)
+
+        val note = store.createNote("Week", null, TemplateChoice(customId = template.id), cover = null)
+        store.deleteCustomTemplate(template.id)
+
+        val page = note.pages.single()
+        assertEquals(PdfSource(sha256(PDF_BYTES), 0), page.pdf)
+        assertEquals(612f to 792f, page.width to page.height)
+        assertTrue(store.blobFile(note.id, page.pdf!!.blob).exists())
+        assertFalse(store.templateFile(template).exists())
+        assertTrue(store.templates.value.isEmpty())
+    }
+
+    @Test
+    fun pagesTakeAPickedTemplateWithoutChangingTheDefault() {
+        val note = store.createNote("Ideas", null, TemplateChoice(), cover = null)
+        val dotted = TemplateChoice(Background(Pattern.DOTTED), PaperSize.A5)
+
+        val added = store.insertPage(note.id, 1, dotted)
+        store.setPagesTemplate(note.id, listOf(note.pages[0].id), dotted)
+
+        val doc = store.state.value.document(note.id)!!
+        assertEquals(listOf(Pattern.DOTTED, Pattern.DOTTED), doc.pages.map { it.background!!.pattern })
+        assertEquals(PaperSize.A5.width, added.width)
+        assertEquals(Pattern.PLAIN, doc.template!!.background!!.pattern)
+    }
+
+    @Test
+    fun insertedPdfPagesLandWhereAsked() {
+        val note = store.createNote("Ideas", null, TemplateChoice(), cover = null)
+
+        val inserted = store.insertPdfPages(note.id, 0, ByteArrayInputStream(PDF_BYTES))
+
+        assertEquals(inserted.map { it.id } + note.pages[0].id, pages(note.id))
+        assertEquals(listOf(0, 1), inserted.map { it.pdf!!.index })
+    }
+
     private fun pages(documentId: String) = store.state.value.document(documentId)!!.pages.map { it.id }
 
     private fun stroke() = InkStroke(
