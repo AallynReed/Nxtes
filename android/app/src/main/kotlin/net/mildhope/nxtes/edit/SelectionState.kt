@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import net.mildhope.nxtes.data.Affine
 import net.mildhope.nxtes.data.PageContent
+import net.mildhope.nxtes.data.Picture
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.ink.PageSession
 import net.mildhope.nxtes.page.PagePainter
@@ -49,6 +50,9 @@ class SelectionState {
     var text by mutableStateOf<TextEdit?>(null)
         private set
 
+    var crop by mutableStateOf<CropEdit?>(null)
+        private set
+
     val active get() = pageId != null && !picked.isEmpty
 
     private var dragHandle = Handle.NONE
@@ -68,6 +72,19 @@ class SelectionState {
         clear()
         menuAt = null
         text = TextEdit(pageId, box, isNew)
+    }
+
+    fun startCrop(pageId: String, picture: Picture, freeform: Boolean) {
+        clear()
+        crop = CropEdit(pageId, picture, freeform)
+    }
+
+    /** Puts the cropped picture on the page, or leaves it as it was when [result] is null, and selects it. */
+    fun endCrop(session: PageSession, result: Picture?) {
+        val edit = crop ?: return
+        crop = null
+        if (result != null) session.update(edit.pageId) { c -> c.copy(objects = c.objects.map { if (it.id == result.id) result else it }) }
+        select(edit.pageId, Picked(objects = setOf(edit.picture.id)), session.content(edit.pageId))
     }
 
     fun updateText(box: TextBox) {

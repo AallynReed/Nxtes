@@ -1,6 +1,18 @@
 package net.mildhope.nxtes.viewer
 
 import android.util.Log
+import java.util.UUID
+import net.mildhope.nxtes.page.importImage
+import net.mildhope.nxtes.page.cameraTarget
+import net.mildhope.nxtes.edit.Picked
+import net.mildhope.nxtes.edit.CropEditor
+import net.mildhope.nxtes.data.Picture
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material3.Text
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.activity.result.PickVisualMediaRequest
+import android.net.Uri
 import net.mildhope.nxtes.library.displayName
 import net.mildhope.nxtes.ink.style
 import net.mildhope.nxtes.ink.ToolState
@@ -115,6 +127,47 @@ fun DocumentViewer(
     BackHandler(onBack = onBack)
     BackHandler(enabled = selection.text != null) { selection.commitText(ink, resources)?.let { tools.updateTextStyle(it.style) } }
 
+    var imageTarget by remember { mutableStateOf<Pair<Int, Offset>?>(null) }
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    /** Adds the image at [uri] to the page, centred on [imageTarget] or the middle of the screen, and selects it. */
+    fun insertImage(uri: Uri) {
+        val target = imageTarget ?: viewport.visibleCenter(doc.pages)
+        imageTarget = null
+        scope.launch {
+            val stored = runLibraryAction(context) { importImage(context, uri, doc.id, this) } ?: return@launch
+            val (index, point) = target
+            val page = doc.pages.getOrNull(index) ?: return@launch
+            val scale = minOf(page.width * IMAGE_FILL / stored.width, page.height * IMAGE_FILL / stored.height, MAX_POINTS_PER_PIXEL)
+            val w = stored.width * scale
+            val h = stored.height * scale
+            val picture = Picture(
+                UUID.randomUUID().toString(), stored.blob,
+                cx = point.x.coerceIn(w / 2, (page.width - w / 2).coerceAtLeast(w / 2)),
+                cy = point.y.coerceIn(h / 2, (page.height - h / 2).coerceAtLeast(h / 2)),
+                width = w, height = h,
+            )
+            ink.update(page.id) { it.copy(objects = it.objects + picture) }
+            selection.select(page.id, Picked(objects = setOf(picture.id)), ink.content(page.id))
+        }
+    }
+
+    val galleryPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(::insertImage) }
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(::insertImage) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { taken -> cameraUri?.takeIf { taken }?.let(::insertImage) }
+
+    fun addImage(source: ImageSource) {
+        when (source) {
+            ImageSource.GALLERY -> galleryPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            ImageSource.FILES -> filePicker.launch(arrayOf("image/*"))
+            ImageSource.CAMERA -> {
+                val (_, uri) = cameraTarget(context)
+                cameraUri = uri
+                camera.launch(uri)
+            }
+        }
+    }
+
     val fontInvalid = stringResource(R.string.font_invalid)
     val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -156,6 +209,7 @@ fun DocumentViewer(
                     ink.redo()
                 },
                 onSidePanel = { panelOpen = !panelOpen },
+                onAddImage = ::addImage,
             )
             DocumentTabBar(tabs, doc.id, onSelectTab, onCloseTab)
             Box(Modifier.fillMaxWidth().weight(1f)) {
@@ -171,8 +225,14 @@ fun DocumentViewer(
                     assetsLoaded = { app.assets.loaded },
                     overlay = { mapper ->
                         val edit = selection.text
-                        if (edit == null) {
-                            EditMenus(doc, mapper, selection, actions, scope, tools)
+                        val crop = selection.crop
+                        if (crop != null) {
+                            CropEditor(crop, mapper, resources) { selection.endCrop(ink, it) }
+                        } else if (edit == null) {
+                            EditMenus(doc, mapper, selection, actions, scope, tools) { pageIndex, point ->
+                                imageTarget = pageIndex to point
+                                addImage(ImageSource.GALLERY)
+                            }
                         } else {
                             TextEditor(
                                 edit = edit,
@@ -231,7 +291,15 @@ fun DocumentViewer(
 
 /** The lasso selection's menu and the touch-and-hold menu, placed over the page. */
 @Composable
-private fun EditMenus(doc: Document, mapper: PageMapper, selection: SelectionState, actions: SelectionActions, scope: CoroutineScope, tools: ToolState) {
+private fun EditMenus(
+    doc: Document,
+    mapper: PageMapper,
+    selection: SelectionState,
+    actions: SelectionActions,
+    scope: CoroutineScope,
+    tools: ToolState,
+    onImage: (pageIndex: Int, point: Offset) -> Unit,
+) {
     val context = LocalContext.current
     val app = context.nxtes
     val box = selection.bounds
@@ -244,6 +312,23 @@ private fun EditMenus(doc: Document, mapper: PageMapper, selection: SelectionSta
             val box = actions.singleText()
             if (box != null && single != null) {
                 MenuIcon(rememberVectorPainter(Icons.Default.Edit), stringResource(R.string.edit_text)) { selection.startText(single.id, box, isNew = false) }
+            }
+            val picture = actions.singlePicture()
+            if (picture != null && single != null) {
+                var cropMenu by remember { mutableStateOf(false) }
+                Box {
+                    MenuIcon(painterResource(R.drawable.ic_crop), stringResource(R.string.crop)) { cropMenu = true }
+                    DropdownMenu(expanded = cropMenu, onDismissRequest = { cropMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.crop_rectangle)) }, onClick = {
+                            cropMenu = false
+                            selection.startCrop(single.id, picture, freeform = false)
+                        })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.crop_freeform)) }, onClick = {
+                            cropMenu = false
+                            selection.startCrop(single.id, picture, freeform = true)
+                        })
+                    }
+                }
             }
         }
     }
@@ -272,8 +357,19 @@ private fun EditMenus(doc: Document, mapper: PageMapper, selection: SelectionSta
         }
     }
     val page = doc.pages[pageIndex]
+    items += stringResource(R.string.image) to {
+        selection.menuAt = null
+        onImage(pageIndex, point)
+    }
     items += stringResource(R.string.text_box) to { selection.startText(pageId, newTextBox(page.width, point.x, point.y, tools.textStyle), isNew = true) }
     items += stringResource(R.string.add_bookmark) to { addToDocument(bookmarkAdded) { addBookmark(doc.id, pageId, pageTitle) } }
     items += stringResource(R.string.add_outline) to { addToDocument(outlineAdded) { addOutline(doc.id, pageId, pageTitle) } }
     PageMenu(Rect(at, at), items)
 }
+
+/** Images start at most this share of the page across. */
+private const val IMAGE_FILL = 0.6f
+
+/** And no bigger than this many points per pixel, so small images aren't blown up. */
+private const val MAX_POINTS_PER_PIXEL = 0.75f
+

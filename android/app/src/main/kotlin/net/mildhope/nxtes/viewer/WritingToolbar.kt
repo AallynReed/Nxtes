@@ -87,6 +87,7 @@ fun WritingToolbar(
     onUndo: () -> Unit,
     onRedo: () -> Unit,
     onSidePanel: () -> Unit,
+    onAddImage: (ImageSource) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var settingsFor by remember { mutableStateOf<Int?>(null) }
@@ -167,6 +168,7 @@ fun WritingToolbar(
                         onSelect = { tools.selectTool(Tool.LASSO) },
                         glyph = { LassoGlyph(it) },
                     ) { LassoSettings(tools) }
+                    ImageButton(onAddImage)
                     ToolSlot(
                         selected = penMode && tools.tool == Tool.TEXT,
                         label = stringResource(R.string.text_box),
@@ -286,6 +288,32 @@ private fun DrawScope.drawPen(preset: PenPreset, lift: Dp, outline: Color, body:
     val bodySize = Size(bodyWidth, size.height - bodyTop + 4f)
     drawRect(body, Offset(left, bodyTop), bodySize)
     drawRect(outline, Offset(left, bodyTop), bodySize, style = Stroke(1.dp.toPx()))
+}
+
+/** Where a new image comes from. */
+enum class ImageSource { GALLERY, FILES, CAMERA }
+
+/** Opens a menu to add an image from the gallery, files or the camera. */
+@Composable
+private fun ImageButton(onAdd: (ImageSource) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        ToolSlot(selected = false, label = stringResource(R.string.image), onSelect = { open = true }, glyph = {
+            Icon(painterResource(R.drawable.ic_image), null, tint = it, modifier = Modifier.size(24.dp))
+        })
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            listOf(
+                ImageSource.GALLERY to R.string.image_gallery,
+                ImageSource.FILES to R.string.image_files,
+                ImageSource.CAMERA to R.string.image_camera,
+            ).forEach { (source, label) ->
+                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = {
+                    open = false
+                    onAdd(source)
+                })
+            }
+        }
+    }
 }
 
 /** A tool button that selects its tool, or opens its settings when it's already selected. */

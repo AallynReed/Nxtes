@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.NxtesApplication
 import net.mildhope.nxtes.data.Affine
 import net.mildhope.nxtes.data.Pen
+import net.mildhope.nxtes.data.Picture
 import net.mildhope.nxtes.data.Shape
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.data.recoloured
@@ -32,6 +33,13 @@ class SelectionActions(
         val page = selection.pageId ?: return null
         val picked = selection.picked.of(session.content(page))
         return (picked.objects.singleOrNull() as? TextBox)?.takeIf { picked.strokes.isEmpty() && picked.notes.isEmpty() && picked.masks.isEmpty() }
+    }
+
+    /** The picture, when that's all that's picked. */
+    fun singlePicture(): Picture? {
+        val page = selection.pageId ?: return null
+        val picked = selection.picked.of(session.content(page))
+        return (picked.objects.singleOrNull() as? Picture)?.takeIf { picked.strokes.isEmpty() && picked.notes.isEmpty() && picked.masks.isEmpty() }
     }
 
     /** Whether anything picked can change its stacking order. */

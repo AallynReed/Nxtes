@@ -86,6 +86,18 @@ class ViewportState {
 
     private var pendingPage: Int? = null
 
+    /** The page under the middle of the screen and that point on it, in page points. */
+    fun visibleCenter(pages: List<Page>): Pair<Int, Offset> {
+        val index = currentPage.coerceIn(pages.indices)
+        val rect = pageRects.getOrNull(index) ?: return index to Offset(pages[index].width / 2, pages[index].height / 2)
+        val centre = (Offset(size.width / 2, size.height / 2) - offset) / zoom
+        val scale = rect.width / pages[index].width
+        return index to Offset(
+            ((centre.x - rect.left) / scale).coerceIn(0f, pages[index].width),
+            ((centre.y - rect.top) / scale).coerceIn(0f, pages[index].height),
+        )
+    }
+
     /** Scrolls to the page, or does so once the layout is known. */
     fun goToPage(index: Int) {
         if (pageRects.isEmpty()) {

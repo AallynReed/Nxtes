@@ -409,6 +409,7 @@ fun PageCanvas(
                     drawImage(d.bitmap, topLeft = d.topLeft + (offset - d.offset))
                 }
                 val editing = selection.text?.takeIf { it.pageId == pages[i].id }?.box?.id
+                    ?: selection.crop?.takeIf { it.pageId == pages[i].id }?.picture?.id
                 val content = ink.content(pages[i].id).let { c -> if (editing == null) c else c.copy(objects = c.objects.filter { it.id != editing }) }
                 if (!content.isEmpty) {
                     val k = layout.scale * zoom
@@ -448,7 +449,6 @@ fun PageCanvas(
             }
         }
         }
-        overlay(mapper)
         if (pages.size > 1) {
             Surface(
                 shape = RoundedCornerShape(50),
@@ -464,6 +464,7 @@ fun PageCanvas(
                 )
             }
         }
+        overlay(mapper)
     }
 }
 

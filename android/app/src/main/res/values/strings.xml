@@ -238,6 +238,14 @@
     <string name="font_casual">Casual</string>
     <string name="font_cursive">Cursive</string>
     <string name="font_small_caps">Small capitals</string>
+    <string name="image">Image</string>
+    <string name="image_gallery">From the gallery</string>
+    <string name="image_files">From files</string>
+    <string name="image_camera">Take a photo</string>
+    <string name="crop">Crop</string>
+    <string name="crop_rectangle">Crop to a box</string>
+    <string name="crop_freeform">Crop freehand</string>
+    <string name="crop_reset">Whole image</string>
     <string name="action_failed">That didn\'t work. Please try again.</string>
     <plurals name="import_failed">
         <item quantity="one">%d PDF couldn\'t be imported</item>
