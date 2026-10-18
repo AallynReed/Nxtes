@@ -1,6 +1,9 @@
 package net.mildhope.nxtes.viewer
 
 import android.util.Log
+import net.mildhope.nxtes.edit.MaskMenu
+import net.mildhope.nxtes.edit.answer
+import net.mildhope.nxtes.edit.mask
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.layout.onSizeChanged
@@ -280,6 +283,14 @@ fun DocumentViewer(
                                 imageTarget = pageIndex to point
                                 addImage(ImageSource.GALLERY)
                             }
+                            selection.asking?.let { (pageId, maskId) ->
+                                ink.content(pageId).mask(maskId)?.let { mask ->
+                                    MaskMenu(pageId, mask, mapper) { right ->
+                                        ink.answer(pageId, maskId, right)
+                                        selection.asking = null
+                                    }
+                                }
+                            }
                         } else {
                             val box = edit.box
                             val index = mapper.indexOf(edit.pageId)
@@ -311,6 +322,8 @@ fun DocumentViewer(
                     SidePanel(
                         doc = doc,
                         viewport = viewport,
+                        ink = ink,
+                        selection = selection,
                         tab = panelTab,
                         onTab = { panelTab = it },
                         onClose = { panelOpen = false },

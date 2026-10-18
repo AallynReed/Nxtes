@@ -64,11 +64,13 @@ import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.data.LibraryStore
 import net.mildhope.nxtes.data.OutlineItem
+import net.mildhope.nxtes.edit.SelectionState
+import net.mildhope.nxtes.ink.PageSession
 import net.mildhope.nxtes.library.NameDialog
 import net.mildhope.nxtes.library.runLibraryAction
 import net.mildhope.nxtes.nxtes
 
-enum class SideTab { PAGES, OUTLINE, BOOKMARKS }
+enum class SideTab { PAGES, OUTLINE, BOOKMARKS, MASKS }
 
 /** An outline row: the PDF's own entries are read-only, the user's ([item]) can be edited. */
 private class OutlineRow(val title: String, val pageIndex: Int, val depth: Int, val item: OutlineItem? = null)
@@ -85,6 +87,8 @@ private sealed interface PanelDialog {
 fun SidePanel(
     doc: Document,
     viewport: ViewportState,
+    ink: PageSession,
+    selection: SelectionState,
     tab: SideTab,
     onTab: (SideTab) -> Unit,
     onClose: () -> Unit,
@@ -101,6 +105,7 @@ fun SidePanel(
         Triple(SideTab.PAGES, painterResource(R.drawable.ic_grid_view), stringResource(R.string.pages)),
         Triple(SideTab.OUTLINE, rememberVectorPainter(Icons.AutoMirrored.Filled.List), stringResource(R.string.outline)),
         Triple(SideTab.BOOKMARKS, painterResource(R.drawable.ic_bookmark), stringResource(R.string.bookmarks)),
+        Triple(SideTab.MASKS, painterResource(R.drawable.ic_masking), stringResource(R.string.masking)),
     )
 
     Surface(shadowElevation = 8.dp, modifier = modifier.width(320.dp).fillMaxHeight()) {
@@ -122,6 +127,7 @@ fun SidePanel(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             when (tab) {
                 SideTab.PAGES -> PageGrid(doc, viewport)
+                SideTab.MASKS -> MaskList(doc, ink, selection, viewport)
                 SideTab.OUTLINE -> Outline(doc, viewport, { dialog = PanelDialog.AddOutline }, { dialog = PanelDialog.EditOutline(it) }) {
                     edit { deleteOutline(doc.id, it.id) }
                 }

@@ -73,6 +73,7 @@ import net.mildhope.nxtes.edit.importSticker
 import net.mildhope.nxtes.edit.ref
 import net.mildhope.nxtes.library.runLibraryAction
 import net.mildhope.nxtes.data.LineStyle
+import net.mildhope.nxtes.data.MaskKind
 import net.mildhope.nxtes.data.Pen
 import net.mildhope.nxtes.data.ShapeKind
 import net.mildhope.nxtes.edit.LassoType
@@ -193,6 +194,12 @@ fun WritingToolbar(
                         glyph = { Icon(painterResource(R.drawable.ic_sticky_note), null, tint = it, modifier = Modifier.size(24.dp)) },
                     ) { NoteSettings(tools) }
                     StickerSlot(tools, selected = penMode && tools.tool == Tool.STICKER)
+                    ToolSlot(
+                        selected = penMode && tools.tool == Tool.MASK,
+                        label = stringResource(R.string.masking),
+                        onSelect = { tools.selectTool(Tool.MASK) },
+                        glyph = { Icon(painterResource(R.drawable.ic_masking), null, tint = it, modifier = Modifier.size(24.dp)) },
+                    ) { MaskSettings(tools) }
                     ToolSlot(
                         selected = penMode && tools.tool == Tool.LASER,
                         label = stringResource(R.string.laser),
@@ -368,6 +375,44 @@ private fun ToolSlot(
         if (settings != null) {
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) { settings { open = false } }
         }
+    }
+}
+
+/** Tape boxes or pen lines, their colour, and the pen's width. */
+@Composable
+private fun MaskSettings(tools: ToolState) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(280.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(MaskKind.TAPE to R.string.mask_tape, MaskKind.PEN to R.string.mask_pen).forEach { (kind, label) ->
+                FilterChip(
+                    selected = tools.maskKind == kind,
+                    onClick = { tools.updateMask(kind, tools.maskColor, tools.maskWidth) },
+                    label = { Text(stringResource(label)) },
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
+            ToolState.MASK_COLORS.forEach { colour ->
+                val selected = colour == tools.maskColor
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color(colour))
+                        .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                        .clickable { tools.updateMask(tools.maskKind, colour, tools.maskWidth) },
+                )
+            }
+        }
+        if (tools.maskKind == MaskKind.PEN) {
+            Text(stringResource(R.string.mask_size, tools.maskWidth.roundToInt()), style = MaterialTheme.typography.labelLarge)
+            Slider(
+                value = tools.maskWidth,
+                onValueChange = { tools.updateMask(tools.maskKind, tools.maskColor, it) },
+                valueRange = ToolState.MASK_WIDTHS,
+            )
+        }
+        Text(stringResource(R.string.mask_hint), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

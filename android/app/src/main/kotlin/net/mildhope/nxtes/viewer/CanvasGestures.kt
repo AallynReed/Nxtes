@@ -27,7 +27,7 @@ import net.mildhope.nxtes.ink.ToolState
 
 /** Drags a pointer can make on the canvas. */
 enum class DragKind {
-    ERASE, LASSO, SELECTION, SHAPE, LASER,
+    ERASE, LASSO, SELECTION, SHAPE, LASER, MASK,
 
     /** A tool that places something where it's tapped; dragging does nothing. */
     PLACE,
@@ -121,7 +121,7 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
 
                 /** Tool drags that can also be a tap or a touch and hold wait to see which it is. */
                 suspend fun AwaitPointerEventScope.toolGesture(start: PointerEvent, kind: DragKind) {
-                    if (kind != DragKind.LASSO && kind != DragKind.PLACE) return drag(pen, start, down.id, canvas, kind, Handle.NONE)
+                    if (kind != DragKind.LASSO && kind != DragKind.PLACE && kind != DragKind.MASK) return drag(pen, start, down.id, canvas, kind, Handle.NONE)
                     when (val hold = holdOrMove(pen, start, down, longPressMs, slop, everyPointer = true)) {
                         Hold.Held -> canvas.longPress(down.position)
                         is Hold.Tapped -> canvas.tap(hold.at)

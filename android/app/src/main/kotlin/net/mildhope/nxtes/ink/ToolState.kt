@@ -12,6 +12,7 @@ import androidx.ink.brush.Brush
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import net.mildhope.nxtes.data.LineStyle
+import net.mildhope.nxtes.data.MaskKind
 import net.mildhope.nxtes.data.Pen
 import net.mildhope.nxtes.data.ShapeKind
 import net.mildhope.nxtes.edit.LassoType
@@ -41,7 +42,7 @@ data class PenPreset(
         }
 }
 
-enum class Tool { PEN, ERASER, LASSO, TEXT, NOTE, STICKER, LASER }
+enum class Tool { PEN, ERASER, LASSO, TEXT, NOTE, STICKER, MASK, LASER }
 
 /** The laser pointer shows a dot, or a line that fades behind it. */
 enum class LaserMode { DOT, LINE }
@@ -111,6 +112,25 @@ class ToolState(private val prefs: SharedPreferences) {
         if (style == textStyle) return
         textStyle = style
         prefs.edit { putString(KEY_TEXT_STYLE, json.encodeToString(style)) }
+    }
+
+    /** Masking draws tape boxes or pen lines in [maskColor]; pen lines are [maskWidth] points wide. */
+    var maskKind by mutableStateOf(runCatching { MaskKind.valueOf(prefs.getString(KEY_MASK_KIND, null)!!) }.getOrDefault(MaskKind.TAPE))
+        private set
+    var maskColor by mutableIntStateOf(prefs.getInt(KEY_MASK_COLOR, MASK_COLORS[0]))
+        private set
+    var maskWidth by mutableFloatStateOf(prefs.getFloat(KEY_MASK_WIDTH, 12f))
+        private set
+
+    fun updateMask(kind: MaskKind, colour: Int, width: Float) {
+        maskKind = kind
+        maskColor = colour
+        maskWidth = width.coerceIn(MASK_WIDTHS)
+        prefs.edit {
+            putString(KEY_MASK_KIND, kind.name)
+            putInt(KEY_MASK_COLOR, colour)
+            putFloat(KEY_MASK_WIDTH, maskWidth)
+        }
     }
 
     var laserMode by mutableStateOf(runCatching { LaserMode.valueOf(prefs.getString(KEY_LASER_MODE, null)!!) }.getOrDefault(LaserMode.LINE))
@@ -267,6 +287,12 @@ class ToolState(private val prefs: SharedPreferences) {
         private const val KEY_TEXT_STYLE = "text_style"
         private const val KEY_NOTE_COLOR = "note_color"
         private const val KEY_LASER_MODE = "laser_mode"
+        private const val KEY_MASK_KIND = "mask_kind"
+        private const val KEY_MASK_COLOR = "mask_color"
+        private const val KEY_MASK_WIDTH = "mask_width"
+
+        val MASK_WIDTHS = 4f..40f
+        val MASK_COLORS = listOf(0xFFFFD54F, 0xFFFFB74D, 0xFF81C784, 0xFF64B5F6, 0xFFF48FB1, 0xFF90A4AE).map { it.toInt() }
         private const val KEY_LASER_COLOR = "laser_color"
         private const val KEY_STICKERS = "recent_stickers"
         private const val MAX_RECENT_STICKERS = 16

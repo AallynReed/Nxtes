@@ -60,6 +60,34 @@ class SelectionState {
     var note by mutableStateOf<NoteEdit?>(null)
         private set
 
+    /** Masks shown see-through, by id; this isn't saved. */
+    var revealed by mutableStateOf<Set<String>>(emptySet())
+        private set
+
+    /** The mask just revealed, as page id and mask id, waiting to hear if the answer was right. */
+    var asking by mutableStateOf<Pair<String, String>?>(null)
+
+    /** Reveals a covered mask and asks about it, or covers a revealed one. */
+    fun toggleMask(pageId: String, maskId: String) {
+        if (maskId in revealed) {
+            revealed = revealed - maskId
+            asking = null
+        } else {
+            revealed = revealed + maskId
+            asking = pageId to maskId
+        }
+    }
+
+    fun revealAll(ids: Collection<String>) {
+        revealed = revealed + ids
+        asking = null
+    }
+
+    fun coverAll() {
+        revealed = emptySet()
+        asking = null
+    }
+
     val active get() = pageId != null && !picked.isEmpty
 
     private var dragHandle = Handle.NONE

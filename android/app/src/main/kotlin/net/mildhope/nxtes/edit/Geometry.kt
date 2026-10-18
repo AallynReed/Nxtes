@@ -13,6 +13,7 @@ import net.mildhope.nxtes.data.StickyNote
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.page.PagePainter
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -170,9 +171,30 @@ object Geometry {
         return Picked(strokes.map { it.id }.toSet(), objects.map { it.id }.toSet(), notes.map { it.id }.toSet(), masks.map { it.id }.toSet())
     }
 
-    /** The topmost note or object under the point, for touch-and-hold selection. */
+    /** Whether the point is on the mask: inside tape, or within reach of a pen mask's line. */
+    fun hit(m: Mask, x: Float, y: Float, slop: Float): Boolean = when (m.kind) {
+        MaskKind.TAPE -> inside(x, y, m.xs, m.ys)
+        MaskKind.PEN -> {
+            val reach = m.width / 2 + slop
+            m.xs.indices.any { i ->
+                val j = if (i == 0) 0 else i - 1
+                segmentDistance(x, y, m.xs[j], m.ys[j], m.xs[i], m.ys[i]) <= reach
+            }
+        }
+    }
+
+    private fun segmentDistance(px: Float, py: Float, ax: Float, ay: Float, bx: Float, by: Float): Float {
+        val dx = bx - ax
+        val dy = by - ay
+        val length = dx * dx + dy * dy
+        val t = if (length == 0f) 0f else (((px - ax) * dx + (py - ay) * dy) / length).coerceIn(0f, 1f)
+        return hypot(px - (ax + t * dx), py - (ay + t * dy))
+    }
+
+    /** The topmost note, mask or object under the point, for touch-and-hold selection. */
     fun hit(content: PageContent, x: Float, y: Float, slop: Float): Picked? {
         content.notes.lastOrNull { bounds(it).inflate(slop).contains(x, y) }?.let { return Picked(notes = setOf(it.id)) }
+        content.masks.lastOrNull { hit(it, x, y, slop) }?.let { return Picked(masks = setOf(it.id)) }
         content.objects.lastOrNull { o ->
             val (xs, ys) = outline(o)
             val area = o !is Shape || o.kind.closed

@@ -183,7 +183,7 @@ class PagePainter {
         for (i in 1..3) canvas.drawLine(note.x + s * 0.2f, note.y + s * 0.22f * i, note.x + s * 0.68f, note.y + s * 0.22f * i, line)
     }
 
-    private fun drawMask(canvas: Canvas, mask: Mask, revealed: Boolean) {
+    fun drawMask(canvas: Canvas, mask: Mask, revealed: Boolean) {
         val alpha = if (revealed) 0.18f else 1f
         val colour = Color.argb((Color.alpha(mask.color) * alpha).toInt(), Color.red(mask.color), Color.green(mask.color), Color.blue(mask.color))
         when (mask.kind) {

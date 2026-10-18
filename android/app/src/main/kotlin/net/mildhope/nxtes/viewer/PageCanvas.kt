@@ -74,7 +74,10 @@ import net.mildhope.nxtes.page.PageResources
 import androidx.core.graphics.withMatrix
 import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.Pen
+import net.mildhope.nxtes.data.Mask
+import net.mildhope.nxtes.data.MaskKind
 import net.mildhope.nxtes.data.Shape
+import net.mildhope.nxtes.edit.MaskBuilder
 import net.mildhope.nxtes.data.StickyNote
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.edit.ShapeBuilder
@@ -189,6 +192,7 @@ fun PageCanvas(
     val strokeClip = remember { RectF() }
     var eraserAt by remember { mutableStateOf<Offset?>(null) }
     var shapePreview by remember { mutableStateOf<Pair<Int, Shape>?>(null) }
+    var maskPreview by remember { mutableStateOf<Pair<Int, Mask>?>(null) }
     val drag = remember { DragState() }
     val laser = remember { LaserTrail() }
 
@@ -201,6 +205,13 @@ fun PageCanvas(
             UUID.randomUUID().toString(), preset.shape, preset.sides, drag.start.x, drag.start.y, end.x, end.y, xs to ys,
             preset.color, preset.size, preset.fill, preset.line,
         )
+    }
+
+    /** The mask the masking tool makes for the current drag. */
+    fun dragMask(end: Offset): Mask? = if (tools.maskKind == MaskKind.TAPE) {
+        MaskBuilder.tape(UUID.randomUUID().toString(), drag.start.x, drag.start.y, end.x, end.y, tools.maskColor)
+    } else {
+        MaskBuilder.pen(UUID.randomUUID().toString(), drag.path, tools.maskWidth, tools.maskColor)
     }
 
     /** The selection's corners on screen, clockwise from top-left, with the dragged transform applied. */
@@ -229,13 +240,24 @@ fun PageCanvas(
 
         override fun drawingDrag() = when {
             tools.tool == Tool.LASER -> DragKind.LASER
+            tools.tool == Tool.MASK -> DragKind.MASK
             tools.tool == Tool.LASSO -> DragKind.LASSO
             tools.tool == Tool.PEN && tools.pen.pen == Pen.SHAPE -> DragKind.SHAPE
             tools.tool == Tool.TEXT || tools.tool == Tool.NOTE || tools.tool == Tool.STICKER -> DragKind.PLACE
             else -> null
         }
 
-        override fun opensOnTap(at: Offset) = noteAt(at) != null
+        override fun opensOnTap(at: Offset) = noteAt(at) != null || maskAt(at) != null
+
+        /** The topmost mask under the point, with its page. */
+        private fun maskAt(at: Offset): Pair<String, Mask>? {
+            if (tools.annotationsHidden) return null
+            val index = mapper.pageAt(at)
+            val page = pages.getOrNull(index) ?: return null
+            val point = mapper.toPage(index, at)
+            val mask = ink.content(page.id).masks.lastOrNull { Geometry.hit(it, point.x, point.y, handleTouch / mapper.pixelsPerPoint / 4) } ?: return null
+            return page.id to mask
+        }
 
         /** The sticky note under the point, with its page. */
         private fun noteAt(at: Offset): Pair<String, StickyNote>? {
@@ -266,6 +288,14 @@ fun PageCanvas(
                     laser.down = true
                     laser.add(at, tools.laserMode)
                 }
+                DragKind.MASK -> {
+                    selection.clear()
+                    selection.asking = null
+                    drag.page = mapper.pageAt(at)
+                    drag.start = mapper.toPage(drag.page, at)
+                    drag.path.clear()
+                    drag.path += drag.start
+                }
                 DragKind.SHAPE -> {
                     selection.clear()
                     drag.page = mapper.pageAt(at)
@@ -284,6 +314,11 @@ fun PageCanvas(
                 DragKind.SELECTION -> selection.drag(mapper.toPage(mapper.indexOf(selection.pageId), to))
                 DragKind.PLACE -> Unit
                 DragKind.LASER -> laser.add(to, tools.laserMode)
+                DragKind.MASK -> {
+                    val point = mapper.toPage(drag.page, to)
+                    drag.path += point
+                    maskPreview = dragMask(point)?.let { drag.page to it }
+                }
                 DragKind.SHAPE -> {
                     val point = mapper.toPage(drag.page, to)
                     drag.path += point
@@ -307,6 +342,12 @@ fun PageCanvas(
                     laser.down = false
                     laser.liftedAt = SystemClock.uptimeMillis()
                 }
+                DragKind.MASK -> {
+                    maskPreview = null
+                    dragMask(mapper.toPage(drag.page, drag.last))?.let { mask ->
+                        pages.getOrNull(drag.page)?.let { page -> ink.update(page.id) { it.copy(masks = it.masks + mask) } }
+                    }
+                }
                 DragKind.SHAPE -> {
                     shapePreview = null
                     dragShape(mapper.toPage(drag.page, drag.last))?.let { shape ->
@@ -323,7 +364,9 @@ fun PageCanvas(
             if (finishEditing()) return
             selection.clear()
             selection.menuAt = null
+            selection.asking = null
             if (openNote(at)) return
+            maskAt(at)?.let { (pageId, mask) -> return selection.toggleMask(pageId, mask.id) }
             if (tools.mode != InputMode.PEN) return
             when (tools.tool) {
                 Tool.TEXT -> placeText(at)
@@ -384,6 +427,7 @@ fun PageCanvas(
             if (!finishEditing()) {
                 selection.clear()
                 selection.menuAt = null
+                selection.asking = null
             }
             drag.convert = null
         }
@@ -533,11 +577,11 @@ fun PageCanvas(
                     val moving = selection.pageId == pages[i].id && selection.preview != Affine()
                     drawIntoCanvas { canvas ->
                         if (moving) {
-                            painter.draw(canvas.nativeCanvas, selection.picked.without(content), strokeMatrix, strokeClip, resources)
+                            painter.draw(canvas.nativeCanvas, selection.picked.without(content), strokeMatrix, strokeClip, resources, selection.revealed)
                             val moved = android.graphics.Matrix(strokeMatrix).apply { preConcat(selection.preview.toMatrix()) }
-                            painter.draw(canvas.nativeCanvas, selection.picked.of(content), moved, strokeClip, resources)
+                            painter.draw(canvas.nativeCanvas, selection.picked.of(content), moved, strokeClip, resources, selection.revealed)
                         } else {
-                            painter.draw(canvas.nativeCanvas, content, strokeMatrix, strokeClip, resources)
+                            painter.draw(canvas.nativeCanvas, content, strokeMatrix, strokeClip, resources, selection.revealed)
                         }
                     }
                 }
@@ -550,6 +594,15 @@ fun PageCanvas(
                 drawIntoCanvas { canvas ->
                     canvas.nativeCanvas.withMatrix(android.graphics.Matrix().apply { setScale(k, k); postTranslate(origin.x, origin.y) }) {
                         painter.drawShape(this, shape)
+                    }
+                }
+            }
+            maskPreview?.let { (index, mask) ->
+                val origin = mapper.toScreen(index, Offset.Zero)
+                val k = mapper.pixelsPerPoint
+                drawIntoCanvas { canvas ->
+                    canvas.nativeCanvas.withMatrix(android.graphics.Matrix().apply { setScale(k, k); postTranslate(origin.x, origin.y) }) {
+                        painter.drawMask(this, mask, revealed = false)
                     }
                 }
             }
