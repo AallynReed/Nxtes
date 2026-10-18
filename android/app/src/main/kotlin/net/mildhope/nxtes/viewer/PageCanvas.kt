@@ -575,7 +575,7 @@ fun PageCanvas(
 
     val currentTools by rememberUpdatedState(canvasTools)
 
-    LaunchedEffect(layout, size) { state.updateLayout(size.toSize(), layout) }
+    LaunchedEffect(layout) { state.updateLayout(layout.viewport, layout) }
 
     LaunchedEffect(laser.visible) {
         while (laser.visible) withFrameMillis { laser.tick(SystemClock.uptimeMillis(), tools.laserMode) }

@@ -27,7 +27,7 @@ fun spreads(count: Int, flow: PageFlow): List<List<Int>> {
  * and gives it a whole view-sized slot. World coordinates are these pixels divided by [scale], so
  * they're in PDF points.
  */
-class PageLayout(pages: List<Page>, viewport: Size, gap: Float, val flow: PageFlow = PageFlow()) {
+class PageLayout(pages: List<Page>, val viewport: Size, gap: Float, val flow: PageFlow = PageFlow()) {
     val spreads: List<List<Int>> = spreads(pages.size, flow)
     val rects: List<Rect>
     val contentWidth: Float
