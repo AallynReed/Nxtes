@@ -160,15 +160,26 @@ The official instance runs on Zakros at `https://nxtes.mildhope.net`.
 
 ## Flexcil backup import
 
-A `.flex` backup holds Flexcil document packages: `pages.index`, per-page `.drawings` and
-`.annotations` files, `.info` and `template.info`, the source PDFs and `.m4a` recordings, with JSON
-written by Gson. The importer lives in the app and converts each package into a Nxtes document.
-Before writing it we need to:
+A `.flex` backup is a ZIP holding one `.flx` ZIP per document under folder directories, plus the
+recordings; [flexcil-format.md](flexcil-format.md) describes it. The importer lives in the app
+(`flexcil/`) and accepts a whole backup or a single `.flx`, from the add menu or the share sheet.
 
-1. Map the JSON schemas from Flexcil's Gson adapter classes with REA.
-2. Get a real `.flex` backup from a test account to validate against. The APK contains no user data.
+- Folders keep their names, colours, favourites and dates. Documents land in the folder the
+  library is showing.
+- Every Flexcil page is backed by a PDF page (notes use a copied template PDF), so pages keep their
+  PDF background, size and rotation.
+- Object coordinates are fractions of the displayed page width; they're scaled to page points.
+  Ink keeps per-point width as pressure for the fountain and pencil pens. Flexcil stores no point
+  times, so points get one every 10 ms; strokes take their creation time from the recording sync
+  file when there is one, so tap-to-hear works on imported recordings.
+- Shapes, text boxes, pictures (with crops), text highlights and underlines, sticky notes, masks,
+  bookmarks and recordings convert to their Nxtes counterparts. Outlines are imported for notes
+  only, since a PDF's own outline already shows. Hyperlinks, scrap references, sticker packs and
+  calligraphy brush looks aren't carried over.
 
-The importer only reads the user's own data, for interoperability.
+The importer only reads the user's own data, for interoperability. It was written from a static
+reading of the format and tested against generated backups; checking it against a real backup is
+still to do.
 
 ## Milestones
 
