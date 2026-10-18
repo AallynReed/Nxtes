@@ -12,8 +12,8 @@ android {
         applicationId = "net.mildhope.nxtes"
         minSdk = 29
         targetSdk = 36
-        versionCode = 16
-        versionName = "0.14.0"
+        versionCode = 17
+        versionName = "0.14.1"
     }
 
     bundle {
