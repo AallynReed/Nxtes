@@ -35,8 +35,11 @@ Licensed AGPL-3.0. Every dependency must be AGPL-compatible.
   added as a page, becomes a one-page PDF made with Android's `PdfDocument`, so every page
   background is either generated or a PDF page.
 - **Storage:** the document packages (below) and a `folders.json` are the source of truth for the
-  library, including trash. SQLite holds only derived data: the FTS5 search index in milestone 5.
-- **Background work:** WorkManager runs sync and indexing; a foreground service handles recording.
+  library, including trash. SQLite holds only derived data: the full-text search index. Android's
+  built-in SQLite has FTS4 but not FTS5, so the index uses FTS4. It's rebuilt per document
+  whenever the document's modified time changes, a couple of seconds after library changes, while
+  the app runs.
+- **Background work:** WorkManager runs sync; a foreground service handles recording.
 - **Networking:** OkHttp with kotlinx.serialization.
 
 ## Document package

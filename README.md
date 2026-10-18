@@ -10,7 +10,10 @@ navigator adds, reorders, turns, duplicates, copies and moves pages; bookmarks, 
 duplicate and merge are in too. The editing tools are in: lasso, shapes and shape recognition, text
 boxes with your own fonts, images with camera and crop, sticky notes, sticker packs, masking with
 correct rates, a laser pointer, and PDF text highlighting. The screens follow Flexcil's layout
-([UI](docs/ui.md)). Scroll modes and full-text search come in milestone 5.
+([UI](docs/ui.md)). The viewer scrolls down or across, page by page or continuously, one or two
+pages at a time, with dark pages, read-only mode, full screen, multi-finger undo and redo,
+annotation and search panels, and full-text search across the library. Audio recording comes in
+milestone 6.
 
 Debug builds of each version are attached to the [GitHub releases](https://github.com/AallynReed/Nxtes/releases).
 

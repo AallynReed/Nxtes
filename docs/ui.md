@@ -48,6 +48,10 @@ library menu as a bottom bar.
   or file size and the date (`yyyy.MM.dd`).
 - **Add button:** bottom right. It opens a labelled menu: New folder, New note, Import PDF.
 - **Trash** opens in the same main area, with Restore all and Empty in the title bar.
+- **Search:** typing in the search box shows Titles (matching names) and Inside documents
+  (pages whose PDF text, text boxes, sticky notes or highlights contain every word typed, each
+  as a word start). Content results are grouped by document with the page and a snippet; tapping
+  one opens the document at that page.
 
 ## Note settings
 
@@ -97,13 +101,20 @@ Full screen, for New note and for an item's "Cover and template".
     pen type with a shape, line style, fill and polygon sides. After a "+" to add a pen come the
     eraser, lasso, image, text box, sticky note, sticker, masking and laser. Tapping a selected
     tool opens its settings.
-  - Right: undo, redo, view settings (stylus only, show annotations, which shapes holding the
-    pen still makes), and the side panel button.
+  - Right: undo, redo, view settings, and the side panel button. In read-only mode the tools
+    give way to a "Read only" pill that turns it off.
+- **View settings:** page layout (scroll down or across, continuous or page by page, two pages
+  side by side, first page alone); dark pages, keep the screen on, full screen, hide the tab
+  bar; use stylus only, show annotations, read only; and which shapes holding the pen still
+  makes.
 - **Modes.**
   - Pen mode draws with the stylus, and with a finger too unless "Use stylus only" is on.
     Fingers always scroll and zoom with two fingers.
   - Gesture mode never draws; pen and fingers scroll, zoom and select. Touch and hold PDF text
     to pick it.
+  - Read-only mode changes nothing: touches scroll, zoom and reveal masks, and the laser works.
+  - In any mode a two-finger tap undoes and a three-finger tap redoes.
+  - Page by page turns one page (or pair of pages) per swipe.
 - **Tools.**
   - Lasso: freehand or box, picking up the item types ticked in its settings. The selection gets
     a dashed box with corner handles to resize and a handle above to turn, and a menu above it:
@@ -129,14 +140,21 @@ Full screen, for New note and for an item's "Cover and template".
     through, copy, look up, share, add bookmark and add to outline. Touch and hold a highlight to
     recolour, copy or delete it.
 - **Tab bar (36 dp).** One tab per open document with a close button. The active tab is
-  underlined in the accent colour, and the open-document count sits on the right. Going back
-  to the library keeps the tabs.
+  underlined in the accent colour, and the open-document count sits on the right; it lists the
+  open documents and offers Close other tabs and Close all tabs, as does touching and holding a
+  tab. Going back to the library keeps the tabs. View settings can hide the bar.
 - **Side panel (320 dp, from the right, over a dimmed page).**
   - The current tab's name and a close button on top, then the tab icons: search, pages,
-    outline, bookmarks, annotations. Tabs whose feature isn't built yet stay hidden.
+    outline, bookmarks, annotations, masking. Back closes the panel.
+  - Search: a search field, the match count, then matches grouped by page, each a snippet with
+    the match in bold and where it was found (PDF text, text box, sticky note, highlight).
+    Tapping one scrolls it into view and marks it on the page until the next tap.
   - Pages: a page number field with Go, then a thumbnail grid; tapping a page jumps to it.
   - Outline: the PDF's own entries and the user's, in page order. Bookmarks: title and page.
     Both have an add row at the bottom; touch and hold a user entry to edit or delete it.
+  - Annotations: filter chips (all, highlights, text boxes, sticky notes, images and stickers,
+    shapes, handwriting), then everything on the document grouped by page; tapping a row goes to
+    its page.
   - Masking: the document's correct rate, sort by page, highest or lowest score, reveal all and
     cover all, then each mask with its page and score.
 - **Page background:** pages sit on light grey with a thin border, and a "3 / 17" counter at
