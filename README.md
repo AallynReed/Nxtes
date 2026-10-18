@@ -9,8 +9,8 @@ with a stylus or finger: pens, highlighter, eraser, undo and redo, saved automat
 navigator adds, reorders, turns, duplicates, copies and moves pages; bookmarks, outlines, covers,
 duplicate and merge are in too. The editing tools are in: lasso, shapes and shape recognition, text
 boxes with your own fonts, images with camera and crop, sticky notes, sticker packs, masking with
-correct rates, a laser pointer, handwriting-to-text conversion, and a highlighter that snaps to PDF
-text and to handwriting. The screens follow Flexcil's layout
+correct rates, a laser pointer, handwriting-to-text conversion (on request, or by itself whenever
+you pause), and a highlighter that snaps to PDF text and to handwriting. The screens follow Flexcil's layout
 ([UI](docs/ui.md)). The viewer scrolls down or across, page by page or continuously, one or two
 pages at a time, with dark pages, read-only mode, full screen, multi-finger undo and redo,
 annotation and search panels, and full-text search across the library. Recording audio while

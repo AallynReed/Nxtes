@@ -51,6 +51,7 @@ Priorities: **v1** ships in the first release, **later** comes after it, and **d
 | Erasers: whole stroke, partial, pressure-sensitive; option to spare highlighter; clear page; auto-deselect | v1 |
 | Lasso: select by type (ink, highlighter, text, images, textboxes); move, resize, rotate, recolor, copy, paste, delete, save as sticker | v1 |
 | Convert lassoed handwriting to text, on the device, in a chosen language; correct it, then copy it or swap it for a text box | v1 |
+| Toolbar toggle that turns writing into text by itself after a 1.5 s pause, carrying on the last text box when the writing continues its line or starts the next | v1 |
 | Shapes (line, rectangle, ellipse, polygon, arrow) and hold-to-convert shape recognition, toggled per shape | v1 |
 | Textboxes with system fonts and imported .ttf/.otf fonts, size, color, background | v1 |
 | Browsing Google Fonts | later |
