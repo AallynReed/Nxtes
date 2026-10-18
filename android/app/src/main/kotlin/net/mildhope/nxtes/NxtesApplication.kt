@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.MainScope
 import net.mildhope.nxtes.data.LibraryStore
 import net.mildhope.nxtes.edit.ContentClip
+import net.mildhope.nxtes.edit.HandwritingReader
 import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.library.LibraryPrefs
 import net.mildhope.nxtes.page.PageAssets
@@ -64,6 +65,7 @@ class NxtesApplication : Application() {
         private set
     val exporter by lazy { Exporter(this, library, backgrounds, assets) }
     val player by lazy { AudioPlayer() }
+    val handwriting by lazy { HandwritingReader(this) }
     lateinit var indexer: SearchIndexer
         private set
     lateinit var sync: SyncManager

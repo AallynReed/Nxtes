@@ -272,6 +272,13 @@
     <string name="sticker_hint">Touch and hold a pack or sticker to rename or delete it.</string>
     <string name="no_stickers">Stickers you stamp show up here.</string>
     <string name="add_to_stickers">Add to stickers</string>
+    <string name="convert_to_text">Convert to text</string>
+    <string name="convert">Convert</string>
+    <string name="try_again">Try again</string>
+    <string name="handwriting_reading">Reading the handwriting…</string>
+    <string name="handwriting_downloading">Downloading handwriting recognition for %1$s…</string>
+    <string name="handwriting_none">No text was recognized.</string>
+    <string name="handwriting_failed">The handwriting couldn’t be read. The first time a language is used, its recognition has to be downloaded, so check the connection.</string>
     <string name="my_stickers">My stickers</string>
     <string name="added_to_stickers">Added to %1$s</string>
     <string name="laser">Laser pointer</string>

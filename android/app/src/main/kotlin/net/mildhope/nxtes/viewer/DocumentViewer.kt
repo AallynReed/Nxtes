@@ -23,6 +23,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import net.mildhope.nxtes.data.TextMark
+import net.mildhope.nxtes.data.InkStroke
+import net.mildhope.nxtes.edit.ConvertTextDialog
 import net.mildhope.nxtes.edit.MarkMenu
 import net.mildhope.nxtes.edit.PageText
 import net.mildhope.nxtes.edit.TextPick
@@ -171,6 +173,7 @@ fun DocumentViewer(
     var navigatorOpen by rememberSaveable { mutableStateOf(false) }
     var goToPage by remember { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
+    var toText by remember { mutableStateOf<List<InkStroke>?>(null) }
 
     /** Runs a page change, saving this document's ink first and reloading it after if it changed. */
     fun editPages(documentId: String, action: LibraryStore.() -> Unit) {
@@ -432,7 +435,7 @@ fun DocumentViewer(
                         } else if (crop != null) {
                             CropEditor(crop, mapper, resources) { selection.endCrop(ink, it) }
                         } else if (edit == null) {
-                            EditMenus(doc, mapper, selection, actions, scope, tools, ink) { pageIndex, point ->
+                            EditMenus(doc, mapper, selection, actions, scope, tools, ink, onToText = { toText = actions.writing }) { pageIndex, point ->
                                 imageTarget = pageIndex to point
                                 addImage(ImageSource.GALLERY)
                             }
@@ -537,6 +540,21 @@ fun DocumentViewer(
         }, onDismiss = { deletingRecording = null })
     }
     if (exporting) ExportDialog(doc, viewport.currentPage) { exporting = false }
+    toText?.let { strokes ->
+        ConvertTextDialog(
+            reader = app.handwriting,
+            strokes = strokes,
+            onCopy = {
+                copyText(context, it)
+                toText = null
+            },
+            onConvert = { text ->
+                doc.pages.firstOrNull { it.id == selection.pageId }?.let { page -> actions.replaceWriting(text, tools.textStyle.font, page.width, resources) }
+                toText = null
+            },
+            onDismiss = { toText = null },
+        )
+    }
     if (goToPage) {
         GoToPageDialog(
             pageCount = doc.pages.size,
@@ -559,6 +577,7 @@ private fun EditMenus(
     scope: CoroutineScope,
     tools: ToolState,
     ink: PageSession,
+    onToText: () -> Unit,
     onImage: (pageIndex: Int, point: Offset) -> Unit,
 ) {
     val context = LocalContext.current
@@ -570,6 +589,7 @@ private fun EditMenus(
         val bottomRight = mapper.toScreen(index, Offset(box.right, box.bottom))
         val single = selection.pageId?.let { page -> doc.pages.firstOrNull { it.id == page } }
         SelectionMenu(Rect(topLeft, bottomRight), actions) {
+            if (actions.writing.isNotEmpty()) MenuIcon(painterResource(R.drawable.ic_to_text), stringResource(R.string.convert_to_text), onClick = onToText)
             val box = actions.singleText()
             if (box != null && single != null) {
                 MenuIcon(rememberVectorPainter(Icons.Default.Edit), stringResource(R.string.edit_text)) { selection.startText(single.id, box, isNew = false) }

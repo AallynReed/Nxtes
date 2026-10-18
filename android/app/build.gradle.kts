@@ -66,6 +66,7 @@ dependencies {
     implementation(libs.androidx.ink.geometry)
     implementation(libs.androidx.ink.rendering)
     implementation(libs.androidx.ink.strokes)
+    implementation(libs.mlkit.digital.ink)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

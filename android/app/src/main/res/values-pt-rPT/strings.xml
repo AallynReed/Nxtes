@@ -280,6 +280,13 @@
     <string name="sticker_hint">Toque sem soltar num pacote ou autocolante para mudar o nome ou o eliminar.</string>
     <string name="no_stickers">Os autocolantes que usar aparecem aqui.</string>
     <string name="add_to_stickers">Adicionar aos autocolantes</string>
+    <string name="convert_to_text">Converter em texto</string>
+    <string name="convert">Converter</string>
+    <string name="try_again">Tentar novamente</string>
+    <string name="handwriting_reading">A ler a escrita…</string>
+    <string name="handwriting_downloading">A transferir o reconhecimento de escrita para %1$s…</string>
+    <string name="handwriting_none">Não foi reconhecido nenhum texto.</string>
+    <string name="handwriting_failed">Não foi possível ler a escrita. Da primeira vez que se usa um idioma, é preciso transferir o seu reconhecimento, por isso verifique a ligação.</string>
     <string name="my_stickers">Os meus autocolantes</string>
     <string name="added_to_stickers">Adicionado a %1$s</string>
     <string name="laser">Ponteiro laser</string>
