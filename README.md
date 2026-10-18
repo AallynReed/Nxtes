@@ -7,8 +7,10 @@ server you can host yourself. Every feature is free, with no ads.
 your own images and PDFs), organise them in folders, open several at once in tabs, and write on them
 with a stylus or finger: pens, highlighter, eraser, undo and redo, saved automatically. The page
 navigator adds, reorders, turns, duplicates, copies and moves pages; bookmarks, outlines, covers,
-duplicate and merge are in too. The screens follow Flexcil's layout ([UI](docs/ui.md)). Editing tools
-(lasso, shapes, text, images) come in milestone 4.
+duplicate and merge are in too. The editing tools are in: lasso, shapes and shape recognition, text
+boxes with your own fonts, images with camera and crop, sticky notes, sticker packs, masking with
+correct rates, a laser pointer, and PDF text highlighting. The screens follow Flexcil's layout
+([UI](docs/ui.md)). Scroll modes and full-text search come in milestone 5.
 
 Debug builds of each version are attached to the [GitHub releases](https://github.com/AallynReed/Nxtes/releases).
 

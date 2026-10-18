@@ -93,14 +93,41 @@ Full screen, for New note and for an item's "Cover and template".
 - **Toolbar (48 dp, white).**
   - Left: back to the library, and the page navigator.
   - Centre: the pen/gesture mode switch, then the pens as small upright pen glyphs in their
-    colours. The selected pen sits raised; tapping it again opens its settings. After a "+" to
-    add a pen come the eraser and the other tools as they're built (lasso, shapes, text, image,
-    sticker, laser).
-  - Right: undo, redo, view settings, and the side panel button.
+    colours. The selected pen sits raised; tapping it again opens its settings. A shape pen is a
+    pen type with a shape, line style, fill and polygon sides. After a "+" to add a pen come the
+    eraser, lasso, image, text box, sticky note, sticker, masking and laser. Tapping a selected
+    tool opens its settings.
+  - Right: undo, redo, view settings (stylus only, show annotations, which shapes holding the
+    pen still makes), and the side panel button.
 - **Modes.**
   - Pen mode draws with the stylus, and with a finger too unless "Use stylus only" is on.
     Fingers always scroll and zoom with two fingers.
-  - Gesture mode never draws; pen and fingers scroll, zoom and select.
+  - Gesture mode never draws; pen and fingers scroll, zoom and select. Touch and hold PDF text
+    to pick it.
+- **Tools.**
+  - Lasso: freehand or box, picking up the item types ticked in its settings. The selection gets
+    a dashed box with corner handles to resize and a handle above to turn, and a menu above it:
+    colours, then copy, cut, bring to front, send to back and delete, plus edit text, crop, open
+    note or add to stickers when they apply.
+  - Touch and hold an item to select it; on an empty spot it opens paste, image, text box, add
+    bookmark and add to outline.
+  - Hold the pen still at the end of a line to turn it into a line, circle, triangle, rectangle
+    or polygon.
+  - Text box: tap to place one; a bar above it has font (with imported fonts), size, colour,
+    bold, italic, underline, background and delete.
+  - Image: from the gallery, files or the camera; crop to a box or freehand from the selection
+    menu.
+  - Sticky note: tap to place one; it opens a card with colours, delete and its date. Tap a
+    note's icon to open it again.
+  - Sticker: tap to stamp the sticker picked in its panel: recent ones, the built-in basics, and
+    the user's packs, which take images from the gallery. Touch and hold a pack or sticker to
+    rename or delete it.
+  - Masking: tape boxes or pen lines in a choice of colours. Tapping a mask reveals it and asks
+    whether the answer was known; tapping again covers it.
+  - Laser: a dot or a fading line in a choice of colours, never saved.
+  - Picked PDF text gets handles at both ends and a menu: highlight colours, underline, strike
+    through, copy, look up, share, add bookmark and add to outline. Touch and hold a highlight to
+    recolour, copy or delete it.
 - **Tab bar (36 dp).** One tab per open document with a close button. The active tab is
   underlined in the accent colour, and the open-document count sits on the right. Going back
   to the library keeps the tabs.
@@ -110,6 +137,8 @@ Full screen, for New note and for an item's "Cover and template".
   - Pages: a page number field with Go, then a thumbnail grid; tapping a page jumps to it.
   - Outline: the PDF's own entries and the user's, in page order. Bookmarks: title and page.
     Both have an add row at the bottom; touch and hold a user entry to edit or delete it.
+  - Masking: the document's correct rate, sort by page, highest or lowest score, reveal all and
+    cover all, then each mask with its page and score.
 - **Page background:** pages sit on light grey with a thin border, and a "3 / 17" counter at
   the bottom. Tapping the counter opens Go to page.
 
