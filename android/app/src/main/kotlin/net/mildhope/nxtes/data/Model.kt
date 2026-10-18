@@ -19,7 +19,7 @@ data class Folder(
     override val modified: Long,
     override val trashedAt: Long? = null,
     override val favorite: Boolean = false,
-    /** ARGB, or null for the default folder colour. */
+    /** ARGB, or null for the default folder color. */
     val color: Int? = null,
 ) : LibraryItem {
     override val displayName get() = name

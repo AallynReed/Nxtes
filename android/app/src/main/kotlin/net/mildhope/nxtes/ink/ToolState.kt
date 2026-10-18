@@ -51,7 +51,7 @@ enum class LaserMode { DOT, LINE }
 @Serializable
 data class StickerRef(val basic: String? = null, val blob: String? = null, val width: Int = 1, val height: Int = 1)
 
-/** Font, size and colours for text boxes. */
+/** Font, size and colors for text boxes. */
 @Serializable
 data class TextStyle(
     val font: String = "sans-serif",
@@ -122,13 +122,13 @@ class ToolState(private val prefs: SharedPreferences) {
     var maskWidth by mutableFloatStateOf(prefs.getFloat(KEY_MASK_WIDTH, 12f))
         private set
 
-    fun updateMask(kind: MaskKind, colour: Int, width: Float) {
+    fun updateMask(kind: MaskKind, color: Int, width: Float) {
         maskKind = kind
-        maskColor = colour
+        maskColor = color
         maskWidth = width.coerceIn(MASK_WIDTHS)
         prefs.edit {
             putString(KEY_MASK_KIND, kind.name)
-            putInt(KEY_MASK_COLOR, colour)
+            putInt(KEY_MASK_COLOR, color)
             putFloat(KEY_MASK_WIDTH, maskWidth)
         }
     }
@@ -138,12 +138,12 @@ class ToolState(private val prefs: SharedPreferences) {
     var laserColor by mutableIntStateOf(prefs.getInt(KEY_LASER_COLOR, LASER_COLORS[0]))
         private set
 
-    fun updateLaser(mode: LaserMode, colour: Int) {
+    fun updateLaser(mode: LaserMode, color: Int) {
         laserMode = mode
-        laserColor = colour
+        laserColor = color
         prefs.edit {
             putString(KEY_LASER_MODE, mode.name)
-            putInt(KEY_LASER_COLOR, colour)
+            putInt(KEY_LASER_COLOR, color)
         }
     }
 
@@ -155,13 +155,13 @@ class ToolState(private val prefs: SharedPreferences) {
         annotationsHidden = !annotationsHidden
     }
 
-    /** The colour new sticky notes get. */
+    /** The color new sticky notes get. */
     var noteColor by mutableIntStateOf(prefs.getInt(KEY_NOTE_COLOR, NOTE_COLORS[0]))
         private set
 
-    fun updateNoteColor(colour: Int) {
-        noteColor = colour
-        prefs.edit { putInt(KEY_NOTE_COLOR, colour) }
+    fun updateNoteColor(color: Int) {
+        noteColor = color
+        prefs.edit { putInt(KEY_NOTE_COLOR, color) }
     }
 
     /** Stickers stamped lately, newest first; the first is the one the sticker tool stamps. */

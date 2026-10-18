@@ -11,7 +11,7 @@ class PalettesTest {
     private fun palettes() = Palettes({ stored }, { stored = it }, { "p${++ids}" })
 
     @Test
-    fun palettesKeepOpaqueColoursOnceAndSurviveRestarts() {
+    fun palettesKeepOpaqueColorsOnceAndSurviveRestarts() {
         val first = palettes()
         val palette = first.add("Mine", listOf(0x80FF0000.toInt()))
         first.addColor(palette.id, 0xFF00FF00.toInt())
@@ -25,7 +25,7 @@ class PalettesTest {
     }
 
     @Test
-    fun deletingTheShownPaletteShowsTheBuiltInColours() {
+    fun deletingTheShownPaletteShowsTheBuiltInColors() {
         val p = palettes()
         val palette = p.add("Gone")
         p.delete(palette.id)

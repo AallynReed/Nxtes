@@ -74,8 +74,8 @@ fun InkStroke.transformed(t: Affine): InkStroke {
     )
 }
 
-/** A copy with another colour. */
-fun InkStroke.recoloured(color: Int) = InkStroke(
+/** A copy with another color. */
+fun InkStroke.recolored(color: Int) = InkStroke(
     id = id, pen = pen, color = color, size = size, tool = tool, noiseSeed = noiseSeed, created = created,
     x = x, y = y, t = t, pressure = pressure, tilt = tilt, orientation = orientation,
 )

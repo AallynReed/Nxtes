@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.UUID
 
-/** A named set of opaque colours the user saved. */
+/** A named set of opaque colors the user saved. */
 @Serializable
 data class Palette(val id: String, val name: String, val colors: List<Int> = emptyList())
 
@@ -16,7 +16,7 @@ data class Palette(val id: String, val name: String, val colors: List<Int> = emp
 private class PaletteState(val saved: List<Palette> = emptyList(), val shown: String? = null)
 
 /**
- * The palettes every colour chooser offers besides its own colours, and the one last shown.
+ * The palettes every color chooser offers besides its own colors, and the one last shown.
  * [load] and [store] keep them as JSON across restarts.
  */
 @Stable
@@ -30,7 +30,7 @@ class Palettes(
     var saved by mutableStateOf(initial.saved)
         private set
 
-    /** The saved palette choosers open on, or null for each chooser's own colours. */
+    /** The saved palette choosers open on, or null for each chooser's own colors. */
     var shownId by mutableStateOf(initial.shown?.takeIf { id -> initial.saved.any { it.id == id } })
         private set
 

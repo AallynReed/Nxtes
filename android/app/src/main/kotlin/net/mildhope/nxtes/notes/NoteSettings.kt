@@ -335,7 +335,7 @@ private fun TitleField(value: String, onChange: (String) -> Unit, placeholder: S
     }
 }
 
-/** Paper size, orientation and paper colour, on the right above the template list. */
+/** Paper size, orientation and paper color, on the right above the template list. */
 @Composable
 private fun TemplateOptions(choice: TemplateChoice, onChange: (TemplateChoice) -> Unit, modifier: Modifier = Modifier) {
     var sizesOpen by remember { mutableStateOf(false) }

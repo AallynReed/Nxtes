@@ -445,8 +445,8 @@ fun DocumentViewer(
                                             copyText(context, mark.text)
                                             selection.markAt = null
                                         },
-                                        onRecolour = { colour ->
-                                            ink.update(pageId) { c -> c.copy(marks = c.marks.map { if (it.id == markId) TextMark(it.id, it.kind, colour, it.rects, it.text) else it }) }
+                                        onRecolor = { color ->
+                                            ink.update(pageId) { c -> c.copy(marks = c.marks.map { if (it.id == markId) TextMark(it.id, it.kind, color, it.rects, it.text) else it }) }
                                         },
                                         onDelete = {
                                             ink.update(pageId) { c -> c.copy(marks = c.marks.filter { it.id != markId }) }
@@ -670,8 +670,8 @@ private fun textActions(doc: Document, pick: TextPick, selection: SelectionState
         scope.launch { if (runLibraryAction(context, action) != null) Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
     }
     return TextPickActions(
-        mark = { kind, colour ->
-            ink.update(pick.pageId) { it.copy(marks = it.marks + TextMark(UUID.randomUUID().toString(), kind, colour, pick.rects, pick.string)) }
+        mark = { kind, color ->
+            ink.update(pick.pageId) { it.copy(marks = it.marks + TextMark(UUID.randomUUID().toString(), kind, color, pick.rects, pick.string)) }
             selection.textPick = null
         },
         copy = {

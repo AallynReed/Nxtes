@@ -27,22 +27,22 @@ object MaskBuilder {
     /** Tape is never thinner than this many points; a shorter drag makes nothing. */
     private const val MIN_TAPE = 4f
 
-    fun tape(id: String, x0: Float, y0: Float, x1: Float, y1: Float, colour: Int): Mask? {
+    fun tape(id: String, x0: Float, y0: Float, x1: Float, y1: Float, color: Int): Mask? {
         if (abs(x1 - x0) < MIN_TAPE || abs(y1 - y0) < MIN_TAPE) return null
         val l = minOf(x0, x1)
         val r = maxOf(x0, x1)
         val t = minOf(y0, y1)
         val b = maxOf(y0, y1)
-        return Mask(id, MaskKind.TAPE, floatArrayOf(l, r, r, l), floatArrayOf(t, t, b, b), 0f, colour)
+        return Mask(id, MaskKind.TAPE, floatArrayOf(l, r, r, l), floatArrayOf(t, t, b, b), 0f, color)
     }
 
     /** A pen mask along [points], keeping only points at least a tenth of [width] apart. */
-    fun pen(id: String, points: List<Offset>, width: Float, colour: Int): Mask? {
+    fun pen(id: String, points: List<Offset>, width: Float, color: Int): Mask? {
         if (points.isEmpty()) return null
         val kept = mutableListOf(points.first())
         for (p in points.drop(1)) if (distance(kept.last().x, kept.last().y, p.x, p.y) >= width / 10) kept += p
         if (kept.size == 1) kept += kept.first()
-        return Mask(id, MaskKind.PEN, kept.map { it.x }.toFloatArray(), kept.map { it.y }.toFloatArray(), width, colour)
+        return Mask(id, MaskKind.PEN, kept.map { it.x }.toFloatArray(), kept.map { it.y }.toFloatArray(), width, color)
     }
 }
 

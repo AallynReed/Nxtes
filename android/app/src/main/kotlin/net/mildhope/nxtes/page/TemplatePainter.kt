@@ -20,19 +20,19 @@ object TemplatePainter {
     private const val STRUCTURE_WIDTH = 1f
     private const val DOT_RADIUS = 0.9f
 
-    private class Colours(val paper: Int, val rule: Int, val structure: Int, val margin: Int)
+    private class Colors(val paper: Int, val rule: Int, val structure: Int, val margin: Int)
 
-    private val colours = mapOf(
-        Paper.WHITE to Colours(0xFFFFFFFF.toInt(), 0xFFC5D3E3.toInt(), 0xFF9FB4CC.toInt(), 0xFFE8A3A3.toInt()),
-        Paper.YELLOW to Colours(0xFFFDF5D3.toInt(), 0xFFD6CC9E.toInt(), 0xFFB3A877.toInt(), 0xFFE39A8E.toInt()),
-        Paper.DARK to Colours(0xFF2A2A2A.toInt(), 0xFF4C4C4C.toInt(), 0xFF6A6A6A.toInt(), 0xFF7A4A4A.toInt()),
+    private val colors = mapOf(
+        Paper.WHITE to Colors(0xFFFFFFFF.toInt(), 0xFFC5D3E3.toInt(), 0xFF9FB4CC.toInt(), 0xFFE8A3A3.toInt()),
+        Paper.YELLOW to Colors(0xFFFDF5D3.toInt(), 0xFFD6CC9E.toInt(), 0xFFB3A877.toInt(), 0xFFE39A8E.toInt()),
+        Paper.DARK to Colors(0xFF2A2A2A.toInt(), 0xFF4C4C4C.toInt(), 0xFF6A6A6A.toInt(), 0xFF7A4A4A.toInt()),
     )
 
-    fun paperColor(paper: Paper): Int = colours.getValue(paper).paper
+    fun paperColor(paper: Paper): Int = colors.getValue(paper).paper
 
     /** [pxPerPt] keeps hairlines at least a pixel wide when drawn small, as in thumbnails. */
     fun draw(canvas: Canvas, background: Background, width: Float, height: Float, pxPerPt: Float) {
-        val c = colours.getValue(background.paper)
+        val c = colors.getValue(background.paper)
         val hairline = 1f / pxPerPt
         val rule = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = c.rule; strokeWidth = max(RULE_WIDTH, hairline) }
         val structure = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = c.structure; strokeWidth = max(STRUCTURE_WIDTH, hairline) }

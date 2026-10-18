@@ -14,7 +14,7 @@ Priorities: **v1** ships in the first release, **later** comes after it, and **d
 
 | Feature | Priority |
 |---|---|
-| Nested folders with colours; notes and PDFs; grid and list views | v1 |
+| Nested folders with colors; notes and PDFs; grid and list views | v1 |
 | Sort by name, created, modified or size; filter by folders, notes or PDFs | v1 |
 | Favourites and recents | v1 |
 | Trash with restore, restore all and empty | v1 |
@@ -44,21 +44,21 @@ Priorities: **v1** ships in the first release, **later** comes after it, and **d
 |---|---|
 | Ballpoint, fountain pen (pressure, tip sharpness), textured pencil, marker and highlighter (drawn behind text) | v1 |
 | Brush and calligraphy pens | later |
-| Per-pen colour, opacity and thickness; solid, dashed or dotted lines | v1 |
+| Per-pen color, opacity and thickness; solid, dashed or dotted lines | v1 |
 | Pressure on or off, stroke stabilisation, straight-angle correction | v1 |
 | Pen favourites in a customisable toolbar (up to 30) | v1 |
-| Colour picker: presets, recent colours, custom RGB or hex, opacity | v1 |
+| Color picker: presets, recent colors, custom RGB or hex, opacity | v1 |
 | Erasers: whole stroke, partial, pressure-sensitive; option to spare highlighter; clear page; auto-deselect | v1 |
-| Lasso: select by type (ink, highlighter, text, images, textboxes); move, resize, rotate, recolour, copy, paste, delete, save as sticker | v1 |
+| Lasso: select by type (ink, highlighter, text, images, textboxes); move, resize, rotate, recolor, copy, paste, delete, save as sticker | v1 |
 | Shapes (line, rectangle, ellipse, polygon, arrow) and hold-to-convert shape recognition, toggled per shape | v1 |
-| Textboxes with system fonts and imported .ttf/.otf fonts, size, colour, background | v1 |
+| Textboxes with system fonts and imported .ttf/.otf fonts, size, color, background | v1 |
 | Browsing Google Fonts | later |
 | Images from the gallery, files or camera; rectangle and freeform crop | v1 |
 | Multiple crop | later |
 | Sticky notes | v1 |
 | Sticker packs, recent stickers, stickers created from a selection | v1 |
 | One-tap cut-out stickers from photos | later |
-| Laser pointer (dot or trailing line, colours) | v1 |
+| Laser pointer (dot or trailing line, colors) | v1 |
 | Masking tape: cover regions, tap to reveal, mark right or wrong, per-document correct rate with sort by page or score; masking pen | v1 |
 | PDF text: select, copy, highlight, underline; send to the dictionary or translator via share | v1 |
 | Links between documents and pages | later |

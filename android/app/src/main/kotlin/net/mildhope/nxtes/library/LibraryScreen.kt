@@ -105,7 +105,7 @@ private sealed interface LibraryDialog {
     data class Move(val items: List<LibraryItem>) : LibraryDialog
     data class Merge(val ids: List<String>, val title: String) : LibraryDialog
     data class DeleteSelected(val items: List<LibraryItem>) : LibraryDialog
-    data class Colour(val folder: Folder) : LibraryDialog
+    data class Color(val folder: Folder) : LibraryDialog
     data class DeleteForever(val item: LibraryItem) : LibraryDialog
     data object EmptyTrash : LibraryDialog
     data class Export(val doc: Document) : LibraryDialog
@@ -276,7 +276,7 @@ private fun MainPane(
     val exportLabel = stringResource(R.string.export)
     val moveLabel = stringResource(R.string.move)
     val duplicateLabel = stringResource(R.string.duplicate)
-    val colourLabel = stringResource(R.string.folder_colour)
+    val colorLabel = stringResource(R.string.folder_color)
     val favoriteLabel = stringResource(R.string.add_to_favorites)
     val unfavoriteLabel = stringResource(R.string.remove_from_favorites)
     val trashLabel = stringResource(R.string.move_to_trash)
@@ -400,7 +400,7 @@ private fun MainPane(
                                 (item as? Document)?.let { MenuAction(exportLabel) { dialog = LibraryDialog.Export(it) } },
                                 MenuAction(moveLabel) { dialog = LibraryDialog.Move(listOf(item)) },
                                 MenuAction(duplicateLabel) { duplicate(listOf(item.id)) },
-                                (item as? Folder)?.let { MenuAction(colourLabel) { dialog = LibraryDialog.Colour(it) } },
+                                (item as? Folder)?.let { MenuAction(colorLabel) { dialog = LibraryDialog.Color(it) } },
                                 MenuAction(if (item.favorite) unfavoriteLabel else favoriteLabel) { edit { setFavorite(item.id, !item.favorite) } },
                                 MenuAction(historyLabel) { dialog = LibraryDialog.History(item) }.takeIf { signedIn },
                                 MenuAction(trashLabel) { edit { trash(item.id) } },
@@ -490,7 +490,7 @@ private fun MainPane(
             },
             onDismiss = { dialog = null },
         )
-        is LibraryDialog.Colour -> ColourDialog(d.folder.color ?: DEFAULT_FOLDER_COLOR, { colour -> edit { setFolderColor(d.folder.id, colour) } }, { dialog = null })
+        is LibraryDialog.Color -> ColorDialog(d.folder.color ?: DEFAULT_FOLDER_COLOR, { color -> edit { setFolderColor(d.folder.id, color) } }, { dialog = null })
         is LibraryDialog.DeleteForever -> ConfirmDialog(
             title = stringResource(R.string.delete_forever_title, d.item.displayName),
             confirm = deleteLabel,

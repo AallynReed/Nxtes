@@ -25,13 +25,13 @@ object BasicStickers {
             strokeJoin = Paint.Join.ROUND
             strokeWidth = s * 0.06f
         }
-        fun circle(colour: Int) {
-            fill.color = colour
+        fun circle(color: Int) {
+            fill.color = color
             canvas.drawCircle(s / 2, s / 2, s * 0.44f, fill)
         }
-        fun glyph(text: String, colour: Int) {
+        fun glyph(text: String, color: Int) {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = colour
+                this.color = color
                 textSize = s * 0.55f
                 typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
                 textAlign = Paint.Align.CENTER

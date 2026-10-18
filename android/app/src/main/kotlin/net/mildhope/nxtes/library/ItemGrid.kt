@@ -213,7 +213,7 @@ private fun FavoriteStar(favorite: Boolean, onToggle: () -> Unit, modifier: Modi
     )
 }
 
-/** A folder icon in the folder's colour, or the document's first-page thumbnail. */
+/** A folder icon in the folder's color, or the document's first-page thumbnail. */
 @Composable
 fun ItemPreview(item: LibraryItem, modifier: Modifier = Modifier) {
     when (item) {

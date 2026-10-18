@@ -16,7 +16,7 @@ import net.mildhope.nxtes.data.Shape
 import net.mildhope.nxtes.data.Sticker
 import net.mildhope.nxtes.data.StickyNote
 import net.mildhope.nxtes.data.TextBox
-import net.mildhope.nxtes.data.recoloured
+import net.mildhope.nxtes.data.recolored
 import net.mildhope.nxtes.ink.PageSession
 import net.mildhope.nxtes.page.PagePainter
 import net.mildhope.nxtes.page.keepBitmap
@@ -33,8 +33,8 @@ class SelectionActions(
     private val session: PageSession,
     private val selection: SelectionState,
 ) {
-    /** Whether anything picked has a colour to change. */
-    val canRecolour: Boolean
+    /** Whether anything picked has a color to change. */
+    val canRecolor: Boolean
         get() {
             val page = selection.pageId ?: return false
             val picked = selection.picked.of(session.content(page))
@@ -65,14 +65,14 @@ class SelectionActions(
     /** Whether anything picked can change its stacking order. */
     val canReorder get() = selection.picked.objects.isNotEmpty()
 
-    fun recolour(colour: Int) = change { content ->
+    fun recolor(color: Int) = change { content ->
         selection.picked.map(
             content,
-            stroke = { if (it.pen == Pen.HIGHLIGHTER) it.recoloured((colour and 0xFFFFFF) or (it.color and 0xFF000000.toInt())) else it.recoloured(colour) },
+            stroke = { if (it.pen == Pen.HIGHLIGHTER) it.recolored((color and 0xFFFFFF) or (it.color and 0xFF000000.toInt())) else it.recolored(color) },
             obj = {
                 when (it) {
-                    is Shape -> it.copy(color = colour)
-                    is TextBox -> it.copy(color = colour)
+                    is Shape -> it.copy(color = color)
+                    is TextBox -> it.copy(color = color)
                     else -> it
                 }
             },

@@ -145,7 +145,7 @@ class LibraryStoreTest {
     }
 
     @Test
-    fun favoritesAndFolderColourPersist() {
+    fun favoritesAndFolderColorPersist() {
         val folder = store.createFolder("Ideas", null)
         val doc = import("Draft")
         store.setFavorite(folder.id, true)

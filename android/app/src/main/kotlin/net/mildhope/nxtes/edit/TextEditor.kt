@@ -54,7 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import net.mildhope.nxtes.R
-import net.mildhope.nxtes.ui.ColourChooser
+import net.mildhope.nxtes.ui.ColorChooser
 import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.ink.ToolState
@@ -81,7 +81,7 @@ private val SYSTEM_FONTS = listOf(
 private val TEXT_SIZES = listOf(8f, 9f, 10f, 11f, 12f, 14f, 16f, 18f, 20f, 24f, 28f, 32f, 40f, 48f, 64f, 72f, 96f)
 
 /**
- * Types into a text box where it sits on the page, with a bar above it for font, size, colours
+ * Types into a text box where it sits on the page, with a bar above it for font, size, colors
  * and B/I/U. [onAddFont] picks a font file and calls back with the box's new font key.
  */
 @Composable
@@ -135,11 +135,11 @@ fun TextEditor(
             TextButton(onClick = onDone) { Text(stringResource(R.string.done)) }
             FontMenu(box, onChange, onAddFont)
             SizeStepper(box.size) { onChange(box.copy(size = it)) }
-            ColourDot(Color(box.color), stringResource(R.string.text_colour), allowNone = false) { onChange(box.copy(color = it)) }
+            ColorDot(Color(box.color), stringResource(R.string.text_color), allowNone = false) { onChange(box.copy(color = it)) }
             StyleToggle("B", box.bold, FontWeight.Bold, null) { onChange(box.copy(bold = !box.bold)) }
             StyleToggle("I", box.italic, FontWeight.Normal, FontStyle.Italic) { onChange(box.copy(italic = !box.italic)) }
             StyleToggle("U", box.underline, FontWeight.Normal, null, TextDecoration.Underline) { onChange(box.copy(underline = !box.underline)) }
-            ColourDot(if (box.background == 0) null else Color(box.background), stringResource(R.string.text_background), allowNone = true) { onChange(box.copy(background = it)) }
+            ColorDot(if (box.background == 0) null else Color(box.background), stringResource(R.string.text_background), allowNone = true) { onChange(box.copy(background = it)) }
             MenuIcon(rememberVectorPainter(Icons.Default.Delete), stringResource(R.string.delete), MaterialTheme.colorScheme.error) {
                 onChange(box.copy(text = ""))
                 onDone()
@@ -221,9 +221,9 @@ private fun StyleToggle(
     }
 }
 
-/** A colour swatch that opens the palette; with [allowNone] the palette offers no colour (0). */
+/** A color swatch that opens the palette; with [allowNone] the palette offers no color (0). */
 @Composable
-private fun ColourDot(colour: Color?, label: String, allowNone: Boolean, onPick: (Int) -> Unit) {
+private fun ColorDot(color: Color?, label: String, allowNone: Boolean, onPick: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         Box(
@@ -231,7 +231,7 @@ private fun ColourDot(colour: Color?, label: String, allowNone: Boolean, onPick:
                 .padding(6.dp)
                 .size(26.dp)
                 .clip(CircleShape)
-                .background(colour ?: Color.Transparent)
+                .background(color ?: Color.Transparent)
                 .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
                 .clickable(onClickLabel = label) { open = true },
         )
@@ -243,7 +243,7 @@ private fun ColourDot(colour: Color?, label: String, allowNone: Boolean, onPick:
                         onPick(0)
                     }) { Text(stringResource(R.string.no_fill)) }
                 }
-                ColourChooser(colour?.toArgb() ?: 0, ToolState.PALETTE, { onPick(if (allowNone) (it and 0xFFFFFF) or 0x55000000 else it) })
+                ColorChooser(color?.toArgb() ?: 0, ToolState.PALETTE, { onPick(if (allowNone) (it and 0xFFFFFF) or 0x55000000 else it) })
             }
         }
     }

@@ -705,7 +705,7 @@ private fun DocumentsColumn(
         Row(Modifier.fillMaxWidth().height(52.dp)) {
             FilesTab.entries.forEach { option ->
                 val active = option == tab
-                val colour = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 Row(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
@@ -718,7 +718,7 @@ private fun DocumentsColumn(
                             FilesTab.FAVORITES -> rememberVectorPainter(Icons.Default.Star)
                         },
                         null,
-                        tint = colour,
+                        tint = color,
                         modifier = Modifier.size(18.dp),
                     )
                     Text(
@@ -730,7 +730,7 @@ private fun DocumentsColumn(
                             },
                         ),
                         style = MaterialTheme.typography.labelMedium,
-                        color = colour,
+                        color = color,
                         modifier = Modifier.padding(start = 4.dp),
                     )
                 }

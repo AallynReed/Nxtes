@@ -6,7 +6,7 @@ without relearning where things are. Icons, artwork and wording are Nxtes's own.
 Sizes are for tablets (smallest width 600 dp and up). Phones get the same structure with the
 library menu as a bottom bar.
 
-## Colours
+## Colors
 
 | Role | Light | Dark |
 |---|---|---|
@@ -43,9 +43,9 @@ library menu as a bottom bar.
   move to trash on the right. Each item shows a circle with its place in the selection, which is
   also the merge order. In the trash the actions are Restore and Delete.
 - **Filter row:** All, PDFs and Notes, centred; sort and grid/list on the right.
-- **Grid cell:** a coloured folder icon, the note's cover, or the first-page thumbnail, with a
+- **Grid cell:** a colored folder icon, the note's cover, or the first-page thumbnail, with a
   favourite star in its top-right corner. Below it the name with a ▾ menu (rename, cover and
-  template, export, move, duplicate, colour, favourite, move to trash), then a line with the item count
+  template, export, move, duplicate, color, favourite, move to trash), then a line with the item count
   or file size and the date (`yyyy.MM.dd`).
 - **Add button:** bottom right. It opens a labelled menu: New folder, New note, Import PDF or
   image. Images become one-page documents; PDFs and images can also be shared to Nxtes.
@@ -76,9 +76,9 @@ Full screen, for New note and for an item's "Cover and template".
 ```
 
 - Tapping the Cover or Template preview switches the list below. Covers are an image picked from
-  the gallery (cropped to fill, kept in the document), generated colours and gradients, plus "First
+  the gallery (cropped to fill, kept in the document), generated colors and gradients, plus "First
   page" for none.
-- The template row holds paper size, orientation and paper colour (white, yellow, dark). The
+- The template row holds paper size, orientation and paper color (white, yellow, dark). The
   Custom tab lists templates made from an image or a PDF, with an Add tile; touch and hold one to
   delete it.
 - Changing an existing note's template asks whether it applies to new pages only or to every page.
@@ -100,9 +100,9 @@ Full screen, for New note and for an item's "Cover and template".
 - **Toolbar (48 dp, white).**
   - Left: back to the library, and the page navigator.
   - Centre: the pen/gesture mode switch, then the pens as small upright pen glyphs in their
-    colours. The selected pen sits raised; tapping it again opens its settings. Every colour
-    choice (pens, text, notes, masking, laser, folders) offers its own colours, the saved palettes,
-    and a custom colour from a shade square, hue bar or hex code that can be added to a palette. A shape pen is a
+    colors. The selected pen sits raised; tapping it again opens its settings. Every color
+    choice (pens, text, notes, masking, laser, folders) offers its own colors, the saved palettes,
+    and a custom color from a shade square, hue bar or hex code that can be added to a palette. A shape pen is a
     pen type with a shape, line style, fill and polygon sides. After a "+" to add a pen come the
     eraser, lasso, image, text box, sticky note, sticker, masking and laser. Tapping a selected
     tool opens its settings.
@@ -135,31 +135,31 @@ Full screen, for New note and for an item's "Cover and template".
 - **Tools.**
   - Lasso: freehand or box, picking up the item types ticked in its settings. The selection gets
     a dashed box with corner handles to resize and a handle above to turn, and a menu above it:
-    colours, then copy, cut, bring to front, send to back and delete, plus edit text, crop, open
+    colors, then copy, cut, bring to front, send to back and delete, plus edit text, crop, open
     note or add to stickers when they apply.
   - Touch and hold an item to select it; on an empty spot it opens paste, image, text box, add
     bookmark and add to outline.
   - Hold the pen still at the end of a line to turn it into a line, circle, triangle, rectangle
     or polygon.
-  - Text box: tap to place one; a bar above it has font (with imported fonts), size, colour,
+  - Text box: tap to place one; a bar above it has font (with imported fonts), size, color,
     bold, italic, underline, background and delete.
   - Image: from the gallery, files or the camera; crop to a box or freehand from the selection
     menu.
-  - Sticky note: tap to place one; it opens a card with colours, delete and its date. Tap a
+  - Sticky note: tap to place one; it opens a card with colors, delete and its date. Tap a
     note's icon to open it again.
   - Sticker: tap to stamp the sticker picked in its panel: recent ones, the built-in basics, and
     the user's packs, which take images from the gallery. Touch and hold a pack or sticker to
     rename or delete it.
-  - Masking: tape boxes or pen lines in a choice of colours. Tapping a mask reveals it and asks
+  - Masking: tape boxes or pen lines in a choice of colors. Tapping a mask reveals it and asks
     whether the answer was known; tapping again covers it.
-  - Laser: a dot or a fading line in a choice of colours, never saved.
-  - Picked PDF text gets handles at both ends and a menu: highlight colours, underline, strike
+  - Laser: a dot or a fading line in a choice of colors, never saved.
+  - Picked PDF text gets handles at both ends and a menu: highlight colors, underline, strike
     through, copy, look up, share, add bookmark and add to outline. Touch and hold a highlight to
-    recolour, copy or delete it.
+    recolor, copy or delete it.
   - A highlighter stroke drawn mostly over PDF text snaps to that text and becomes a highlight in
-    the pen's colour, as in Flexcil; elsewhere it stays ink. One undo removes it.
+    the pen's color, as in Flexcil; elsewhere it stays ink. One undo removes it.
 - **Tab bar (36 dp).** One tab per open document with a close button. The active tab is
-  underlined in the accent colour, and the open-document count sits on the right; it lists the
+  underlined in the accent color, and the open-document count sits on the right; it lists the
   open documents and offers Close other tabs and Close all tabs, as does touching and holding a
   tab. Going back to the library keeps the tabs. View settings can hide the bar.
 - **Side panel (320 dp, from the right, over a dimmed page).**
@@ -196,7 +196,7 @@ Opened from the toolbar's page navigator button; it covers the writing view.
 - **Left (288 dp):** documents in the current folder, recents or favourites (tabs at the
   bottom); tapping one shows its pages on the right. The top-left button hides the column.
 - **Pages:** thumbnails with the page number at the bottom; the current page is outlined in the
-  accent colour. "+" between pages and the dashed tile at the end open a menu: blank page, page
+  accent color. "+" between pages and the dashed tile at the end open a menu: blank page, page
   from another template, page from an image, pages from a PDF, paste copied pages.
 - **Edit mode** (the pencil, or touch and hold a page): "× N pages selected" and Select all on the
   left; change template, turn left, turn right, move to another document, duplicate, copy and

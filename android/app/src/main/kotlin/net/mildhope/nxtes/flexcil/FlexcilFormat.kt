@@ -217,7 +217,7 @@ internal fun <T> decodeArray(text: String, serializer: KSerializer<T>): List<T> 
     return elements.mapNotNull { runCatching { flexJson.decodeFromJsonElement(serializer, it) }.getOrNull() }
 }
 
-/** Flexcil's folder colours by name. */
+/** Flexcil's folder colors by name. */
 internal val FOLDER_COLORS = mapOf(
     "pink" to 0xFFFF375F,
     "red" to 0xFFFF453A,

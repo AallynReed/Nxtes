@@ -48,7 +48,7 @@ import java.util.Date
 
 private val NOTE_INK = Color(0xFF202124)
 
-/** A sticky note opened next to its icon: its text on its colour, with colours and delete above. */
+/** A sticky note opened next to its icon: its text on its color, with colors and delete above. */
 @Composable
 fun NoteEditor(edit: NoteEdit, mapper: PageMapper, onChange: (StickyNote) -> Unit, onDelete: () -> Unit, onDone: () -> Unit) {
     val index = mapper.indexOf(edit.pageId).takeIf { it >= 0 } ?: return
@@ -61,15 +61,15 @@ fun NoteEditor(edit: NoteEdit, mapper: PageMapper, onChange: (StickyNote) -> Uni
         Column(Modifier.width(300.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp, end = 4.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ToolState.NOTE_COLORS.forEach { colour ->
-                        val selected = colour == note.color
+                    ToolState.NOTE_COLORS.forEach { color ->
+                        val selected = color == note.color
                         Spacer(
                             Modifier
                                 .size(22.dp)
                                 .clip(CircleShape)
-                                .background(Color(colour))
+                                .background(Color(color))
                                 .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                                .clickable(onClickLabel = stringResource(R.string.note_colour)) { onChange(note.copy(color = colour)) },
+                                .clickable(onClickLabel = stringResource(R.string.note_color)) { onChange(note.copy(color = color)) },
                         )
                     }
                 }

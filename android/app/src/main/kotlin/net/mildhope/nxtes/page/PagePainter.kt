@@ -185,11 +185,11 @@ class PagePainter {
 
     fun drawMask(canvas: Canvas, mask: Mask, revealed: Boolean) {
         val alpha = if (revealed) 0.18f else 1f
-        val colour = Color.argb((Color.alpha(mask.color) * alpha).toInt(), Color.red(mask.color), Color.green(mask.color), Color.blue(mask.color))
+        val color = Color.argb((Color.alpha(mask.color) * alpha).toInt(), Color.red(mask.color), Color.green(mask.color), Color.blue(mask.color))
         when (mask.kind) {
             MaskKind.TAPE -> {
                 val path = polygon(mask.xs, mask.ys)
-                fill.color = colour
+                fill.color = color
                 canvas.drawPath(path, fill)
                 if (revealed) {
                     line.color = mask.color
@@ -200,7 +200,7 @@ class PagePainter {
                 }
             }
             MaskKind.PEN -> {
-                line.color = colour
+                line.color = color
                 line.strokeWidth = mask.width
                 canvas.drawPath(polyline(mask.xs, mask.ys), line)
             }

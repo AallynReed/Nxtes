@@ -6,7 +6,7 @@ These are facts about the file format only, for interoperability, recovered stat
 executed. Class names are the obfuscated JADX names, cited as evidence. They are not stable across
 Flexcil versions.
 
-**Method.** Static reading of the shipped app with REA's JADX provider, plus `aapt2` for the folder colour values. Nothing was executed, and no Flexcil code is reproduced here.
+**Method.** Static reading of the shipped app with REA's JADX provider, plus `aapt2` for the folder color values. Nothing was executed, and no Flexcil code is reproduced here.
 
 **Confidence tags:** **[read]** means both the writer and the reader were followed. **[inferred]** means it
 follows from the code but not every path was traced. **[open]** means a real backup is needed to settle it.
@@ -130,7 +130,7 @@ so null fields are omitted. **[read]** `gf.c.W` writes it; `pg.h.z0` reads it.
 |---|---|---|---|
 | `originKey` | string | the folder's original file-item key (UUID) | `df.a` |
 | `name` | string? | folder display name; falls back to the directory name | `df.a`, `pg.h.z0` |
-| `color` | string? | folder colour **name** (see §5.10) | `df.a`, `ql.j2.Z` |
+| `color` | string? | folder color **name** (see §5.10) | `df.a`, `ql.j2.Z` |
 | `createDate` | number | seconds since Unix epoch (double) | `df.a`, `nf.s.a` |
 | `modifiedDate` | number | seconds since Unix epoch (double) | `df.a` |
 | `favorite` | bool | starred | `df.a` |
@@ -212,7 +212,7 @@ Conventions that apply to every file:
 - **Escaping.** Gson HTML-escapes `< > & = '` as `<` and so on. Use a real JSON parser.
 - **Numbers.** Doubles are written with Java `Double.toString`, so large values such as epoch
   seconds can appear in exponent form (`1.729E9`). Floats are written as JSON numbers.
-- **Colours** in object files are ARGB packed into 32 bits and written as an **unsigned** integer
+- **Colors** in object files are ARGB packed into 32 bits and written as an **unsigned** integer
   (0…4294967295). Read them as int64 and mask with `0xFFFFFFFF`. Older files may hold negative
   signed values; masking handles both. **[read]**
 - **Dates** are seconds since the Unix epoch as a double (`nf.s.a`), except masking `createDate`,
@@ -696,7 +696,7 @@ An unknown name falls back to palette index 0. **[inferred]**
   `actionType` (camelCase).
 - **Two point-blob layouts.** Strokes, shapes and maskings use 12-byte (x, y, w) records relative to
   `start`. Text-markup `paths` use 8-byte (x, y) absolute records. Both start with an int32 count.
-- **Colours are unsigned.** Mask to 32 bits.
+- **Colors are unsigned.** Mask to 32 bits.
 - **Mixed date units.** Seconds are doubles and may use exponent notation; masking `createDate` is
   milliseconds and is the save time.
 - **`_back` files.** Prefer the main file and fall back to `_back` when it's missing or empty.
@@ -774,7 +774,7 @@ The blob decodes to count 3, then (0, 0, 0.003), (0.01, 0.005, 0.0032), (0.02, 0
 - **Absolute points:** (0.25, 0.40), (0.26, 0.405), (0.27, 0.404) in page-width units.
 - **On an A4 page 595 pt wide:** the first point is at (148.75 pt, 238 pt), and the width is about
   1.8 pt.
-- **Colour:** `4278190080` = `0xFF000000`, opaque black.
+- **Color:** `4278190080` = `0xFF000000`, opaque black.
 
 The matching `objects/…0001.objects` is
 `[{"type":1,"key":"5E8D2A10-7C4B-4F0E-9A63-2B1C0D9E8F70"}]`.

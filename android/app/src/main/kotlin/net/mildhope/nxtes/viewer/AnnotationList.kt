@@ -54,7 +54,7 @@ enum class AnnotationKind(val label: Int) {
     INK(R.string.annotations_ink),
 }
 
-/** One row of the list: what it is, a line describing it, its colour, and the page it's on. */
+/** One row of the list: what it is, a line describing it, its color, and the page it's on. */
 private class AnnotationRow(val key: String, val kind: AnnotationKind, val pageIndex: Int, val text: String, val color: Int)
 
 /** Everything written on the document, page by page, narrowed by kind; tapping a row goes to its page. */

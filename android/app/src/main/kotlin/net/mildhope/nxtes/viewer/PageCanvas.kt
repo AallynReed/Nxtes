@@ -94,7 +94,7 @@ import androidx.compose.ui.graphics.Paint
 import net.mildhope.nxtes.audio.Replay
 import net.mildhope.nxtes.audio.replayed
 import net.mildhope.nxtes.data.Mask
-import net.mildhope.nxtes.data.recoloured
+import net.mildhope.nxtes.data.recolored
 import net.mildhope.nxtes.ink.Brushes
 import net.mildhope.nxtes.edit.PageText
 import net.mildhope.nxtes.edit.TextPick
@@ -895,39 +895,39 @@ private fun segmentDistance(px: Float, py: Float, ax: Float, ay: Float, bx: Floa
 private fun Affine.toMatrix() = android.graphics.Matrix().apply { setValues(floatArrayOf(a, c, e, b, d, f, 0f, 0f, 1f)) }
 
 /** The laser: a glowing dot at its head, and in line mode a trail that fades with age. */
-private fun DrawScope.drawLaser(trail: LaserTrail, mode: LaserMode, colour: Color) {
+private fun DrawScope.drawLaser(trail: LaserTrail, mode: LaserMode, color: Color) {
     val points = trail.points
     if (points.isEmpty()) return
     val now = trail.now
     if (mode == LaserMode.LINE) {
         for (i in 1 until points.size) {
             val alpha = (1f - (now - points[i].time).toFloat() / LASER_TRAIL_MS).coerceIn(0f, 1f)
-            drawLine(colour.copy(alpha = alpha * 0.3f), points[i - 1].at, points[i].at, 12.dp.toPx(), StrokeCap.Round)
-            drawLine(colour.copy(alpha = alpha), points[i - 1].at, points[i].at, 4.dp.toPx(), StrokeCap.Round)
+            drawLine(color.copy(alpha = alpha * 0.3f), points[i - 1].at, points[i].at, 12.dp.toPx(), StrokeCap.Round)
+            drawLine(color.copy(alpha = alpha), points[i - 1].at, points[i].at, 4.dp.toPx(), StrokeCap.Round)
         }
     }
     val fade = if (trail.down) 1f else (1f - (now - trail.liftedAt).toFloat() / LASER_DOT_FADE_MS).coerceIn(0f, 1f)
     if (fade <= 0f) return
     val head = points.last().at
-    drawCircle(colour.copy(alpha = 0.3f * fade), 12.dp.toPx(), head)
-    drawCircle(colour.copy(alpha = fade), 6.dp.toPx(), head)
+    drawCircle(color.copy(alpha = 0.3f * fade), 12.dp.toPx(), head)
+    drawCircle(color.copy(alpha = fade), 6.dp.toPx(), head)
     drawCircle(Color.White.copy(alpha = 0.8f * fade), 2.5.dp.toPx(), head)
 }
 
 /** Picked text: a tint over each line, and a handle hanging below each end. */
-private fun DrawScope.drawTextPick(rects: FloatArray, handles: Pair<Offset, Offset>?, knob: Float, colour: Color, toScreen: (Float, Float) -> Offset) {
+private fun DrawScope.drawTextPick(rects: FloatArray, handles: Pair<Offset, Offset>?, knob: Float, color: Color, toScreen: (Float, Float) -> Offset) {
     for (i in rects.indices step 4) {
         val a = toScreen(rects[i], rects[i + 1])
         val b = toScreen(rects[i] + rects[i + 2], rects[i + 1] + rects[i + 3])
-        drawRect(colour.copy(alpha = 0.25f), a, androidx.compose.ui.geometry.Size(b.x - a.x, b.y - a.y))
+        drawRect(color.copy(alpha = 0.25f), a, androidx.compose.ui.geometry.Size(b.x - a.x, b.y - a.y))
     }
     handles?.toList()?.forEach { at ->
-        drawLine(colour, at - Offset(0f, knob * 2), at, 2.dp.toPx())
-        drawCircle(colour, knob * 0.75f, at)
+        drawLine(color, at - Offset(0f, knob * 2), at, 2.dp.toPx())
+        drawCircle(color, knob * 0.75f, at)
     }
 }
 
-private fun DrawScope.drawLasso(points: List<Offset>, shape: LassoShape, colour: Color) {
+private fun DrawScope.drawLasso(points: List<Offset>, shape: LassoShape, color: Color) {
     if (points.size < 2) return
     val dash = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx()))
     val path = Path().apply {
@@ -939,23 +939,23 @@ private fun DrawScope.drawLasso(points: List<Offset>, shape: LassoShape, colour:
             points.drop(1).forEach { lineTo(it.x, it.y) }
         }
     }
-    drawPath(path, colour, style = Stroke(1.5.dp.toPx(), pathEffect = dash))
+    drawPath(path, color, style = Stroke(1.5.dp.toPx(), pathEffect = dash))
 }
 
-private fun DrawScope.drawSelection(corners: List<Offset>, colour: Color, rotateDistance: Float) {
+private fun DrawScope.drawSelection(corners: List<Offset>, color: Color, rotateDistance: Float) {
     val dash = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 5.dp.toPx()))
     val box = Path().apply {
         moveTo(corners[0].x, corners[0].y)
         corners.drop(1).forEach { lineTo(it.x, it.y) }
         close()
     }
-    drawPath(box, colour, style = Stroke(1.5.dp.toPx(), pathEffect = dash))
+    drawPath(box, color, style = Stroke(1.5.dp.toPx(), pathEffect = dash))
     val top = (corners[0] + corners[1]) / 2f
     val rotate = top - Offset(0f, rotateDistance)
-    drawLine(colour, top, rotate, 1.5.dp.toPx())
+    drawLine(color, top, rotate, 1.5.dp.toPx())
     (corners + rotate).forEach {
         drawCircle(Color.White, HANDLE_RADIUS.toPx(), it)
-        drawCircle(colour, HANDLE_RADIUS.toPx(), it, style = Stroke(2.dp.toPx()))
+        drawCircle(color, HANDLE_RADIUS.toPx(), it, style = Stroke(2.dp.toPx()))
     }
 }
 
@@ -1008,7 +1008,7 @@ private fun InkLayer(
                 if (index < 0) continue
                 val origin = layout.origin(index)
                 val started = now - stroke.inputs.getDurationMillis()
-                val finished = StrokeGeometry.fromFinished(stroke, origin.x, origin.y, started).let { if (darkPages) it.recoloured(pen.color) else it }
+                val finished = StrokeGeometry.fromFinished(stroke, origin.x, origin.y, started).let { if (darkPages) it.recolored(pen.color) else it }
                 val page = pages[index]
                 if (finished.pen != Pen.HIGHLIGHTER || page.pdf == null) {
                     ink.add(page.id, finished)

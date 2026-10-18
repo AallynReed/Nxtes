@@ -60,15 +60,15 @@ import android.graphics.Color as AndroidColor
 private val SWATCH = 30.dp
 
 /**
- * Colours to pick from: [builtIn], or a saved palette chosen from the chips on top. A custom colour
+ * Colors to pick from: [builtIn], or a saved palette chosen from the chips on top. A custom color
  * comes from the hue and shade picker or a hex code, and can be added to the shown palette, which
- * forgets a colour that's touched and held. Picks are opaque; [colour]'s alpha is ignored.
+ * forgets a color that's touched and held. Picks are opaque; [color]'s alpha is ignored.
  */
 @Composable
-fun ColourChooser(colour: Int, builtIn: List<Int>, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun ColorChooser(color: Int, builtIn: List<Int>, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
     val palettes = LocalContext.current.nxtes.palettes
     val shown = palettes.shown
-    val current = colour or OPAQUE
+    val current = color or OPAQUE
     var custom by rememberSaveable { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<Palette?>(null) }
     val newName = stringResource(R.string.palette_number, palettes.saved.size + 1)
@@ -106,7 +106,7 @@ fun ColourChooser(colour: Int, builtIn: List<Int>, onPick: (Int) -> Unit, modifi
                         .size(SWATCH)
                         .clip(CircleShape)
                         .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                        .clickable(onClickLabel = stringResource(R.string.palette_add_colour)) { palettes.addColor(shown.id, current) },
+                        .clickable(onClickLabel = stringResource(R.string.palette_add_color)) { palettes.addColor(shown.id, current) },
                 ) { Icon(Icons.Default.Add, null, tint = Color(current), modifier = Modifier.size(20.dp)) }
             }
         }
@@ -114,9 +114,9 @@ fun ColourChooser(colour: Int, builtIn: List<Int>, onPick: (Int) -> Unit, modifi
             Text(stringResource(R.string.palette_hint), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         TextButton(onClick = { custom = !custom }) {
-            Text(stringResource(if (custom) R.string.custom_colour_hide else R.string.custom_colour))
+            Text(stringResource(if (custom) R.string.custom_color_hide else R.string.custom_color))
         }
-        if (custom) CustomColour(current, onPick)
+        if (custom) CustomColor(current, onPick)
     }
     renaming?.let { palette ->
         NameDialog(stringResource(R.string.palette_rename), palette.name, { name ->
@@ -146,13 +146,13 @@ private fun PaletteMenu(onRename: () -> Unit, onDelete: () -> Unit) {
 
 /** A shade square and hue bar, plus a hex code field. */
 @Composable
-private fun CustomColour(colour: Int, onPick: (Int) -> Unit) {
+private fun CustomColor(color: Int, onPick: (Int) -> Unit) {
     val latestPick by rememberUpdatedState(onPick)
-    var hsv by remember { mutableStateOf(hsvOf(colour)) }
-    var hex by remember { mutableStateOf(hexOf(colour)) }
-    LaunchedEffect(colour) {
-        if (colorOf(hsv) != colour) hsv = hsvOf(colour)
-        if (parseHex(hex) != colour) hex = hexOf(colour)
+    var hsv by remember { mutableStateOf(hsvOf(color)) }
+    var hex by remember { mutableStateOf(hexOf(color)) }
+    LaunchedEffect(color) {
+        if (colorOf(hsv) != color) hsv = hsvOf(color)
+        if (parseHex(hex) != color) hex = hexOf(color)
     }
     fun pick(next: FloatArray) {
         hsv = next
@@ -190,7 +190,7 @@ private fun CustomColour(colour: Int, onPick: (Int) -> Unit) {
             drawCircle(Color.White, size.height / 2 - 2.dp.toPx(), Offset(x, size.height / 2), style = Stroke(2.dp.toPx()))
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(36.dp).clip(CircleShape).background(Color(colour)).border(1.dp, MaterialTheme.colorScheme.outline, CircleShape))
+            Box(Modifier.size(36.dp).clip(CircleShape).background(Color(color)).border(1.dp, MaterialTheme.colorScheme.outline, CircleShape))
             OutlinedTextField(
                 value = hex,
                 onValueChange = { text ->
@@ -198,7 +198,7 @@ private fun CustomColour(colour: Int, onPick: (Int) -> Unit) {
                     parseHex(hex)?.let { onPick(it) }
                 },
                 singleLine = true,
-                label = { Text(stringResource(R.string.hex_colour)) },
+                label = { Text(stringResource(R.string.hex_color)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                 modifier = Modifier.weight(1f),
             )
@@ -209,13 +209,13 @@ private fun CustomColour(colour: Int, onPick: (Int) -> Unit) {
 private const val OPAQUE = 0xFF000000.toInt()
 private val HUES = listOf(0f, 60f, 120f, 180f, 240f, 300f, 360f).map { Color(AndroidColor.HSVToColor(floatArrayOf(it, 1f, 1f))) }
 
-private fun hsvOf(colour: Int) = FloatArray(3).also { AndroidColor.colorToHSV(colour, it) }
+private fun hsvOf(color: Int) = FloatArray(3).also { AndroidColor.colorToHSV(color, it) }
 
 private fun colorOf(hsv: FloatArray) = AndroidColor.HSVToColor(hsv)
 
-private fun hexOf(colour: Int) = "#%06X".format(colour and 0xFFFFFF)
+private fun hexOf(color: Int) = "#%06X".format(color and 0xFFFFFF)
 
-/** "#RRGGBB" or "RRGGBB" as an opaque colour, or null. */
+/** "#RRGGBB" or "RRGGBB" as an opaque color, or null. */
 internal fun parseHex(text: String): Int? {
     val digits = text.trim().removePrefix("#")
     if (digits.length != 6) return null

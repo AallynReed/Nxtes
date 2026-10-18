@@ -60,7 +60,7 @@ One directory per document, zipped for backup and export:
 
 - Page files and blobs are identified by SHA-256. A document's manifest maps page IDs to hashes,
   so an edit rewrites, and sync uploads, only the pages that changed.
-- A stroke stores its brush, colour and size, the clock time it started, and points as (x, y,
+- A stroke stores its brush, color and size, the clock time it started, and points as (x, y,
   pressure, tilt, milliseconds since the stroke started). A recording stores its audio blob (AAC
   in MP4) and the clock spans it covered, one per stretch between pauses, so any stroke's time
   maps into the audio and back. That drives tap-to-jump and replay without strokes knowing about
@@ -167,7 +167,7 @@ A `.flex` backup is a ZIP holding one `.flx` ZIP per document under folder direc
 recordings; [flexcil-format.md](flexcil-format.md) describes it. The importer lives in the app
 (`flexcil/`) and accepts a whole backup or a single `.flx`, from the add menu or the share sheet.
 
-- Folders keep their names, colours, favourites and dates. Documents land in the folder the
+- Folders keep their names, colors, favourites and dates. Documents land in the folder the
   library is showing.
 - Every Flexcil page is backed by a PDF page (notes use a copied template PDF), so pages keep their
   PDF background, size and rotation.

@@ -57,7 +57,7 @@ fun AnchoredMenu(anchor: Rect, gap: Dp, content: @Composable () -> Unit) {
     }
 }
 
-/** Colours and actions for the lasso selection. */
+/** Colors and actions for the lasso selection. */
 @Composable
 fun SelectionMenu(
     anchor: Rect,
@@ -66,16 +66,16 @@ fun SelectionMenu(
 ) {
     AnchoredMenu(anchor, gap = 56.dp) {
         Column(Modifier.width(IntrinsicSize.Max).padding(6.dp)) {
-            if (actions.canRecolour) {
+            if (actions.canRecolor) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(6.dp)) {
-                    ToolState.PALETTE.forEach { colour ->
+                    ToolState.PALETTE.forEach { color ->
                         Box(
                             Modifier
                                 .size(24.dp)
                                 .clip(CircleShape)
-                                .background(Color(colour))
+                                .background(Color(color))
                                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                                .clickable { actions.recolour(colour) },
+                                .clickable { actions.recolor(color) },
                         )
                     }
                 }

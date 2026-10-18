@@ -37,7 +37,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import net.mildhope.nxtes.R
-import net.mildhope.nxtes.ui.ColourChooser
+import net.mildhope.nxtes.ui.ColorChooser
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
@@ -71,20 +71,20 @@ fun NameDialog(title: String, initial: String, onConfirm: (String) -> Unit, onDi
     )
 }
 
-/** Picks a folder colour, previewed on a folder, applied with OK. */
+/** Picks a folder color, previewed on a folder, applied with OK. */
 @Composable
-fun ColourDialog(current: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
-    var colour by remember { mutableIntStateOf(current) }
+fun ColorDialog(current: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    var color by remember { mutableIntStateOf(current) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.folder_colour)) },
+        title = { Text(stringResource(R.string.folder_color)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(painterResource(R.drawable.ic_folder), null, tint = Color(colour), modifier = Modifier.size(64.dp).align(Alignment.CenterHorizontally))
-                ColourChooser(colour, FOLDER_COLORS, { colour = it })
+                Icon(painterResource(R.drawable.ic_folder), null, tint = Color(color), modifier = Modifier.size(64.dp).align(Alignment.CenterHorizontally))
+                ColorChooser(color, FOLDER_COLORS, { color = it })
             }
         },
-        confirmButton = { TextButton(onClick = { onPick(colour) }) { Text(stringResource(R.string.ok)) } },
+        confirmButton = { TextButton(onClick = { onPick(color) }) { Text(stringResource(R.string.ok)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }

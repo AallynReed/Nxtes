@@ -11,7 +11,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-/** Colours outside the Material scheme, per docs/ui.md. */
+/** Colors outside the Material scheme, per docs/ui.md. */
 @Immutable
 data class NxtesColors(
     val pageBackground: Color,

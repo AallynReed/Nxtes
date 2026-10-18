@@ -29,10 +29,10 @@ import net.mildhope.nxtes.data.MarkKind
 import net.mildhope.nxtes.data.TextMark
 import net.mildhope.nxtes.viewer.PageMapper
 
-/** Highlighter colours for PDF text; they multiply with the page. */
+/** Highlighter colors for PDF text; they multiply with the page. */
 val HIGHLIGHT_COLORS = listOf(0xFFFFF176, 0xFFA5D6A7, 0xFF90CAF9, 0xFFF48FB1, 0xFFFFCC80).map { it.toInt() }
 
-/** Underlines and strike-throughs are drawn in this colour. */
+/** Underlines and strike-throughs are drawn in this color. */
 const val TEXT_LINE_COLOR = 0xFFE53935.toInt()
 
 /** What picked PDF text offers. */
@@ -58,7 +58,7 @@ private fun Rect.union(o: Rect) = Rect(minOf(left, o.left), minOf(top, o.top), m
 
 private fun PageMapper.mapper(index: Int, x: Float, y: Float) = toScreen(index, Offset(x, y))
 
-/** Highlight colours and actions over picked PDF text. */
+/** Highlight colors and actions over picked PDF text. */
 @Composable
 fun TextPickMenu(pick: TextPick, mapper: PageMapper, actions: TextPickActions) {
     val index = mapper.indexOf(pick.pageId).takeIf { it >= 0 } ?: return
@@ -68,14 +68,14 @@ fun TextPickMenu(pick: TextPick, mapper: PageMapper, actions: TextPickActions) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(6.dp)) {
                 Text(stringResource(R.string.highlight), style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.size(4.dp))
-                HIGHLIGHT_COLORS.forEach { colour ->
+                HIGHLIGHT_COLORS.forEach { color ->
                     Spacer(
                         Modifier
                             .size(26.dp)
                             .clip(CircleShape)
-                            .background(Color(colour))
+                            .background(Color(color))
                             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                            .clickable(onClickLabel = stringResource(R.string.highlight)) { actions.mark(MarkKind.HIGHLIGHT, colour) },
+                            .clickable(onClickLabel = stringResource(R.string.highlight)) { actions.mark(MarkKind.HIGHLIGHT, color) },
                     )
                 }
             }
@@ -94,21 +94,21 @@ fun TextPickMenu(pick: TextPick, mapper: PageMapper, actions: TextPickActions) {
 
 /** Copy or delete a highlight, underline or strike-through. */
 @Composable
-fun MarkMenu(pageId: String, mark: TextMark, mapper: PageMapper, onCopy: () -> Unit, onRecolour: (Int) -> Unit, onDelete: () -> Unit) {
+fun MarkMenu(pageId: String, mark: TextMark, mapper: PageMapper, onCopy: () -> Unit, onRecolor: (Int) -> Unit, onDelete: () -> Unit) {
     val index = mapper.indexOf(pageId).takeIf { it >= 0 } ?: return
     if (mark.rects.isEmpty()) return
     AnchoredMenu(mapper.around(index, mark.rects), gap = 16.dp) {
         Column(Modifier.padding(6.dp)) {
             if (mark.kind == MarkKind.HIGHLIGHT) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(6.dp)) {
-                    HIGHLIGHT_COLORS.forEach { colour ->
+                    HIGHLIGHT_COLORS.forEach { color ->
                         Spacer(
                             Modifier
                                 .size(26.dp)
                                 .clip(CircleShape)
-                                .background(Color(colour))
-                                .border(if (colour == mark.color) 2.dp else 1.dp, if (colour == mark.color) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                                .clickable(onClickLabel = stringResource(R.string.highlight)) { onRecolour(colour) },
+                                .background(Color(color))
+                                .border(if (color == mark.color) 2.dp else 1.dp, if (color == mark.color) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                                .clickable(onClickLabel = stringResource(R.string.highlight)) { onRecolor(color) },
                         )
                     }
                 }

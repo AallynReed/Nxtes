@@ -76,7 +76,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.R
-import net.mildhope.nxtes.ui.ColourChooser
+import net.mildhope.nxtes.ui.ColorChooser
 import net.mildhope.nxtes.edit.StickerPanel
 import net.mildhope.nxtes.edit.importSticker
 import net.mildhope.nxtes.edit.ref
@@ -327,7 +327,7 @@ private fun ToolbarSeparator() {
     Box(Modifier.padding(horizontal = 8.dp).width(1.dp).height(22.dp).background(MaterialTheme.colorScheme.outlineVariant))
 }
 
-/** An upright pen in its colour; the selected pen sits raised out of the toolbar edge. */
+/** An upright pen in its color; the selected pen sits raised out of the toolbar edge. */
 @Composable
 private fun PenStick(preset: PenPreset, selected: Boolean, onClick: () -> Unit) {
     val lift by animateDpAsState(if (selected) 6.dp else 16.dp, label = "pen lift")
@@ -469,7 +469,7 @@ private fun PageFlowSettings(view: ViewSettings) {
     )
 }
 
-/** Tape boxes or pen lines, their colour, and the pen's width. */
+/** Tape boxes or pen lines, their color, and the pen's width. */
 @Composable
 private fun MaskSettings(tools: ToolState) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(280.dp)) {
@@ -482,7 +482,7 @@ private fun MaskSettings(tools: ToolState) {
                 )
             }
         }
-        ColourChooser(tools.maskColor, ToolState.MASK_COLORS, { tools.updateMask(tools.maskKind, it, tools.maskWidth) }, Modifier.padding(vertical = 8.dp))
+        ColorChooser(tools.maskColor, ToolState.MASK_COLORS, { tools.updateMask(tools.maskKind, it, tools.maskWidth) }, Modifier.padding(vertical = 8.dp))
         if (tools.maskKind == MaskKind.PEN) {
             Text(stringResource(R.string.mask_size, tools.maskWidth.roundToInt()), style = MaterialTheme.typography.labelLarge)
             Slider(
@@ -495,7 +495,7 @@ private fun MaskSettings(tools: ToolState) {
     }
 }
 
-/** Dot or trailing line, and the laser's colour. */
+/** Dot or trailing line, and the laser's color. */
 @Composable
 private fun LaserSettings(tools: ToolState) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(280.dp)) {
@@ -508,16 +508,16 @@ private fun LaserSettings(tools: ToolState) {
                 )
             }
         }
-        ColourChooser(tools.laserColor, ToolState.LASER_COLORS, { tools.updateLaser(tools.laserMode, it) }, Modifier.padding(top = 8.dp))
+        ColorChooser(tools.laserColor, ToolState.LASER_COLORS, { tools.updateLaser(tools.laserMode, it) }, Modifier.padding(top = 8.dp))
     }
 }
 
-/** The colour new sticky notes get. */
+/** The color new sticky notes get. */
 @Composable
 private fun NoteSettings(tools: ToolState) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(280.dp)) {
-        Text(stringResource(R.string.note_colour), style = MaterialTheme.typography.labelLarge)
-        ColourChooser(tools.noteColor, ToolState.NOTE_COLORS, { tools.updateNoteColor(it) }, Modifier.padding(top = 8.dp))
+        Text(stringResource(R.string.note_color), style = MaterialTheme.typography.labelLarge)
+        ColorChooser(tools.noteColor, ToolState.NOTE_COLORS, { tools.updateNoteColor(it) }, Modifier.padding(top = 8.dp))
     }
 }
 
@@ -614,7 +614,7 @@ private fun EraserGlyph(color: Color) {
     }
 }
 
-/** A short wavy stroke previewing a pen's colour and size. */
+/** A short wavy stroke previewing a pen's color and size. */
 @Composable
 private fun PenPreview(preset: PenPreset, modifier: Modifier = Modifier) {
     val color = Color(preset.color)
@@ -644,7 +644,7 @@ private fun PenSettings(preset: PenPreset, onChange: (PenPreset) -> Unit, onDele
                 )
             }
         }
-        ColourChooser(preset.color, ToolState.PALETTE, { onChange(preset.copy(color = withAlpha(it, preset.color ushr 24))) })
+        ColorChooser(preset.color, ToolState.PALETTE, { onChange(preset.copy(color = withAlpha(it, preset.color ushr 24))) })
         if (preset.pen == Pen.SHAPE) ShapeSettings(preset, onChange)
         LabelledSlider(
             label = stringResource(R.string.pen_size, preset.size),
