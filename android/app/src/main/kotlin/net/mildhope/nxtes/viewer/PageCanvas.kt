@@ -87,6 +87,8 @@ import net.mildhope.nxtes.data.InkStroke
 import net.mildhope.nxtes.data.MarkKind
 import net.mildhope.nxtes.data.TextMark
 import net.mildhope.nxtes.edit.snapHighlight
+import net.mildhope.nxtes.edit.snapToWriting
+import net.mildhope.nxtes.edit.straightHighlights
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.ColorFilter
@@ -961,12 +963,22 @@ private fun DrawScope.drawSelection(corners: List<Offset>, color: Color, rotateD
     }
 }
 
-/** Turns a highlighter stroke over PDF text into a highlight on that text, in the same undo step. */
-private fun snapToText(ink: PageSession, pageId: String, group: Any, stroke: InkStroke, text: PageText) {
-    val range = snapHighlight(text, stroke.x, stroke.y, stroke.size) ?: return
+/** Turns a highlighter stroke over PDF text into a highlight on that text, in the same undo step. Says whether it did. */
+private fun snapToText(ink: PageSession, pageId: String, group: Any, stroke: InkStroke, text: PageText): Boolean {
+    val range = snapHighlight(text, stroke.x, stroke.y, stroke.size) ?: return false
     val mark = TextMark(UUID.randomUUID().toString(), MarkKind.HIGHLIGHT, stroke.color, text.rects(range.first, range.last), text.textOf(range.first, range.last))
     ink.update(pageId, group) { content ->
         if (content.strokes.none { it.id == stroke.id }) content else content.copy(strokes = content.strokes.filter { it.id != stroke.id }, marks = content.marks + mark)
+    }
+    return true
+}
+
+/** Straightens a highlighter stroke over handwriting to cover the lines it runs over, in the same undo step. */
+private fun straightenOverWriting(ink: PageSession, pageId: String, group: Any, stroke: InkStroke) {
+    val bands = snapToWriting(ink.strokes(pageId), stroke.x, stroke.y, stroke.size) ?: return
+    val straight = straightHighlights(stroke, bands) { UUID.randomUUID().toString() }
+    ink.update(pageId, group) { content ->
+        if (content.strokes.none { it.id == stroke.id }) content else content.copy(strokes = content.strokes.flatMap { if (it.id == stroke.id) straight else listOf(it) })
     }
 }
 
@@ -1012,13 +1024,16 @@ private fun InkLayer(
                 val started = now - stroke.inputs.getDurationMillis()
                 val finished = StrokeGeometry.fromFinished(stroke, origin.x, origin.y, started).let { if (darkPages) it.recolored(pen.color) else it }
                 val page = pages[index]
-                if (finished.pen != Pen.HIGHLIGHTER || page.pdf == null) {
+                if (finished.pen != Pen.HIGHLIGHTER) {
                     ink.add(page.id, finished)
                     continue
                 }
                 val group = Any()
                 ink.update(page.id, group) { it.copy(strokes = it.strokes + finished) }
-                scope.launch { snapToText(ink, page.id, group, finished, pageText(index) ?: return@launch) }
+                scope.launch {
+                    val text = if (page.pdf != null) pageText(index) else null
+                    if (text == null || !snapToText(ink, page.id, group, finished, text)) straightenOverWriting(ink, page.id, group, finished)
+                }
             }
         },
     )
