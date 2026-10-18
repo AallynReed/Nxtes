@@ -660,6 +660,34 @@ class LibraryStore(
         _state.value.trash().forEach { deletePermanently(it.id) }
     }
 
+    /**
+     * Adds a document built elsewhere, such as by an importer, with its [blobs] (files by SHA-256,
+     * copied in) and the content of its [pages].
+     */
+    @Synchronized
+    fun addDocument(doc: Document, blobs: Map<String, File>, pages: Map<String, PageContent>): Document {
+        try {
+            blobs.forEach { (sha256, file) ->
+                val target = blobFile(doc.id, sha256)
+                target.parentFile?.mkdirs()
+                val tmp = File(target.parentFile, "$sha256.tmp")
+                file.copyTo(tmp, overwrite = true)
+                Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            }
+            pages.forEach { (pageId, content) -> writePage(doc.id, pageId, content) }
+            writeDocument(doc)
+            _state.value = _state.value.let { it.copy(documents = it.documents + doc) }
+            return doc
+        } catch (e: Exception) {
+            documentDir(doc.id).deleteRecursively()
+            throw e
+        }
+    }
+
+    /** Adds a folder built elsewhere, such as by an importer. */
+    @Synchronized
+    fun addFolder(folder: Folder) = writeFolders(_state.value.folders + folder)
+
     /** A document's page files by page id and its blob files by SHA-256, for sync. */
     @Synchronized
     fun documentFiles(id: String): DocumentFiles {

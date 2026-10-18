@@ -9,8 +9,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Document
+import net.mildhope.nxtes.flexcil.FlexcilImporter
 import net.mildhope.nxtes.nxtes
 import net.mildhope.nxtes.page.openAsPdf
+import java.io.File
 
 private const val TAG = "Import"
 private val EXTENSION = Regex("\\.[A-Za-z0-9]{1,5}$")
@@ -34,6 +36,37 @@ suspend fun importFiles(context: Context, uris: List<Uri>, folderId: String?): L
     }
     return results.mapNotNull { it.getOrNull() }
 }
+
+/** Whether a shared or opened file is a Flexcil backup or document. */
+fun isFlexcil(context: Context, uri: Uri): Boolean =
+    context.contentResolver.getType(uri) == FLEXCIL_TYPE ||
+        displayName(context, uri)?.lowercase()?.let { it.endsWith(".flex") || it.endsWith(".flx") } == true
+
+/** Imports a Flexcil backup or document into the library and says how it went. Returns how many documents came in. */
+suspend fun importFlexcil(context: Context, uri: Uri, folderId: String?): Int {
+    val result = withContext(Dispatchers.IO) {
+        runCatching {
+            val copy = File(context.cacheDir, "flexcil-import")
+            try {
+                requireNotNull(context.contentResolver.openInputStream(uri)).use { input -> copy.outputStream().use { input.copyTo(it) } }
+                FlexcilImporter(context.nxtes.library, File(context.cacheDir, "flexcil"), context.getString(R.string.recording_now)).import(copy, folderId)
+            } finally {
+                copy.delete()
+            }
+        }.onFailure { Log.w(TAG, "Flexcil import failed for $uri", it) }
+    }
+    val message = result.fold(
+        onSuccess = { done ->
+            val imported = context.resources.getQuantityString(R.plurals.flexcil_imported, done.documents, done.documents)
+            if (done.failed == 0) imported else imported + "\n" + context.resources.getQuantityString(R.plurals.import_failed, done.failed, done.failed)
+        },
+        onFailure = { context.getString(if (it is FlexcilImporter.NotFlexcil) R.string.flexcil_not_backup else R.string.action_failed) },
+    )
+    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    return result.getOrNull()?.documents ?: 0
+}
+
+const val FLEXCIL_TYPE = "application/flex"
 
 fun displayName(context: Context, uri: Uri): String? =
     context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->

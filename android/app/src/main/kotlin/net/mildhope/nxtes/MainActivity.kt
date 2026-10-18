@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.library.LibraryScreen
 import net.mildhope.nxtes.library.importFiles
+import net.mildhope.nxtes.library.importFlexcil
+import net.mildhope.nxtes.library.isFlexcil
 import net.mildhope.nxtes.sync.SyncConflicts
 import net.mildhope.nxtes.ui.NxtesTheme
 import net.mildhope.nxtes.viewer.DocumentViewer
@@ -49,7 +51,7 @@ class MainActivity : ComponentActivity() {
         importShared(intent)
     }
 
-    /** Imports PDFs sent or opened from other apps, and opens the document if there was just one. */
+    /** Imports PDFs, images and Flexcil backups sent or opened from other apps, and opens the document if there was just one. */
     private fun importShared(intent: Intent) {
         val uris = when (intent.action) {
             Intent.ACTION_VIEW -> listOfNotNull(intent.data)
@@ -60,8 +62,11 @@ class MainActivity : ComponentActivity() {
         }
         if (uris.isEmpty()) return
         lifecycleScope.launch {
-            val imported = importFiles(this@MainActivity, uris, folderId = null)
-            imported.singleOrNull()?.let { openRequests.value = it.id }
+            val (flexcil, files) = uris.partition { isFlexcil(this@MainActivity, it) }
+            flexcil.forEach { importFlexcil(this@MainActivity, it, folderId = null) }
+            if (files.isEmpty()) return@launch
+            val imported = importFiles(this@MainActivity, files, folderId = null)
+            imported.singleOrNull()?.takeIf { flexcil.isEmpty() }?.let { openRequests.value = it.id }
         }
     }
 }

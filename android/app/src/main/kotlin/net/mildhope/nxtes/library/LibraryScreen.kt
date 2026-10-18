@@ -223,6 +223,16 @@ private fun MainPane(
         }
     }
 
+    val flexcilPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                importing = true
+                importFlexcil(context, uri, folder?.id)
+                importing = false
+            }
+        }
+    }
+
     val searching = query.isNotBlank()
     val inTrash = section == LibrarySection.TRASH && !searching
     val title = when {
@@ -397,6 +407,7 @@ private fun MainPane(
                 onNewFolder = { dialog = LibraryDialog.NewFolder },
                 onNewNote = { dialog = LibraryDialog.NewNote },
                 onImport = { picker.launch(arrayOf("application/pdf", "image/*")) },
+                onImportFlexcil = { flexcilPicker.launch(arrayOf("*/*")) },
                 modifier = Modifier.align(Alignment.BottomEnd),
             )
         }
@@ -567,7 +578,7 @@ private fun sortLabel(order: SortOrder) = when (order) {
 
 /** The round add button; it expands into labelled actions over a dimmed library. */
 @Composable
-private fun AddMenu(onNewFolder: () -> Unit, onNewNote: () -> Unit, onImport: () -> Unit, modifier: Modifier = Modifier) {
+private fun AddMenu(onNewFolder: () -> Unit, onNewNote: () -> Unit, onImport: () -> Unit, onImportFlexcil: () -> Unit, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         if (open) {
@@ -591,6 +602,10 @@ private fun AddMenu(onNewFolder: () -> Unit, onNewNote: () -> Unit, onImport: ()
                 AddMenuItem(stringResource(R.string.import_pdf), painterResource(R.drawable.ic_document)) {
                     open = false
                     onImport()
+                }
+                AddMenuItem(stringResource(R.string.import_flexcil), painterResource(R.drawable.ic_move_to)) {
+                    open = false
+                    onImportFlexcil()
                 }
             }
             FloatingActionButton(

@@ -448,4 +448,10 @@
     </plurals>
     <string name="shared_link_expires">Works until %1$s</string>
     <string name="stop_sharing">Stop sharing %1$s</string>
+    <string name="import_flexcil">Import from Flexcil</string>
+    <string name="flexcil_not_backup">That isn\'t a Flexcil backup or document.</string>
+    <plurals name="flexcil_imported">
+        <item quantity="one">Imported %d document from Flexcil</item>
+        <item quantity="other">Imported %d documents from Flexcil</item>
+    </plurals>
 </resources>
