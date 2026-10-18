@@ -18,3 +18,9 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 192.168.80.0/20
