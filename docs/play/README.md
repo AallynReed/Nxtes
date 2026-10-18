@@ -53,10 +53,10 @@ account, create one on the server and give its email and password here:
 
 **Ads:** No.
 
-**Content rating:** questionnaire category "Utility, productivity, communication or other". No
-violence, sexuality, language, controlled substances, gambling or purchases. Users can't chat with
-or find each other. A share link sends the user's own exported PDF to people they choose, like any
-file export.
+**Content rating (submitted):** category "All other app types". Users can exchange content: Yes,
+because share links publish a PDF to whoever has the link, and interactions can be limited to invited
+friends: Yes. Every other answer is No. Result: Everyone, PEGI 3, 3+ elsewhere, with "Users
+Interact".
 
 **Target audience:** 13–15, 16–17 and 18 and over. Not designed for children; it doesn't appeal to
 children under 13.
