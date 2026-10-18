@@ -145,6 +145,21 @@ class FlexcilImporterTest {
     }
 
     @Test
+    fun hyperlinksBecomeLinksToTheImportedPages() {
+        importer.import(file(backup()), folderId = null)
+        val lecture = store.state.value.documents.single { it.title == "Lecture <1>" }
+        val links = store.readPage(lecture.id, lecture.pages[0].id).links
+
+        assertEquals("only page and URL links whose targets exist", 2, links.size)
+        val (web, jump) = links
+        assertEquals("http://www.example.org", web.url)
+        assertNull(web.pageId)
+        assertArrayEquals(floatArrayOf(60f, 120f, 180f, 30f), floatArrayOf(web.x, web.y, web.width, web.height), 0.01f)
+        assertEquals(lecture.pages[2].id, jump.pageId)
+        assertEquals(lecture.pages[0].id, store.readPage(lecture.id, lecture.pages[2].id).links.single().pageId)
+    }
+
+    @Test
     fun singleDocumentImports() {
         val result = importer.import(file(lecture()), folderId = null)
 
@@ -187,6 +202,12 @@ class FlexcilImporterTest {
         "objects/P1.annotations" to """[{"key":"A1","type":11,"mode":2,"strokeColor":2164260608,"text":"word","paths":[{"points":"${lines(0.1f, 0.3f, 0.4f, 0.3f)}","width":0.02}]}]""",
         "objects/P1.stickynotes" to """[{"key":"N1","type":60,"frame":{"x":0.9,"y":0.05,"width":0.04,"height":0.04},"text":"Remember","color":2}]""",
         "objects/P1.maskings" to """[{"key":"M1","type":50,"mode":7,"figure":2,"patternType":0,"points":"${strokes(0f, 0f, 0.01f, 0.2f, 0.05f, 0.01f)}","start":{"x":0.1,"y":0.9},"strokeColor":4294951936,"correct":2,"wrong":1}]""",
+        "objects/P1.hyperlinks" to """[
+            {"key":"H1","version":"0.0.5","type":40,"frame":{"x":0.1,"y":0.2,"width":0.3,"height":0.05},"actionType":3,"link":"www.example.org"},
+            {"key":"H2","type":40,"frame":{"x":0.5,"y":0.2,"width":0.1,"height":0.05},"actionType":1,"link":"P3"},
+            {"key":"H3","type":40,"frame":{"x":0.5,"y":0.3,"width":0.1,"height":0.05},"actionType":1,"link":"GONE"},
+            {"key":"H4","type":40,"frame":{"x":0.5,"y":0.4,"width":0.1,"height":0.05},"actionType":4,"link":"tool.exe"}]""",
+        "objects/P3.hyperlinks" to """[{"key":"H5","type":40,"frame":{"x":0.0,"y":0.0,"width":0.1,"height":0.1},"actionType":1,"link":"P1"}]""",
         "objects/P2.drawings" to """[{"key":"D4","type":1,"mode":1,"points":"${strokes(0f, 0f, 0.002f)}","start":{"x":0.5,"y":0.5}}]""",
         "objects/P3.drawings" to "",
         "objects/P3.drawings_back" to """[{"key":"D5","type":1,"mode":1,"points":"${strokes(0f, 0f, 0.002f)}","start":{"x":0.1,"y":0.1}}]""",

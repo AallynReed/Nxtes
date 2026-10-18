@@ -27,8 +27,8 @@ Licensed AGPL-3.0. Every dependency must be AGPL-compatible.
   libraries, so no NDK build is needed. It covers rendering, text extraction for search and
   selection, links and outlines. It can't import pages or add content, so export uses
   PDFBox for Android (Apache-2.0, without its BouncyCastle encryption add-on): the writing is drawn
-  with Android's PDF canvas, so it stays vector, then laid onto copies of the original pages, and
-  sticky notes become PDF text annotations. A PDF PDFBox can't open, like an encrypted one, is
+  with Android's PDF canvas, so it stays vector, then laid onto copies of the original pages,
+  sticky notes become PDF text annotations and page links become PDF links. A PDF PDFBox can't open, like an encrypted one, is
   exported as rendered pages. Its matrix render call passes the two skew terms in
   swapped order, so turned pages pre-swap them, and its page-to-screen mapping rounds to whole
   pixels, so text boxes are mapped at 16 times the size and scaled back.
@@ -53,7 +53,7 @@ One directory per document, zipped for backup and export:
 <document-id>/
   document.json        title, timestamps, page order, page sizes and templates, bookmarks, outline,
                        recordings
-  pages/<page-id>.pb   ink, shapes, textboxes, image refs, sticky notes, masks, highlights
+  pages/<page-id>.pb   ink, shapes, textboxes, image refs, sticky notes, masks, highlights, links
   blobs/<sha256>       source PDFs, images, audio, fonts
 ```
 
@@ -173,9 +173,11 @@ recordings; [flexcil-format.md](flexcil-format.md) describes it. The importer li
   times, so points get one every 10 ms; strokes take their creation time from the recording sync
   file when there is one, so tap-to-hear works on imported recordings.
 - Shapes, text boxes, pictures (with crops), text highlights and underlines, sticky notes, masks,
-  bookmarks and recordings convert to their Nxtes counterparts. Outlines are imported for notes
-  only, since a PDF's own outline already shows. Hyperlinks, scrap references, sticker packs and
+  hyperlinks, bookmarks and recordings convert to their Nxtes counterparts. Outlines are imported
+  for notes only, since a PDF's own outline already shows. Scrap references, sticker packs and
   calligraphy brush looks aren't carried over.
+- Hyperlinks become page links (tapped with a finger, or with anything in gesture or read mode,
+  they jump to their page or open their URL; pens draw over them) and export as PDF links.
 
 - Pages whose PDF annotations Flexcil had taken over (its `annotationSubtypes`) keep them hidden,
   on screen and in export, as Flexcil did.

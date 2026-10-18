@@ -9,6 +9,7 @@ import net.mildhope.nxtes.data.InkStroke
 import net.mildhope.nxtes.data.InputTool
 import net.mildhope.nxtes.data.LibraryStore
 import net.mildhope.nxtes.data.LineStyle
+import net.mildhope.nxtes.data.Link
 import net.mildhope.nxtes.data.MarkKind
 import net.mildhope.nxtes.data.Mask
 import net.mildhope.nxtes.data.MaskKind
@@ -154,6 +155,7 @@ class FlexcilImporter(
         val pageIds = mutableMapOf<String, String>()
         val pages = mutableListOf<Page>()
         val contents = mutableMapOf<String, PageContent>()
+        val links = mutableMapOf<String, List<Link>>()
         for (entry in entries) {
             val turns = ((entry.rotate / 90f).roundToInt() % 4 + 4) % 4
             val frameWidth = entry.frame.width.takeIf { it > 0 } ?: DEFAULT_WIDTH
@@ -166,6 +168,11 @@ class FlexcilImporter(
             pages += page
             val content = PageConverter(width, images, times, modified).convert(zip, entry.key)
             if (!content.isEmpty) contents[page.id] = content
+            links[page.id] = zip.list("objects/${entry.key}.hyperlinks", HyperlinkEntry.serializer()).mapNotNull { link(it, width) }
+        }
+        links.forEach { (pageId, list) ->
+            val resolved = list.mapNotNull { if (it.pageId == null) it else pageIds[it.pageId]?.let { id -> it.copy(pageId = id) } }
+            if (resolved.isNotEmpty()) contents[pageId] = (contents[pageId] ?: PageContent.EMPTY).copy(links = resolved)
         }
 
         val audio = zip.decode("audiorecord.refs", AudioRefs.serializer())?.refs.orEmpty().mapNotNull { recordings[it] }
@@ -199,6 +206,18 @@ class FlexcilImporter(
             recordings = audio.map { Recording(newId(), it.title?.takeIf { t -> t.isNotBlank() } ?: recordingTitle, keep(it.file), listOf(AudioSpan(it.start, it.length))) },
         )
         store.addDocument(doc, blobs, contents)
+    }
+
+    /** A page or URL link, its page target still a Flexcil page key; null for other kinds. */
+    private fun link(h: HyperlinkEntry, width: Float): Link? {
+        val target = h.link?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val f = h.frame
+        if (f.width <= 0 || f.height <= 0 || (h.actionType != LINK_PAGE && h.actionType != LINK_URL)) return null
+        return Link(
+            newId(), f.x * width, f.y * width, f.width * width, f.height * width,
+            pageId = target.takeIf { h.actionType == LINK_PAGE },
+            url = target.takeIf { h.actionType == LINK_URL }?.let { if (it.startsWith("www.", ignoreCase = true)) "http://$it" else it },
+        )
     }
 
     /** One page's objects, from fractions of the page width to page points [width] wide. */
@@ -481,6 +500,8 @@ class FlexcilImporter(
         const val OPAQUE = 0xFF000000.toInt()
         const val TYPE_PDF = 0
         const val PDF_LINK = 2
+        const val LINK_PAGE = 1
+        const val LINK_URL = 3
         const val TYPE_NOTE = 4
         const val TYPE_PLANNER = 5
         const val TYPE_HIGHLIGHTER_INK = 2

@@ -19,7 +19,7 @@ original pages (or flattened) and as pictures, images import as documents, and t
 backs up to one zip. Sign in from Settings to sync the library between devices, live while the
 app is open and hourly in the background, through the official server or [your own](server/README.md).
 Exported PDFs can be shared as web links that open in any browser, and Flexcil backups import with
-their folders, pages and writing.
+their folders, pages, writing and links.
 
 Debug builds of each version are attached to the [GitHub releases](https://github.com/AallynReed/Nxtes/releases).
 

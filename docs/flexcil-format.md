@@ -476,6 +476,10 @@ Expose-only Gson array of `jf.d`. `type` is `40`. **[read]**
 | `actionType` | int | §5.11 |
 | `link` | string? | target page key (go-to links, e.g. planner navigation) or URL |
 
+The real backup had 359 of them in 35 documents: 109 go-to links, all to pages of the same
+document, and 250 URL links. Besides `http`, `https` and `mailto` URLs, a few start with `www.` and
+no scheme, and a few are relative or `file:` paths to videos on the author's computer.
+
 ### 4.15 `outlines`
 
 Expose-only Gson array of `hf.b`. It comes from the PDF outline on import and can be edited.

@@ -162,6 +162,9 @@ internal class TextEntry(val key: String = "", val frame: FRect = FRect(), val r
 internal class StickyEntry(val key: String = "", val frame: FRect = FRect(), val text: String = "", val color: Long? = null)
 
 @Serializable
+internal class HyperlinkEntry(val frame: FRect = FRect(), val actionType: Int = -1, val link: String? = null)
+
+@Serializable
 internal class OutlineEntry(val name: String = "", val link: String? = null, val children: List<OutlineEntry> = emptyList())
 
 @Serializable
