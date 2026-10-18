@@ -3,7 +3,7 @@
 Nxtes is a free, open-source handwriting and PDF annotation app for Android tablets, with a sync
 server you can host yourself. Every feature is free, with no ads.
 
-**Status:** early development. You can import PDFs and create notes from generated templates (or
+**Status:** 1.0. You can import PDFs and create notes from generated templates (or
 your own images and PDFs), organise them in folders, open several at once in tabs, and write on them
 with a stylus or finger: pens, highlighter, eraser, undo and redo, saved automatically. The page
 navigator adds, reorders, turns, duplicates, copies and moves pages; bookmarks, outlines, covers,
@@ -21,7 +21,9 @@ app is open and hourly in the background, through the official server or [your o
 Exported PDFs can be shared as web links that open in any browser, and Flexcil backups import with
 their folders, pages, writing and links.
 
-Debug builds of each version are attached to the [GitHub releases](https://github.com/AallynReed/Nxtes/releases).
+Signed builds of each version are attached to the [GitHub releases](https://github.com/AallynReed/Nxtes/releases).
+1.0.0 and later can't install over the 0.x debug builds: uninstall those first, then sign in or
+restore a backup to get the library back.
 
 - [Feature spec](docs/spec.md): what Nxtes will do
 - [Architecture and plan](docs/plan.md): how it's built, plus the milestones
@@ -41,6 +43,16 @@ You need JDK 17 or newer, the Android SDK and stable Rust.
 
 ```powershell
 cd android; .\gradlew.bat assembleDebug
+```
+
+A signed release build (`assembleRelease`) reads the keystore from `android/keystore.properties`,
+which stays out of git; without it the release APK is unsigned.
+
+```properties
+storeFile=nxtes-release.jks
+storePassword=...
+keyAlias=nxtes
+keyPassword=...
 ```
 
 ```powershell

@@ -13,3 +13,7 @@ local.properties
 
 # Rust
 /server/target/
+
+# Release signing, never published
+/android/keystore.properties
+*.jks
