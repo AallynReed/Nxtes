@@ -2,6 +2,7 @@ package net.mildhope.nxtes.viewer
 
 import android.graphics.Bitmap
 import android.graphics.RectF
+import android.graphics.RenderNode
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -15,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import android.os.SystemClock
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -53,9 +55,11 @@ import androidx.compose.ui.unit.toSize
 import androidx.core.graphics.createBitmap
 import androidx.ink.authoring.compose.InProgressStrokes
 import androidx.ink.strokes.StrokeInput
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Affine
 import net.mildhope.nxtes.data.Page
@@ -76,6 +80,7 @@ import net.mildhope.nxtes.ink.erase
 import net.mildhope.nxtes.page.PagePainter
 import net.mildhope.nxtes.page.PageResources
 import androidx.core.graphics.withMatrix
+import androidx.core.graphics.withTranslation
 import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.Pen
 import net.mildhope.nxtes.data.InkStroke
@@ -143,6 +148,12 @@ private class DragState {
     /** A shape the next finished ink stroke turns into, from holding the pen still. */
     var convert: Pair<Int, Shape>? = null
 }
+
+/**
+ * A page's content recorded once at [scale] screen pixels per point and replayed every frame, so
+ * scrolling doesn't redraw every stroke. It's recorded again when anything it was drawn from changes.
+ */
+private class InkCache(val node: RenderNode, val content: PageContent, val scale: Float, val revealed: Set<String>, val assets: Int)
 
 /** A point the laser passed, in screen pixels, and when. */
 private class LaserPoint(val at: Offset, val time: Long)
@@ -220,6 +231,8 @@ fun PageCanvas(
     val painter = remember { PagePainter() }
     val strokeMatrix = remember { android.graphics.Matrix() }
     val strokeClip = remember { RectF() }
+    val inkCache = remember { HashMap<String, InkCache>() }
+    var inkZoom by remember { mutableFloatStateOf(state.zoom) }
     var eraserAt by remember { mutableStateOf<Offset?>(null) }
     var shapePreview by remember { mutableStateOf<Pair<Int, Shape>?>(null) }
     var maskPreview by remember { mutableStateOf<Pair<Int, Mask>?>(null) }
@@ -241,6 +254,26 @@ fun PageCanvas(
         val start = mapper.toScreen(index, Offset(r[0], r[1] + r[3])) + Offset(0f, knob)
         val end = mapper.toScreen(index, Offset(r[last] + r[last + 2], r[last + 1] + r[last + 3])) + Offset(0f, knob)
         return start to end
+    }
+
+    /** Draws a page's content from its recording at [scale], recording it again first if it's out of date. */
+    fun drawInk(canvas: android.graphics.Canvas, pageId: String, content: PageContent, screen: Rect, scale: Float, assets: Int) {
+        val revealed = selection.revealed
+        val cached = inkCache[pageId]?.takeIf { it.content === content && it.scale == scale && it.revealed == revealed && it.assets == assets }
+        val k = mapper.pixelsPerPoint / scale
+        val node = cached?.node ?: (inkCache[pageId]?.node ?: RenderNode("page")).also { node ->
+            val w = ceil(screen.width / k).toInt().coerceAtLeast(1)
+            val h = ceil(screen.height / k).toInt().coerceAtLeast(1)
+            node.setPosition(0, 0, w, h)
+            val recording = node.beginRecording(w, h)
+            painter.draw(recording, content, android.graphics.Matrix().apply { setScale(scale, scale) }, RectF(0f, 0f, w.toFloat(), h.toFloat()), resources, revealed)
+            node.endRecording()
+            inkCache[pageId] = InkCache(node, content, scale, revealed, assets)
+        }
+        canvas.withTranslation(screen.left, screen.top) {
+            scale(k, k)
+            drawRenderNode(node)
+        }
     }
 
     /** The shape the shape pen makes for the current drag. */
@@ -640,6 +673,13 @@ fun PageCanvas(
 
     LaunchedEffect(tools.annotationsHidden) { if (tools.annotationsHidden) selection.clear() }
 
+    LaunchedEffect(state) {
+        snapshotFlow { state.zoom }.collectLatest {
+            delay(DETAIL_DELAY_MS)
+            inkZoom = it
+        }
+    }
+
     LaunchedEffect(layout, ink, ink.generation) {
         snapshotFlow { layout.visible(state.zoom, state.offset, state.size, extra = 1) }
             .distinctUntilChanged()
@@ -658,17 +698,20 @@ fun PageCanvas(
     }
 
     LaunchedEffect(layout) {
-        snapshotFlow { layout.visible(state.zoom, state.offset, state.size, extra = 1) }
+        snapshotFlow { layout.visible(state.zoom, state.offset, state.size) }
             .distinctUntilChanged()
-            .collectLatest { range ->
-                base.keys.filter { it !in range }.forEach { base.remove(it) }
-                for (i in range) {
+            .collectLatest { shown ->
+                if (shown.isEmpty()) return@collectLatest
+                val near = (shown.first - 1).coerceAtLeast(0)..(shown.last + 1).coerceAtMost(layout.rects.lastIndex)
+                base.keys.filter { it !in near }.forEach { base.remove(it) }
+                for (i in shown + near.filter { it !in shown }) {
                     if (i in base) continue
                     val rect = layout.rects[i]
                     val w = rect.width.roundToInt().coerceAtLeast(1)
                     val h = rect.height.roundToInt().coerceAtLeast(1)
-                    val bitmap = createBitmap(w, h)
+                    val bitmap = withContext(Dispatchers.Default) { createBitmap(w, h) }
                     renderer.render(i, bitmap, 0, 0, w, h)
+                    bitmap.prepareToDraw()
                     base[i] = bitmap.asImageBitmap()
                 }
             }
@@ -677,7 +720,7 @@ fun PageCanvas(
     LaunchedEffect(layout) {
         snapshotFlow { Triple(state.zoom, state.offset, state.size) }.collectLatest { (zoom, offset, viewportSize) ->
             if (zoom < DETAIL_MIN_ZOOM) {
-                detail.clear()
+                if (detail.isNotEmpty()) detail.clear()
                 return@collectLatest
             }
             delay(DETAIL_DELAY_MS)
@@ -691,12 +734,13 @@ fun PageCanvas(
                 val top = floor(shown.top)
                 val w = (ceil(shown.right) - left).toInt().coerceAtLeast(1)
                 val h = (ceil(shown.bottom) - top).toInt().coerceAtLeast(1)
-                val bitmap = createBitmap(w, h)
+                val bitmap = withContext(Dispatchers.Default) { createBitmap(w, h) }
                 renderer.render(
                     i, bitmap,
                     (screen.left - left).roundToInt(), (screen.top - top).roundToInt(),
                     screen.width.roundToInt(), screen.height.roundToInt(),
                 )
+                bitmap.prepareToDraw()
                 fresh[i] = Detail(bitmap.asImageBitmap(), zoom, offset, Offset(left, top))
             }
             detail.clear()
@@ -707,7 +751,9 @@ fun PageCanvas(
     Box(modifier.clipToBounds().onSizeChanged { size = it }) {
         Box(Modifier.fillMaxSize().canvasGestures(state, tools) { currentTools }) {
         Canvas(Modifier.fillMaxSize()) {
-            assetsLoaded()
+            val assets = assetsLoaded()
+            val inkScale = layout.scale * inkZoom
+            val drawn = HashSet<String>()
             val zoom = state.zoom
             val offset = state.offset
             val viewport = Rect(Offset.Zero, this.size)
@@ -730,7 +776,8 @@ fun PageCanvas(
                 val editing = selection.text?.takeIf { it.pageId == pages[i].id }?.box?.id
                     ?: selection.crop?.takeIf { it.pageId == pages[i].id }?.picture?.id
                 val replaying = replay()
-                val content = ink.content(pages[i].id)
+                val saved = ink.content(pages[i].id)
+                val content = saved
                     .let { c -> if (editing == null) c else c.copy(objects = c.objects.filter { it.id != editing }) }
                     .let { c -> if (replaying == null) c else c.copy(strokes = replayed(c.strokes, replaying)) }
                 if (!content.isEmpty && !tools.annotationsHidden) {
@@ -740,17 +787,24 @@ fun PageCanvas(
                     strokeClip.set(screen.left, screen.top, screen.right, screen.bottom)
                     val moving = selection.pageId == pages[i].id && selection.preview != Affine()
                     drawIntoCanvas { canvas ->
-                        if (moving) {
-                            painter.draw(canvas.nativeCanvas, selection.picked.without(content), strokeMatrix, strokeClip, resources, selection.revealed)
-                            val moved = android.graphics.Matrix(strokeMatrix).apply { preConcat(selection.preview.toMatrix()) }
-                            painter.draw(canvas.nativeCanvas, selection.picked.of(content), moved, strokeClip, resources, selection.revealed)
-                        } else {
-                            painter.draw(canvas.nativeCanvas, content, strokeMatrix, strokeClip, resources, selection.revealed)
+                        val native = canvas.nativeCanvas
+                        when {
+                            moving -> {
+                                painter.draw(native, selection.picked.without(content), strokeMatrix, strokeClip, resources, selection.revealed)
+                                val moved = android.graphics.Matrix(strokeMatrix).apply { preConcat(selection.preview.toMatrix()) }
+                                painter.draw(native, selection.picked.of(content), moved, strokeClip, resources, selection.revealed)
+                            }
+                            content === saved && native.isHardwareAccelerated -> {
+                                drawInk(native, pages[i].id, content, screen, inkScale, assets)
+                                drawn += pages[i].id
+                            }
+                            else -> painter.draw(native, content, strokeMatrix, strokeClip, resources, selection.revealed)
                         }
                     }
                 }
                 drawRect(outline, screen.topLeft, screen.size, style = Stroke(1f))
             }
+            inkCache.keys.filter { it !in drawn }.forEach { inkCache.remove(it)?.node?.discardDisplayList() }
             if (darkPages) drawIntoCanvas { it.restore() }
             eraserAt?.let { drawCircle(outline, eraserRadius, it, style = Stroke(2f)) }
             shapePreview?.let { (index, shape) ->

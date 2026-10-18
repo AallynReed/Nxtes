@@ -9,6 +9,7 @@ import io.legere.pdfiumandroid.PdfDocument
 import io.legere.pdfiumandroid.PdfPage
 import io.legere.pdfiumandroid.PdfiumCore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.data.Affine
 import net.mildhope.nxtes.data.PageSize
@@ -101,6 +102,7 @@ class PdfEngine(context: Context) {
     suspend fun render(file: File, pageIndex: Int, bitmap: Bitmap, left: Int, top: Int, width: Int, height: Int, turns: Int = 0, annotations: Boolean = true) =
         withContext(Dispatchers.IO) {
             synchronized(open) {
+                ensureActive()
                 val doc = open.getOrPut(file.path) { openFile(file) }
                 doc.openPage(pageIndex)?.use { page ->
                     if (turns % 4 == 0) {
