@@ -177,6 +177,7 @@ fun PageCanvas(
     tools: ToolState,
     state: ViewportState,
     selection: SelectionState,
+    flow: PageFlow,
     onPageCounter: () -> Unit,
     modifier: Modifier = Modifier,
     assetsLoaded: () -> Int = { 0 },
@@ -192,7 +193,7 @@ fun PageCanvas(
     val outline = MaterialTheme.colorScheme.outlineVariant
     val accent = MaterialTheme.colorScheme.primary
     var size by remember { mutableStateOf(IntSize.Zero) }
-    val layout = remember(pages, size.width, gap) { PageLayout(pages, size.width.toFloat(), gap) }
+    val layout = remember(pages, size, gap, flow) { PageLayout(pages, size.toSize(), gap, flow) }
     val mapper = PageMapper(layout, state, pages)
     val base = remember(layout) { mutableStateMapOf<Int, ImageBitmap>() }
     val detail = remember(layout) { mutableStateMapOf<Int, Detail>() }
@@ -549,7 +550,7 @@ fun PageCanvas(
 
     val currentTools by rememberUpdatedState(canvasTools)
 
-    LaunchedEffect(layout, size) { state.updateLayout(size.toSize(), layout.contentHeight, layout.rects) }
+    LaunchedEffect(layout, size) { state.updateLayout(size.toSize(), layout) }
 
     LaunchedEffect(laser.visible) {
         while (laser.visible) withFrameMillis { laser.tick(SystemClock.uptimeMillis(), tools.laserMode) }
@@ -558,13 +559,13 @@ fun PageCanvas(
     LaunchedEffect(tools.annotationsHidden) { if (tools.annotationsHidden) selection.clear() }
 
     LaunchedEffect(layout, ink, ink.generation) {
-        snapshotFlow { layout.visible(state.zoom, state.offset, state.size.height, extra = 1) }
+        snapshotFlow { layout.visible(state.zoom, state.offset, state.size, extra = 1) }
             .distinctUntilChanged()
             .collect { range -> ink.ensureLoaded(range.map { pages[it].id }) }
     }
 
     LaunchedEffect(layout) {
-        snapshotFlow { layout.visible(state.zoom, state.offset, state.size.height, extra = 1) }
+        snapshotFlow { layout.visible(state.zoom, state.offset, state.size, extra = 1) }
             .distinctUntilChanged()
             .collectLatest { range ->
                 base.keys.filter { it !in range }.forEach { base.remove(it) }
@@ -589,7 +590,7 @@ fun PageCanvas(
             delay(DETAIL_DELAY_MS)
             val viewport = Rect(Offset.Zero, viewportSize)
             val fresh = HashMap<Int, Detail>()
-            for (i in layout.visible(zoom, offset, viewportSize.height)) {
+            for (i in layout.visible(zoom, offset, viewportSize)) {
                 val screen = layout.rects[i].toScreen(zoom, offset)
                 val shown = screen.intersect(viewport)
                 if (shown.isEmpty) continue

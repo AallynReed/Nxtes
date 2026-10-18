@@ -263,6 +263,7 @@ fun DocumentViewer(
         Column(Modifier.fillMaxSize()) {
             WritingToolbar(
                 tools = tools,
+                view = app.view,
                 canUndo = ink.canUndo,
                 canRedo = ink.canRedo,
                 onBack = onBack,
@@ -288,6 +289,7 @@ fun DocumentViewer(
                     tools = tools,
                     state = viewport,
                     selection = selection,
+                    flow = app.view.flow,
                     onPageCounter = { goToPage = true },
                     assetsLoaded = { app.assets.loaded },
                     onStamp = ::stamp,

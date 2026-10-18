@@ -15,6 +15,7 @@ import net.mildhope.nxtes.page.PageBackgrounds
 import net.mildhope.nxtes.page.PagePainter
 import net.mildhope.nxtes.pdf.PdfEngine
 import net.mildhope.nxtes.pdf.Thumbnails
+import net.mildhope.nxtes.viewer.ViewSettings
 import java.io.File
 import kotlin.concurrent.thread
 
@@ -22,6 +23,7 @@ class NxtesApplication : Application() {
     /** For work that must finish even after the screen that started it closes, such as saving. */
     val scope = MainScope()
     val tools by lazy { ToolState(getSharedPreferences("tools", MODE_PRIVATE)) }
+    val view by lazy { ViewSettings(getSharedPreferences("view", MODE_PRIVATE)) }
     val libraryPrefs by lazy { LibraryPrefs(getSharedPreferences("library", MODE_PRIVATE)) }
 
     /** Pages copied in the page navigator, waiting to be pasted. */

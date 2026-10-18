@@ -99,6 +99,7 @@ private val BAR_HEIGHT = 52.dp
 @Composable
 fun WritingToolbar(
     tools: ToolState,
+    view: ViewSettings,
     canUndo: Boolean,
     canRedo: Boolean,
     onBack: () -> Unit,
@@ -223,6 +224,8 @@ fun WritingToolbar(
                     Box {
                         BarButton(rememberVectorPainter(Icons.Default.Settings), stringResource(R.string.view_settings)) { viewSettings = true }
                         DropdownMenu(expanded = viewSettings, onDismissRequest = { viewSettings = false }) {
+                            PageFlowSettings(view)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.use_stylus_only)) },
                                 trailingIcon = { Checkbox(checked = !tools.drawWithFinger, onCheckedChange = null) },
@@ -405,6 +408,34 @@ private fun ToolSlot(
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) { settings { open = false } }
         }
     }
+}
+
+/** Scroll direction, continuous or page by page, and two pages side by side. */
+@Composable
+private fun PageFlowSettings(view: ViewSettings) {
+    val flow = view.flow
+    Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Text(stringResource(R.string.page_layout), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = flow.axis == ScrollAxis.VERTICAL, onClick = { view.updateFlow(flow.copy(axis = ScrollAxis.VERTICAL)) }, label = { Text(stringResource(R.string.scroll_vertical)) })
+            FilterChip(selected = flow.axis == ScrollAxis.HORIZONTAL, onClick = { view.updateFlow(flow.copy(axis = ScrollAxis.HORIZONTAL)) }, label = { Text(stringResource(R.string.scroll_horizontal)) })
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = flow.continuous, onClick = { view.updateFlow(flow.copy(continuous = true)) }, label = { Text(stringResource(R.string.flow_continuous)) })
+            FilterChip(selected = !flow.continuous, onClick = { view.updateFlow(flow.copy(continuous = false)) }, label = { Text(stringResource(R.string.flow_paged)) })
+        }
+    }
+    DropdownMenuItem(
+        text = { Text(stringResource(R.string.two_pages)) },
+        trailingIcon = { Checkbox(checked = flow.twoPage, onCheckedChange = null) },
+        onClick = { view.updateFlow(flow.copy(twoPage = !flow.twoPage)) },
+    )
+    DropdownMenuItem(
+        text = { Text(stringResource(R.string.cover_alone)) },
+        enabled = flow.twoPage,
+        trailingIcon = { Checkbox(checked = flow.coverAlone, onCheckedChange = null, enabled = flow.twoPage) },
+        onClick = { view.updateFlow(flow.copy(coverAlone = !flow.coverAlone)) },
+    )
 }
 
 /** Tape boxes or pen lines, their colour, and the pen's width. */

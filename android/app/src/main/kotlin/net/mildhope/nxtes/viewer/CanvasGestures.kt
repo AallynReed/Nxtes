@@ -100,7 +100,7 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                 val event = nextEvent(pen)
                 if (event.type == PointerEventType.Scroll) {
                     val delta = event.changes.first().scrollDelta
-                    state.transformBy(Offset.Zero, -delta * WHEEL_STEP_PX, 1f)
+                    state.wheel(delta.y * WHEEL_STEP_PX)
                     event.changes.forEach { it.consume() }
                     continue
                 }

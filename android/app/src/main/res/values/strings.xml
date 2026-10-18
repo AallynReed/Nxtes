@@ -289,6 +289,13 @@
     <string name="look_up">Look up</string>
     <string name="share">Share</string>
     <string name="copied">Copied</string>
+    <string name="page_layout">Page layout</string>
+    <string name="scroll_vertical">Scroll down</string>
+    <string name="scroll_horizontal">Scroll across</string>
+    <string name="flow_continuous">Continuous</string>
+    <string name="flow_paged">Page by page</string>
+    <string name="two_pages">Two pages side by side</string>
+    <string name="cover_alone">First page alone</string>
     <string name="action_failed">That didn\'t work. Please try again.</string>
     <plurals name="import_failed">
         <item quantity="one">%d PDF couldn\'t be imported</item>
