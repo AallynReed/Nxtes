@@ -44,7 +44,8 @@ cd android; .\gradlew.bat assembleDebug
 cd server; cargo test
 ```
 
-The server listens on `127.0.0.1:8080` by default. Set `NXTES_BIND` to change it.
+The server listens on `127.0.0.1:8080` by default; [server/README.md](server/README.md) covers
+its settings, the admin commands and running it with Docker.
 
 ## License
 

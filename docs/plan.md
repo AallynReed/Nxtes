@@ -70,8 +70,9 @@ One directory per document, zipped for backup and export:
 
 ## Rust server
 
-- axum on tokio. sqlx with PostgreSQL, and SQLite for single-user installs. Blobs go through
-  `object_store`, so they can live on local disk or any S3-compatible store (MinIO, Garage, AWS).
+- axum on tokio, with sqlx on SQLite in WAL mode: one file, no database server, and plenty for
+  a personal or family instance. PostgreSQL can come later if an instance outgrows it. Blobs are
+  files under the data folder, one directory per user, named by SHA-256.
 - argon2 password hashing; opaque access and refresh tokens; per-device sessions.
 - Email through `lettre` over SMTP: verification links, password resets and email-change
   confirmations. Tokens are single-use, hashed at rest and expire, and sends are rate-limited.
@@ -79,8 +80,13 @@ One directory per document, zipped for backup and export:
   `require_email_verification`.
 - It stores manifests and blobs and never parses note contents, which keeps end-to-end
   encryption possible later.
-- Ships as a single binary and a Docker image, configured through environment variables or TOML.
-  An admin CLI creates users and sets quotas.
+- Ships as a single binary and a Docker image, configured through `NXTES_*` environment
+  variables (see `server/README.md`). `nxtes-server admin` creates and verifies users, sets
+  quotas, lists and deletes accounts, and collects unused blobs.
+- A document's manifest lists every blob it uses under `blobs`; the server refuses a manifest
+  whose blobs it doesn't have, and deletes blobs nothing refers to an hour after upload.
+- Each write bumps the item's revision and the account's change sequence, which is the cursor
+  for `/v1/changes` and what `/v1/events` sends.
 
 ### Sync API (v1)
 
@@ -114,15 +120,15 @@ The official instance runs on Zakros at `https://nxtes.mildhope.net`.
 
 - **Image:** CI publishes it to GHCR, so it can be re-pulled and image pruning can't lose it
   (locally built images on Zakros exist in no registry).
-- **Stack:** `/opt/nxtes/docker-compose.yml` with the server and PostgreSQL. Blobs live on a
-  host volume.
-- **Binds:** the server binds `10.8.0.253:<port>` (wg0) and Postgres stays on the internal
-  network, never `0.0.0.0`. The port is picked at deploy time from the ones free on Zakros.
+- **Stack:** `/opt/nxtes/docker-compose.yml` (a copy is in `server/deploy/`) with the one
+  server container; the database and blobs live in `/opt/nxtes/data`, owned by uid 10001.
+- **Binds:** the server binds `10.8.0.253:8479` (wg0), never `0.0.0.0`.
 - **Traffic path:** the VPS nginx terminates TLS for `nxtes.mildhope.net` and proxies over wg0.
   That needs a `map $host` port/IP entry on the VPS and a `DOCKER-USER` wg0 RETURN rule for the
   port on Zakros (zakros-firewall skill).
-- **nginx settings:** `client_max_body_size` large enough for blob uploads, and
-  `proxy_buffering off` on `/v1/events` so server-sent events stream.
+- **nginx settings:** the shared `mildhope.net` block already allows 2 GB bodies and turns
+  proxy buffering off, so uploads and server-sent events work; its `req_lim` zone allows 30
+  requests a second (burst 100), so the app uploads one blob at a time and retries on 429.
 - **Mail:** sent through Zakros's host Postfix via `host.docker.internal` (compose
   `extra_hosts: host-gateway`), the same way trove-api does.
 - **Before launch:** check that the sender address's domain has SPF and DKIM on that Postfix.
