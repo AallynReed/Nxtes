@@ -453,6 +453,32 @@ class LibraryStoreTest {
         assertFalse(store.blobFile(doc.id, recording.blob).exists())
     }
 
+    @Test
+    fun restoringABackupAddsWhatsMissingOnce() {
+        val folder = store.createFolder("Class", null)
+        val doc = import("Lecture", folder.id)
+        store.addStickerPack("Faces")
+        val zip = java.io.ByteArrayOutputStream().also(store::backup).toByteArray()
+
+        val other = LibraryStore(tmp.newFolder("other"), { listOf(PageSize(612f, 792f), PageSize(792f, 612f)) }).apply { load() }
+        assertEquals(1, other.restore(ByteArrayInputStream(zip)))
+        assertEquals(0, other.restore(ByteArrayInputStream(zip)))
+        val restored = other.state.value
+        assertEquals(listOf("Lecture"), restored.documents.map { it.title })
+        assertEquals(listOf(folder.id), restored.folders.map { it.id })
+        assertEquals(listOf("Faces"), other.stickerPacks.value.map { it.name })
+        assertTrue(other.blobFile(doc.id, sha256(PDF_BYTES)).exists())
+    }
+
+    @Test
+    fun restoreRefusesZipsThatArentBackups() {
+        val zip = java.io.ByteArrayOutputStream().also { out ->
+            java.util.zip.ZipOutputStream(out).use { it.putNextEntry(java.util.zip.ZipEntry("hello.txt")); it.write(1) }
+        }.toByteArray()
+
+        assertTrue(runCatching { store.restore(ByteArrayInputStream(zip)) }.isFailure)
+    }
+
     private fun pages(documentId: String) = store.state.value.document(documentId)!!.pages.map { it.id }
 
     private fun stroke() = InkStroke(

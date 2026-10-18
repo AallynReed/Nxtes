@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +56,7 @@ fun LibrarySideMenu(
     shortcutsShowFavorites: Boolean,
     onShortcutsShowFavorites: (Boolean) -> Unit,
     onOpen: (LibraryItem) -> Unit,
+    onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxHeight().width(240.dp).padding(horizontal = 12.dp, vertical = 12.dp)) {
@@ -98,6 +100,7 @@ fun LibrarySideMenu(
                 }
             }
         }
+        NavRow(rememberVectorPainter(Icons.Default.Settings), stringResource(R.string.settings), false, onSettings)
     }
 }
 

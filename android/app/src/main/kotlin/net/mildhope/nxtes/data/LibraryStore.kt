@@ -6,6 +6,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.InputStream
+import java.io.OutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
@@ -685,6 +689,79 @@ class LibraryStore(
         }
     }
 
+    /** Writes the whole library as a zip: every document with its blobs, the folders, templates, fonts and stickers. */
+    @Synchronized
+    fun backup(out: OutputStream) {
+        ZipOutputStream(out.buffered()).use { zip ->
+            zip.putNextEntry(ZipEntry(BACKUP_MANIFEST))
+            zip.write(json.encodeToString(BackupManifest(BACKUP_FORMAT, clock())).toByteArray())
+            zip.closeEntry()
+            root.walkTopDown().filter { it.isFile && !it.name.endsWith(".tmp") }.forEach { file ->
+                zip.putNextEntry(ZipEntry(file.relativeTo(root).invariantSeparatorsPath))
+                file.inputStream().use { it.copyTo(zip) }
+                zip.closeEntry()
+            }
+        }
+    }
+
+    /**
+     * Adds what's in a backup to the library: documents, folders, templates, fonts and stickers it
+     * doesn't have yet. Nothing already here is replaced. Returns how many documents were added.
+     */
+    @Synchronized
+    fun restore(input: InputStream): Int {
+        val staging = File(root, ".restore").apply { deleteRecursively(); mkdirs() }
+        try {
+            var manifest = false
+            ZipInputStream(input.buffered()).use { zip ->
+                generateSequence { zip.nextEntry }.forEach { entry ->
+                    val target = File(staging, entry.name).canonicalFile
+                    require(target.path.startsWith(staging.canonicalPath + File.separator)) { "Bad entry ${entry.name}" }
+                    if (entry.name == BACKUP_MANIFEST) manifest = true
+                    if (!entry.isDirectory) {
+                        target.parentFile?.mkdirs()
+                        target.outputStream().use { zip.copyTo(it) }
+                    }
+                }
+            }
+            require(manifest) { "Not a Nxtes backup" }
+            val have = _state.value
+            var added = 0
+            File(staging, "documents").listFiles().orEmpty().forEach { dir ->
+                val doc = runCatching { json.decodeFromString<Document>(File(dir, DOCUMENT_JSON).readText()) }.getOrNull() ?: return@forEach
+                if (have.document(doc.id) != null || documentDir(doc.id).exists()) return@forEach
+                dir.copyRecursively(documentDir(doc.id))
+                added++
+            }
+            File(staging, "folders.json").takeIf { it.exists() }?.let { file ->
+                val folders = json.decodeFromString<List<Folder>>(file.readText())
+                val known = have.folders.map { it.id }.toSet()
+                writeFolders(have.folders + folders.filter { it.id !in known })
+            }
+            mergeList<CustomTemplate>(File(staging, "templates"), templatesDir, templatesFile.name) { it.id }
+            mergeList<FontFile>(File(staging, "fonts"), fontsDir, fontsFile.name) { it.blob }
+            mergeList<StickerPack>(File(staging, "stickers"), stickersDir, packsFile.name) { it.id }
+            load()
+            return added
+        } finally {
+            staging.deleteRecursively()
+        }
+    }
+
+    /** Copies a backed-up folder's files that are missing here, and adds its list entries this library lacks. */
+    private inline fun <reified T> mergeList(from: File, to: File, listName: String, key: (T) -> String) {
+        if (!from.exists()) return
+        from.walkTopDown().filter { it.isFile && it.name != listName }.forEach { file ->
+            val target = File(to, file.relativeTo(from).path)
+            if (!target.exists()) file.copyTo(target)
+        }
+        val theirs = File(from, listName).takeIf { it.exists() }?.let { json.decodeFromString<List<T>>(it.readText()) } ?: return
+        val mineFile = File(to, listName)
+        val mine = if (mineFile.exists()) json.decodeFromString<List<T>>(mineFile.readText()) else emptyList()
+        val known = mine.map(key).toSet()
+        writeAtomically(mineFile, json.encodeToString(mine + theirs.filter { key(it) !in known }))
+    }
+
     private fun writeFolders(folders: List<Folder>) {
         writeAtomically(foldersFile, json.encodeToString(folders))
         _state.value = _state.value.copy(folders = folders)
@@ -719,5 +796,12 @@ class LibraryStore(
 
     private companion object {
         const val DOCUMENT_JSON = "document.json"
+        const val BACKUP_MANIFEST = "nxtes-backup.json"
+        const val BACKUP_FORMAT = 1
     }
 }
+
+/** Marks a zip as a Nxtes backup, with its format and when it was made. */
+@kotlinx.serialization.Serializable
+private class BackupManifest(val format: Int, val created: Long)
+

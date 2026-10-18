@@ -118,6 +118,7 @@ fun LibraryScreen(
     var section by rememberSaveable { mutableStateOf(LibrarySection.DOCUMENTS) }
     var query by rememberSaveable { mutableStateOf("") }
     var shortcutsShowFavorites by rememberSaveable { mutableStateOf(false) }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
     val folder = library.folder(folderId)
 
     fun open(item: LibraryItem) {
@@ -149,8 +150,10 @@ fun LibraryScreen(
             shortcutsShowFavorites = shortcutsShowFavorites,
             onShortcutsShowFavorites = { shortcutsShowFavorites = it },
             onOpen = ::open,
+            onSettings = { settingsOpen = true },
         )
     }
+    if (settingsOpen) SettingsDialog(onDismiss = { settingsOpen = false })
 
     BoxWithConstraints(
         Modifier
