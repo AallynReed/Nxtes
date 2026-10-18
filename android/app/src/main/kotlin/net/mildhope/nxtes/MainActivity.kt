@@ -22,7 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.library.LibraryScreen
-import net.mildhope.nxtes.library.importPdfs
+import net.mildhope.nxtes.library.importFiles
 import net.mildhope.nxtes.ui.NxtesTheme
 import net.mildhope.nxtes.viewer.DocumentViewer
 import net.mildhope.nxtes.viewer.ViewportState
@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
         }
         if (uris.isEmpty()) return
         lifecycleScope.launch {
-            val imported = importPdfs(this@MainActivity, uris, folderId = null)
+            val imported = importFiles(this@MainActivity, uris, folderId = null)
             imported.singleOrNull()?.let { openRequests.value = it.id }
         }
     }

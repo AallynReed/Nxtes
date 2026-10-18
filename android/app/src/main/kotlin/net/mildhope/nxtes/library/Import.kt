@@ -10,20 +10,20 @@ import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.nxtes
+import net.mildhope.nxtes.page.openAsPdf
 
 private const val TAG = "Import"
-private val PDF_EXTENSION = Regex("\\.pdf$", RegexOption.IGNORE_CASE)
+private val EXTENSION = Regex("\\.[A-Za-z0-9]{1,5}$")
 
-/** Copies each PDF into the library. Returns the documents that imported; reports failures. */
-suspend fun importPdfs(context: Context, uris: List<Uri>, folderId: String?): List<Document> {
+/** Copies each PDF, or image as a one-page PDF, into the library. Returns the documents that imported; reports failures. */
+suspend fun importFiles(context: Context, uris: List<Uri>, folderId: String?): List<Document> {
     val results = withContext(Dispatchers.IO) {
         uris.map { uri ->
             runCatching {
-                val name = displayName(context, uri)?.replace(PDF_EXTENSION, "")?.ifBlank { null }
+                val name = displayName(context, uri)?.replace(EXTENSION, "")?.ifBlank { null }
                     ?: context.getString(R.string.untitled)
-                context.contentResolver.openInputStream(uri).use { input ->
-                    context.nxtes.library.importPdf(requireNotNull(input) { "No data for $uri" }, name, folderId)
-                }
+                val image = context.contentResolver.getType(uri)?.startsWith("image/") == true
+                openAsPdf(context, uri, image) { context.nxtes.library.importPdf(it, name, folderId) }
             }.onFailure { Log.w(TAG, "Import failed for $uri", it) }
         }
     }

@@ -214,7 +214,7 @@ private fun MainPane(
         if (uris.isNotEmpty()) {
             scope.launch {
                 importing = true
-                importPdfs(context, uris, folder?.id)
+                importFiles(context, uris, folder?.id)
                 importing = false
             }
         }
@@ -393,7 +393,7 @@ private fun MainPane(
             AddMenu(
                 onNewFolder = { dialog = LibraryDialog.NewFolder },
                 onNewNote = { dialog = LibraryDialog.NewNote },
-                onImport = { picker.launch(arrayOf("application/pdf")) },
+                onImport = { picker.launch(arrayOf("application/pdf", "image/*")) },
                 modifier = Modifier.align(Alignment.BottomEnd),
             )
         }
