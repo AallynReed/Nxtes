@@ -18,8 +18,8 @@ android {
         applicationId = "net.mildhope.nxtes"
         minSdk = 29
         targetSdk = 36
-        versionCode = 22
-        versionName = "1.2.1"
+        versionCode = 23
+        versionName = "1.3.0"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
 
