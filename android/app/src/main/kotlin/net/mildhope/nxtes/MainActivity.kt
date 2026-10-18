@@ -1,5 +1,6 @@
 package net.mildhope.nxtes
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -28,12 +29,15 @@ import net.mildhope.nxtes.library.importFiles
 import net.mildhope.nxtes.library.importFlexcil
 import net.mildhope.nxtes.library.isFlexcil
 import net.mildhope.nxtes.sync.SyncConflicts
+import net.mildhope.nxtes.ui.AppLanguage
 import net.mildhope.nxtes.ui.NxtesTheme
 import net.mildhope.nxtes.viewer.DocumentViewer
 import net.mildhope.nxtes.viewer.ViewportState
 
 class MainActivity : ComponentActivity() {
     private val openRequests = MutableStateFlow<String?>(null)
+
+    override fun attachBaseContext(newBase: Context) = super.attachBaseContext(AppLanguage.wrap(newBase))
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

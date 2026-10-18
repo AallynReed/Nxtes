@@ -613,11 +613,12 @@ fun TemplateThumb(background: Background, width: Float, height: Float, modifier:
     }
 }
 
+@Composable
 fun sizeLabel(size: PaperSize) = when (size) {
     PaperSize.A4 -> "A4"
     PaperSize.A5 -> "A5"
     PaperSize.B5 -> "B5"
-    PaperSize.LETTER -> "Letter"
+    PaperSize.LETTER -> stringResource(R.string.paper_letter)
 }
 
 fun patternLabel(pattern: Pattern) = when (pattern) {

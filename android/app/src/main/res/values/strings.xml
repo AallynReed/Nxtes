@@ -25,7 +25,7 @@
     <string name="view_grid">Grid view</string>
     <string name="add_to_favorites">Add to favorites</string>
     <string name="remove_from_favorites">Remove from favorites</string>
-    <string name="folder_colour">Folder colour</string>
+    <string name="folder_colour">Folder color</string>
     <string name="restore_all">Restore all</string>
     <plurals name="item_count">
         <item quantity="one">%d item</item>
@@ -99,7 +99,7 @@
     <string name="pattern_legal">Legal pad</string>
     <string name="pattern_cornell">Cornell</string>
     <string name="pattern_vertical">Vertical</string>
-    <string name="covers_solid">Colours</string>
+    <string name="covers_solid">Colors</string>
     <string name="covers_gradient">Gradients</string>
     <string name="covers_image">Image</string>
     <string name="cover_from_image">Add image</string>
@@ -202,7 +202,7 @@
     <string name="bookmark_added">Bookmark added</string>
     <string name="outline_added">Added to the outline</string>
     <string name="pen_shape">Shape</string>
-    <string name="shape_free">Freehand, recognised</string>
+    <string name="shape_free">Freehand, recognized</string>
     <string name="shape_line">Line</string>
     <string name="shape_arrow">Arrow</string>
     <string name="shape_rectangle">Rectangle</string>
@@ -225,7 +225,7 @@
     <string name="text_box">Text box</string>
     <string name="edit_text">Edit text</string>
     <string name="text_size">%1$d pt</string>
-    <string name="text_colour">Text colour</string>
+    <string name="text_colour">Text color</string>
     <string name="text_background">Background</string>
     <string name="add_font">Add a font file</string>
     <string name="font_invalid">That file isn\'t a .ttf or .otf font.</string>
@@ -249,16 +249,16 @@
     <string name="crop_freeform">Crop freehand</string>
     <string name="crop_reset">Whole image</string>
     <string name="sticky_note">Sticky note</string>
-    <string name="note_colour">Note colour</string>
+    <string name="note_colour">Note color</string>
     <string name="palette_basic">Basic</string>
     <string name="palette_number">Palette %1$d</string>
     <string name="palette_new">New palette</string>
-    <string name="palette_add_colour">Add this colour to the palette</string>
-    <string name="palette_hint">Tap + to add the current colour. Touch and hold a colour to remove it.</string>
+    <string name="palette_add_colour">Add this color to the palette</string>
+    <string name="palette_hint">Tap + to add the current color. Touch and hold a color to remove it.</string>
     <string name="palette_rename">Rename palette</string>
     <string name="palette_options">Palette options</string>
-    <string name="custom_colour">Custom colour</string>
-    <string name="custom_colour_hide">Hide custom colour</string>
+    <string name="custom_colour">Custom color</string>
+    <string name="custom_colour_hide">Hide custom color</string>
     <string name="hex_colour">Hex</string>
     <string name="edit_note">Open note</string>
     <string name="sticker">Sticker</string>
@@ -476,4 +476,10 @@
     <string name="version_restored">Restored. Syncing…</string>
     <string name="recently_deleted">Recently deleted</string>
     <string name="deleted_on">Deleted %1$s</string>
+    <string name="backup_file_name">Nxtes backup %1$s.zip</string>
+    <string name="paper_letter">Letter</string>
+    <string name="language">Language</string>
+    <string name="language_system">System default</string>
+    <string name="language_english" translatable="false">English</string>
+    <string name="language_portuguese" translatable="false">Português (Portugal)</string>
 </resources>

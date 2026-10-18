@@ -16,6 +16,9 @@ android {
         versionName = "0.13.1"
     }
 
+    bundle {
+        language { enableSplit = false }
+    }
     buildFeatures {
         compose = true
     }

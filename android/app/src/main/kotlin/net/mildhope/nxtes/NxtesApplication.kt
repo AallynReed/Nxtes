@@ -25,6 +25,7 @@ import net.mildhope.nxtes.search.SearchIndexer
 import net.mildhope.nxtes.sync.SyncManager
 import net.mildhope.nxtes.ui.Palettes
 import net.mildhope.nxtes.viewer.ViewSettings
+import net.mildhope.nxtes.ui.AppLanguage
 import androidx.core.content.edit
 import java.io.File
 import java.util.zip.ZipException
@@ -67,6 +68,8 @@ class NxtesApplication : Application() {
         private set
     lateinit var sync: SyncManager
         private set
+
+    override fun attachBaseContext(base: Context) = super.attachBaseContext(AppLanguage.wrap(base))
 
     override fun onCreate() {
         super.onCreate()
