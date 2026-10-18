@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +49,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -61,7 +63,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Pen
+import net.mildhope.nxtes.edit.LassoType
 import net.mildhope.nxtes.ink.EraserMode
+import net.mildhope.nxtes.ink.LassoShape
 import net.mildhope.nxtes.ink.InputMode
 import net.mildhope.nxtes.ink.PenPreset
 import net.mildhope.nxtes.ink.Tool
@@ -155,6 +159,12 @@ fun WritingToolbar(
                             EraserSettings(tools)
                         }
                     }
+                    ToolSlot(
+                        selected = penMode && tools.tool == Tool.LASSO,
+                        label = stringResource(R.string.lasso),
+                        onSelect = { tools.selectTool(Tool.LASSO) },
+                        glyph = { LassoGlyph(it) },
+                    ) { LassoSettings(tools) }
                 }
                 Row(Modifier.align(Alignment.CenterEnd).padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     BarButton(painterResource(R.drawable.ic_undo), stringResource(R.string.undo), enabled = canUndo, onClick = onUndo)
@@ -252,6 +262,89 @@ private fun DrawScope.drawPen(preset: PenPreset, lift: Dp, outline: Color, body:
     val bodySize = Size(bodyWidth, size.height - bodyTop + 4f)
     drawRect(body, Offset(left, bodyTop), bodySize)
     drawRect(outline, Offset(left, bodyTop), bodySize, style = Stroke(1.dp.toPx()))
+}
+
+/** A tool button that selects its tool, or opens its settings when it's already selected. */
+@Composable
+private fun ToolSlot(
+    selected: Boolean,
+    label: String,
+    onSelect: () -> Unit,
+    glyph: @Composable (Color) -> Unit,
+    settings: (@Composable () -> Unit)? = null,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .padding(horizontal = 2.dp)
+                .size(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                .clickable(onClickLabel = label, role = Role.Button) { if (selected && settings != null) open = true else onSelect() },
+        ) { glyph(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (settings != null) {
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) { settings() }
+        }
+    }
+}
+
+@Composable
+private fun LassoGlyph(color: Color) {
+    Canvas(Modifier.size(24.dp)) {
+        val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.dp.toPx()))
+        drawOval(color, Offset(size.width * 0.08f, size.height * 0.08f), Size(size.width * 0.84f, size.height * 0.6f), style = Stroke(2.dp.toPx(), pathEffect = dash))
+        val tail = Path().apply {
+            moveTo(size.width * 0.3f, size.height * 0.66f)
+            quadraticTo(size.width * 0.2f, size.height * 0.85f, size.width * 0.38f, size.height * 0.95f)
+        }
+        drawPath(tail, color, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+    }
+}
+
+@Composable
+private fun LassoSettings(tools: ToolState) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).width(280.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LassoShape.entries.forEach { shape ->
+                FilterChip(
+                    selected = tools.lassoShape == shape,
+                    onClick = { tools.updateLasso(shape, tools.lassoTypes, tools.autoDeselect) },
+                    label = { Text(stringResource(if (shape == LassoShape.FREE) R.string.lasso_free else R.string.lasso_rect)) },
+                )
+            }
+        }
+        Text(stringResource(R.string.lasso_picks), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+        LassoType.entries.forEach { type ->
+            val on = type in tools.lassoTypes
+            SettingSwitch(stringResource(lassoTypeName(type)), on) {
+                tools.updateLasso(tools.lassoShape, if (on) tools.lassoTypes - type else tools.lassoTypes + type, tools.autoDeselect)
+            }
+        }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        SettingSwitch(stringResource(R.string.auto_deselect), tools.autoDeselect) {
+            tools.updateLasso(tools.lassoShape, tools.lassoTypes, !tools.autoDeselect)
+        }
+    }
+}
+
+@Composable
+private fun SettingSwitch(label: String, checked: Boolean, onToggle: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 2.dp)) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = { onToggle() })
+    }
+}
+
+private fun lassoTypeName(type: LassoType) = when (type) {
+    LassoType.PEN -> R.string.lasso_type_pen
+    LassoType.HIGHLIGHTER -> R.string.lasso_type_highlighter
+    LassoType.MASK -> R.string.lasso_type_mask
+    LassoType.SHAPE -> R.string.lasso_type_shape
+    LassoType.IMAGE -> R.string.lasso_type_image
+    LassoType.TEXT -> R.string.lasso_type_text
+    LassoType.NOTE -> R.string.lasso_type_note
 }
 
 @Composable

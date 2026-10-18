@@ -251,8 +251,6 @@ class PagePainter {
         const val NOTE_SIZE = 22f
         private const val PLACEHOLDER = 0xFFE6E6E6.toInt()
 
-        val ShapeKind.closed get() = this == ShapeKind.RECTANGLE || this == ShapeKind.ELLIPSE || this == ShapeKind.TRIANGLE || this == ShapeKind.POLYGON
-
         fun shapePath(shape: Shape): Path {
             val xs = shape.xs
             val ys = shape.ys

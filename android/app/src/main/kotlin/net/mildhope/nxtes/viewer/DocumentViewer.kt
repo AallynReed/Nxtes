@@ -1,6 +1,19 @@
 package net.mildhope.nxtes.viewer
 
 import android.util.Log
+import net.mildhope.nxtes.edit.SelectionState
+import net.mildhope.nxtes.edit.SelectionMenu
+import net.mildhope.nxtes.edit.SelectionActions
+import net.mildhope.nxtes.edit.PageMenu
+import net.mildhope.nxtes.data.Affine
+import net.mildhope.nxtes.R
+import kotlinx.coroutines.CoroutineScope
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -66,6 +79,10 @@ fun DocumentViewer(
         )
     }
     val resources = remember(doc.id) { app.assets.resources(doc.id, app.scope) }
+    val selection = remember(doc.id) { SelectionState() }
+    val actions = remember(doc.id, ink) { SelectionActions(app, doc.id, ink, selection) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(ink.generation) { selection.clear() }
     val tools = app.tools
     var panelOpen by rememberSaveable { mutableStateOf(false) }
     var panelTab by rememberSaveable { mutableStateOf(SideTab.PAGES) }
@@ -98,8 +115,14 @@ fun DocumentViewer(
                 canRedo = ink.canRedo,
                 onBack = onBack,
                 onPages = { navigatorOpen = true },
-                onUndo = ink::undo,
-                onRedo = ink::redo,
+                onUndo = {
+                    selection.clear()
+                    ink.undo()
+                },
+                onRedo = {
+                    selection.clear()
+                    ink.redo()
+                },
                 onSidePanel = { panelOpen = !panelOpen },
             )
             DocumentTabBar(tabs, doc.id, onSelectTab, onCloseTab)
@@ -111,8 +134,10 @@ fun DocumentViewer(
                     resources = resources,
                     tools = tools,
                     state = viewport,
+                    selection = selection,
                     onPageCounter = { goToPage = true },
                     assetsLoaded = { app.assets.loaded },
+                    overlay = { mapper -> EditMenus(doc, mapper, selection, actions, scope) },
                     modifier = Modifier.fillMaxSize().background(LocalNxtesColors.current.pageBackground),
                 )
                 if (panelOpen) {
@@ -156,4 +181,45 @@ fun DocumentViewer(
             onDismiss = { goToPage = false },
         )
     }
+}
+
+/** The lasso selection's menu and the touch-and-hold menu, placed over the page. */
+@Composable
+private fun EditMenus(doc: Document, mapper: PageMapper, selection: SelectionState, actions: SelectionActions, scope: CoroutineScope) {
+    val context = LocalContext.current
+    val app = context.nxtes
+    val box = selection.bounds
+    val index = mapper.indexOf(selection.pageId)
+    if (selection.active && box != null && index >= 0 && selection.lasso.isEmpty() && selection.preview == Affine()) {
+        val topLeft = mapper.toScreen(index, Offset(box.left, box.top))
+        val bottomRight = mapper.toScreen(index, Offset(box.right, box.bottom))
+        SelectionMenu(Rect(topLeft, bottomRight), actions)
+    }
+    val (pageId, point) = selection.menuAt ?: return
+    val pageIndex = mapper.indexOf(pageId).takeIf { it >= 0 } ?: return
+    val at = mapper.toScreen(pageIndex, point)
+    val pageTitle = stringResource(R.string.page_title, pageIndex + 1)
+    val bookmarkAdded = stringResource(R.string.bookmark_added)
+    val outlineAdded = stringResource(R.string.outline_added)
+    fun addToDocument(message: String, action: LibraryStore.() -> Unit) {
+        selection.menuAt = null
+        scope.launch {
+            if (runLibraryAction(context, action) != null) Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+    val items = mutableListOf<Pair<String, () -> Unit>>()
+    if (app.copiedContent != null) {
+        items += stringResource(R.string.paste) to {
+            selection.menuAt = null
+            scope.launch {
+                runCatching { actions.paste(pageId, point) }.onFailure {
+                    Log.w("Viewer", "Paste failed", it)
+                    Toast.makeText(context, R.string.action_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    items += stringResource(R.string.add_bookmark) to { addToDocument(bookmarkAdded) { addBookmark(doc.id, pageId, pageTitle) } }
+    items += stringResource(R.string.add_outline) to { addToDocument(outlineAdded) { addOutline(doc.id, pageId, pageTitle) } }
+    PageMenu(Rect(at, at), items)
 }

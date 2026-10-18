@@ -322,6 +322,12 @@ class LibraryStore(
         deletePages(fromId, pageIds)
     }
 
+    /** Copies blobs between documents, for content pasted from one into another. */
+    @Synchronized
+    fun copyBlobs(fromId: String, toId: String, blobs: Collection<String>) {
+        if (fromId != toId) blobs.forEach { copyBlob(fromId, it, toId) }
+    }
+
     private fun copyBlob(fromDocument: String, sha256: String, toDocument: String) {
         val target = blobFile(toDocument, sha256)
         if (target.exists()) return

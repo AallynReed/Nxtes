@@ -2,12 +2,9 @@ package net.mildhope.nxtes.viewer
 
 import android.graphics.Bitmap
 import android.graphics.RectF
-import androidx.compose.animation.splineBasedDecay
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.calculateCentroid
-import androidx.compose.foundation.gestures.calculatePan
-import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,47 +29,41 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Matrix
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.input.pointer.AwaitPointerEventScope
-import androidx.compose.ui.input.pointer.PointerEvent
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.PointerId
-import androidx.compose.ui.input.pointer.PointerInputChange
-import androidx.compose.ui.input.pointer.PointerType
-import androidx.compose.ui.input.pointer.changedToDownIgnoreConsumed
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import androidx.core.graphics.createBitmap
 import androidx.ink.authoring.compose.InProgressStrokes
 import androidx.ink.strokes.StrokeInput
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.launch
 import net.mildhope.nxtes.R
+import net.mildhope.nxtes.data.Affine
 import net.mildhope.nxtes.data.Page
-import net.mildhope.nxtes.page.PagePainter
-import net.mildhope.nxtes.page.PageResources
+import net.mildhope.nxtes.edit.Geometry
+import net.mildhope.nxtes.edit.Handle
+import net.mildhope.nxtes.edit.SelectionState
+import net.mildhope.nxtes.ink.InputMode
+import net.mildhope.nxtes.ink.LassoShape
 import net.mildhope.nxtes.ink.PageSession
 import net.mildhope.nxtes.ink.StrokeGeometry
-import net.mildhope.nxtes.ink.InputMode
 import net.mildhope.nxtes.ink.Tool
 import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.ink.erase
+import net.mildhope.nxtes.page.PagePainter
+import net.mildhope.nxtes.page.PageResources
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -82,13 +73,36 @@ fun interface PageRenderer {
     suspend fun render(index: Int, bitmap: Bitmap, left: Int, top: Int, width: Int, height: Int)
 }
 
+/** Maps between screen pixels and page points for the current layout and viewport. */
+class PageMapper(private val layout: PageLayout, private val state: ViewportState, val pages: List<Page>) {
+    /** Screen pixels per page point. */
+    val pixelsPerPoint get() = layout.scale * state.zoom
+
+    fun pageAt(screen: Offset) = layout.pageAt((screen - state.offset) / pixelsPerPoint)
+
+    fun indexOf(pageId: String?) = pages.indexOfFirst { it.id == pageId }
+
+    fun toPage(index: Int, screen: Offset): Offset = (screen - state.offset) / pixelsPerPoint - layout.origin(index)
+
+    fun toScreen(index: Int, point: Offset): Offset = (point + layout.origin(index)) * pixelsPerPoint + state.offset
+}
+
 /** A crisp render of the visible part of one page at a specific zoom and scroll position. */
 private class Detail(val bitmap: ImageBitmap, val zoom: Float, val offset: Offset, val topLeft: Offset)
 
+/** The drag in progress, kept across recompositions. */
+private class DragState {
+    var kind: DragKind? = null
+    var last = Offset.Zero
+    var group: Any? = null
+    var page = 0
+}
+
 private const val DETAIL_DELAY_MS = 120L
 private const val DETAIL_MIN_ZOOM = 1.05f
-private const val PALM_REJECT_MS = 600L
-private const val WHEEL_STEP_PX = 64f
+private val HANDLE_RADIUS = 9.dp
+private val HANDLE_TOUCH = 28.dp
+private val ROTATE_DISTANCE = 36.dp
 
 @Composable
 fun PageCanvas(
@@ -98,40 +112,146 @@ fun PageCanvas(
     resources: PageResources,
     tools: ToolState,
     state: ViewportState,
+    selection: SelectionState,
     onPageCounter: () -> Unit,
     modifier: Modifier = Modifier,
     assetsLoaded: () -> Int = { 0 },
+    overlay: @Composable BoxScope.(PageMapper) -> Unit = {},
 ) {
     val density = LocalDensity.current
     val gap = with(density) { 16.dp.toPx() }
     val eraserRadius = with(density) { tools.eraserRadiusDp.dp.toPx() }
+    val handleTouch = with(density) { HANDLE_TOUCH.toPx() }
+    val rotateDistance = with(density) { ROTATE_DISTANCE.toPx() }
     val outline = MaterialTheme.colorScheme.outlineVariant
+    val accent = MaterialTheme.colorScheme.primary
     var size by remember { mutableStateOf(IntSize.Zero) }
     val layout = remember(pages, size.width, gap) { PageLayout(pages, size.width.toFloat(), gap) }
+    val mapper = PageMapper(layout, state, pages)
     val base = remember(layout) { mutableStateMapOf<Int, ImageBitmap>() }
     val detail = remember(layout) { mutableStateMapOf<Int, Detail>() }
     val painter = remember { PagePainter() }
     val strokeMatrix = remember { android.graphics.Matrix() }
     val strokeClip = remember { RectF() }
     var eraserAt by remember { mutableStateOf<Offset?>(null) }
-    var eraseGroup by remember { mutableStateOf<Any?>(null) }
-    val eraser by rememberUpdatedState(
-        EraserInput(
-            onMove = { from, to ->
-                eraserAt = to
-                val group = eraseGroup ?: Any().also { eraseGroup = it }
-                val k = layout.scale * state.zoom
-                val worldTo = (to - state.offset) / k
-                val index = layout.pageAt(worldTo)
-                val origin = layout.origin(index)
-                erase(ink, pages[index].id, (from - state.offset) / k - origin, worldTo - origin, eraserRadius / k, tools.eraserMode, group)
-            },
-            onEnd = {
-                eraserAt = null
-                eraseGroup = null
-            },
-        ),
-    )
+    val drag = remember { DragState() }
+
+    /** The selection's corners on screen, clockwise from top-left, with the dragged transform applied. */
+    fun selectionCorners(): List<Offset>? {
+        val box = selection.bounds ?: return null
+        val index = mapper.indexOf(selection.pageId).takeIf { it >= 0 } ?: return null
+        val t = selection.preview
+        return listOf(box.left to box.top, box.right to box.top, box.right to box.bottom, box.left to box.bottom).map { (x, y) ->
+            val (px, py) = t.map(x, y)
+            mapper.toScreen(index, Offset(px, py))
+        }
+    }
+
+    val canvasTools = object : CanvasTools {
+        override fun handleAt(at: Offset): Handle {
+            if (!selection.active) return Handle.NONE
+            val corners = selectionCorners() ?: return Handle.NONE
+            val top = (corners[0] + corners[1]) / 2f
+            if ((at - (top - Offset(0f, rotateDistance))).getDistance() < handleTouch) return Handle.ROTATE
+            val scales = listOf(Handle.SCALE_TOP_LEFT, Handle.SCALE_TOP_RIGHT, Handle.SCALE_BOTTOM_RIGHT, Handle.SCALE_BOTTOM_LEFT)
+            corners.forEachIndexed { i, c -> if ((at - c).getDistance() < handleTouch) return scales[i] }
+            val xs = corners.map { it.x }.toFloatArray()
+            val ys = corners.map { it.y }.toFloatArray()
+            return if (Geometry.inside(at.x, at.y, xs, ys)) Handle.BODY else Handle.NONE
+        }
+
+        override fun drawingDrag() = when (tools.tool) {
+            Tool.LASSO -> DragKind.LASSO
+            else -> null
+        }
+
+        override fun dragStart(kind: DragKind, at: Offset, handle: Handle) {
+            drag.kind = kind
+            drag.last = at
+            drag.group = Any()
+            selection.menuAt = null
+            when (kind) {
+                DragKind.ERASE -> eraseAlong(at, at)
+                DragKind.LASSO -> {
+                    selection.clear()
+                    drag.page = mapper.pageAt(at)
+                    selection.lasso = listOf(at)
+                }
+                DragKind.SELECTION -> selection.startDrag(handle, mapper.toPage(mapper.indexOf(selection.pageId), at))
+            }
+        }
+
+        override fun dragMove(to: Offset) {
+            when (drag.kind) {
+                DragKind.ERASE -> eraseAlong(drag.last, to)
+                DragKind.LASSO -> selection.lasso =
+                    if (tools.lassoShape == LassoShape.RECT) listOf(selection.lasso.first(), to) else selection.lasso + to
+                DragKind.SELECTION -> selection.drag(mapper.toPage(mapper.indexOf(selection.pageId), to))
+                null -> Unit
+            }
+            drag.last = to
+        }
+
+        override fun dragEnd() {
+            when (drag.kind) {
+                DragKind.ERASE -> eraserAt = null
+                DragKind.LASSO -> finishLasso()
+                DragKind.SELECTION -> {
+                    selection.endDrag(ink)
+                    if (tools.autoDeselect) selection.clear()
+                }
+                null -> Unit
+            }
+            drag.kind = null
+            drag.group = null
+        }
+
+        override fun tap(at: Offset) {
+            selection.clear()
+            selection.menuAt = null
+        }
+
+        override fun penDown(at: Offset) = tap(at)
+
+        override fun longPress(at: Offset) {
+            val index = mapper.pageAt(at)
+            val page = pages.getOrNull(index) ?: return
+            val point = mapper.toPage(index, at)
+            val content = ink.content(page.id)
+            val hit = Geometry.hit(content, point.x, point.y, slop = handleTouch / mapper.pixelsPerPoint / 2)
+            if (hit != null) {
+                selection.select(page.id, hit, content)
+            } else {
+                selection.clear()
+                selection.menuAt = page.id to point
+            }
+        }
+
+        private fun eraseAlong(from: Offset, to: Offset) {
+            eraserAt = to
+            val index = mapper.pageAt(to)
+            val k = mapper.pixelsPerPoint
+            erase(ink, pages[index].id, mapper.toPage(index, from), mapper.toPage(index, to), eraserRadius / k, tools.eraserMode, drag.group ?: Any())
+        }
+
+        private fun finishLasso() {
+            val points = selection.lasso
+            selection.lasso = emptyList()
+            val page = pages.getOrNull(drag.page) ?: return
+            val local = points.map { mapper.toPage(drag.page, it) }
+            val polygon = if (tools.lassoShape == LassoShape.RECT && local.size == 2) {
+                val (a, b) = local
+                listOf(a, Offset(b.x, a.y), b, Offset(a.x, b.y))
+            } else {
+                local
+            }
+            val content = ink.content(page.id)
+            val picked = Geometry.select(content, polygon.map { it.x }.toFloatArray(), polygon.map { it.y }.toFloatArray(), tools.lassoTypes)
+            selection.select(page.id, picked, content)
+        }
+    }
+
+    val currentTools by rememberUpdatedState(canvasTools)
 
     LaunchedEffect(layout, size) { state.updateLayout(size.toSize(), layout.contentHeight, layout.rects) }
 
@@ -188,12 +308,8 @@ fun PageCanvas(
         }
     }
 
-    Box(
-        modifier
-            .clipToBounds()
-            .onSizeChanged { size = it }
-            .canvasGestures(state, tools) { eraser },
-    ) {
+    Box(modifier.clipToBounds().onSizeChanged { size = it }) {
+        Box(Modifier.fillMaxSize().canvasGestures(state, tools) { currentTools }) {
         Canvas(Modifier.fillMaxSize()) {
             assetsLoaded()
             val zoom = state.zoom
@@ -220,13 +336,26 @@ fun PageCanvas(
                     strokeMatrix.setScale(k, k)
                     strokeMatrix.postTranslate(screen.left, screen.top)
                     strokeClip.set(screen.left, screen.top, screen.right, screen.bottom)
-                    drawIntoCanvas { painter.draw(it.nativeCanvas, content, strokeMatrix, strokeClip, resources) }
+                    val moving = selection.pageId == pages[i].id && selection.preview != Affine()
+                    drawIntoCanvas { canvas ->
+                        if (moving) {
+                            painter.draw(canvas.nativeCanvas, selection.picked.without(content), strokeMatrix, strokeClip, resources)
+                            val moved = android.graphics.Matrix(strokeMatrix).apply { preConcat(selection.preview.toMatrix()) }
+                            painter.draw(canvas.nativeCanvas, selection.picked.of(content), moved, strokeClip, resources)
+                        } else {
+                            painter.draw(canvas.nativeCanvas, content, strokeMatrix, strokeClip, resources)
+                        }
+                    }
                 }
                 drawRect(outline, screen.topLeft, screen.size, style = Stroke(1f))
             }
             eraserAt?.let { drawCircle(outline, eraserRadius, it, style = Stroke(2f)) }
+            drawLasso(selection.lasso, tools.lassoShape, accent)
+            if (selection.active && selection.lasso.isEmpty()) selectionCorners()?.let { drawSelection(it, accent, rotateDistance) }
         }
         InkLayer(state, layout, pages, ink, tools)
+        }
+        overlay(mapper)
         if (pages.size > 1) {
             Surface(
                 shape = RoundedCornerShape(50),
@@ -242,6 +371,40 @@ fun PageCanvas(
                 )
             }
         }
+    }
+}
+
+private fun Affine.toMatrix() = android.graphics.Matrix().apply { setValues(floatArrayOf(a, c, e, b, d, f, 0f, 0f, 1f)) }
+
+private fun DrawScope.drawLasso(points: List<Offset>, shape: LassoShape, colour: Color) {
+    if (points.size < 2) return
+    val dash = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx()))
+    val path = Path().apply {
+        if (shape == LassoShape.RECT) {
+            val (a, b) = points.first() to points.last()
+            moveTo(a.x, a.y); lineTo(b.x, a.y); lineTo(b.x, b.y); lineTo(a.x, b.y); close()
+        } else {
+            moveTo(points[0].x, points[0].y)
+            points.drop(1).forEach { lineTo(it.x, it.y) }
+        }
+    }
+    drawPath(path, colour, style = Stroke(1.5.dp.toPx(), pathEffect = dash))
+}
+
+private fun DrawScope.drawSelection(corners: List<Offset>, colour: Color, rotateDistance: Float) {
+    val dash = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 5.dp.toPx()))
+    val box = Path().apply {
+        moveTo(corners[0].x, corners[0].y)
+        corners.drop(1).forEach { lineTo(it.x, it.y) }
+        close()
+    }
+    drawPath(box, colour, style = Stroke(1.5.dp.toPx(), pathEffect = dash))
+    val top = (corners[0] + corners[1]) / 2f
+    val rotate = top - Offset(0f, rotateDistance)
+    drawLine(colour, top, rotate, 1.5.dp.toPx())
+    (corners + rotate).forEach {
+        drawCircle(Color.White, HANDLE_RADIUS.toPx(), it)
+        drawCircle(colour, HANDLE_RADIUS.toPx(), it, style = Stroke(2.dp.toPx()))
     }
 }
 
@@ -278,135 +441,4 @@ private fun InkLayer(
             }
         },
     )
-}
-
-private class EraserInput(val onMove: (from: Offset, to: Offset) -> Unit, val onEnd: () -> Unit)
-
-private class PenTracker {
-    var lastSeen = Long.MIN_VALUE / 2
-}
-
-private fun PointerType.isPen() = this == PointerType.Stylus || this == PointerType.Eraser
-
-private fun PointerType.draws() = this == PointerType.Stylus || this == PointerType.Mouse
-
-/**
- * Routes input in the initial pass, before the ink layer sees it. Pens are left alone so they draw.
- * Fingers pan and zoom, unless finger drawing is on, when one finger draws and two navigate.
- * Touches right after the pen was near are treated as a resting palm and ignored. The eraser end of
- * a stylus always erases, as does any drawing pointer while the eraser tool is selected.
- */
-private fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, eraser: () -> EraserInput) = pointerInput(state, tools) {
-    val decay = splineBasedDecay<Float>(this)
-    val pointerScope = this
-    val pen = PenTracker()
-    coroutineScope {
-        var fling: Job? = null
-        pointerScope.awaitPointerEventScope {
-            while (true) {
-                val event = nextEvent(pen)
-                if (event.type == PointerEventType.Scroll) {
-                    val delta = event.changes.first().scrollDelta
-                    state.transformBy(Offset.Zero, -delta * WHEEL_STEP_PX, 1f)
-                    event.changes.forEach { it.consume() }
-                    continue
-                }
-                val down = event.changes.firstOrNull { it.changedToDownIgnoreConsumed() } ?: continue
-                val erasing = tools.tool == Tool.ERASER
-                if (tools.mode == InputMode.GESTURE) {
-                    fling?.cancel()
-                    val velocity = navigate(pen, state, event, everyPointer = true)
-                    fling = launch { state.fling(velocity, decay) }
-                    continue
-                }
-                when {
-                    down.type == PointerType.Eraser || (erasing && down.type.draws()) -> erase(pen, event, down.id, eraser())
-                    down.type.draws() -> Unit
-                    down.uptimeMillis - pen.lastSeen < PALM_REJECT_MS -> swallow(pen, event) { it.type == PointerType.Touch }
-                    erasing && tools.drawWithFinger -> erase(pen, event, down.id, eraser())
-                    else -> {
-                        fling?.cancel()
-                        val navigation = if (tools.drawWithFinger) secondFingerJoins(pen, event) else event
-                        if (navigation != null) {
-                            val velocity = navigate(pen, state, navigation)
-                            fling = launch { state.fling(velocity, decay) }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private suspend fun AwaitPointerEventScope.nextEvent(pen: PenTracker): PointerEvent =
-    awaitPointerEvent(PointerEventPass.Initial).also { event ->
-        event.changes.forEach { if (it.type.isPen()) pen.lastSeen = it.uptimeMillis }
-    }
-
-/** Erases along one pointer's path until it lifts. */
-private suspend fun AwaitPointerEventScope.erase(pen: PenTracker, first: PointerEvent, pointer: PointerId, eraser: EraserInput) {
-    var event = first
-    var last: Offset? = null
-    while (true) {
-        val change = event.changes.firstOrNull { it.id == pointer }
-        event.changes.forEach { if (it.id == pointer || it.type == PointerType.Touch) it.consume() }
-        if (change == null || !change.pressed) {
-            eraser.onEnd()
-            return
-        }
-        eraser.onMove(last ?: change.position, change.position)
-        last = change.position
-        event = nextEvent(pen)
-    }
-}
-
-/** Consumes matching pointers until none of them is still pressed. */
-private suspend fun AwaitPointerEventScope.swallow(
-    pen: PenTracker,
-    first: PointerEvent,
-    matches: (PointerInputChange) -> Boolean,
-) {
-    var event = first
-    while (true) {
-        event.changes.filter(matches).forEach { it.consume() }
-        if (event.changes.none { matches(it) && it.pressed }) return
-        event = nextEvent(pen)
-    }
-}
-
-/** Lets one finger draw; returns the event where a second finger joined, or null if it never did. */
-private suspend fun AwaitPointerEventScope.secondFingerJoins(pen: PenTracker, first: PointerEvent): PointerEvent? {
-    var event = first
-    while (true) {
-        val touching = event.changes.count { it.type == PointerType.Touch && it.pressed }
-        if (touching >= 2) return event
-        if (touching == 0) return null
-        event = nextEvent(pen)
-    }
-}
-
-/** Pans and zooms until every finger lifts; returns the release velocity for a fling. */
-private suspend fun AwaitPointerEventScope.navigate(
-    pen: PenTracker,
-    state: ViewportState,
-    first: PointerEvent,
-    everyPointer: Boolean = false,
-): Velocity {
-    fun counts(change: PointerInputChange) = everyPointer || change.type == PointerType.Touch
-    val tracker = VelocityTracker()
-    var travelled = Offset.Zero
-    var event = first
-    while (true) {
-        val zoomChange = event.calculateZoom()
-        val pan = event.calculatePan()
-        val centroid = event.calculateCentroid(useCurrent = false)
-        if (centroid.isValid() && (zoomChange != 1f || pan != Offset.Zero)) {
-            state.transformBy(centroid, pan, zoomChange)
-        }
-        event.changes.forEach { if (counts(it)) it.consume() }
-        travelled += pan
-        event.changes.firstOrNull()?.let { tracker.addPosition(it.uptimeMillis, travelled) }
-        if (event.changes.none { counts(it) && it.pressed }) return tracker.calculateVelocity()
-        event = nextEvent(pen)
-    }
 }

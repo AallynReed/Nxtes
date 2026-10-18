@@ -39,6 +39,28 @@ data class PageContent(
         marks = marks.map { it.transformed(t) },
     )
 
+    /** A copy whose items all have fresh ids, for pasting. */
+    fun withNewIds(newId: () -> String) = PageContent(
+        strokes = strokes.map {
+            InkStroke(newId(), it.pen, it.color, it.size, it.tool, it.noiseSeed, it.created, it.x, it.y, it.t, it.pressure, it.tilt, it.orientation)
+        },
+        objects = objects.map {
+            when (it) {
+                is Shape -> it.copy(id = newId())
+                is TextBox -> it.copy(id = newId())
+                is Picture -> it.copy(id = newId())
+            }
+        },
+        notes = notes.map { it.copy(id = newId()) },
+        masks = masks.map { it.copy(id = newId()) },
+        marks = marks.map { TextMark(newId(), it.kind, it.color, it.rects, it.text) },
+    )
+
+    /** This content with [other]'s items added on top of their kinds. */
+    operator fun plus(other: PageContent) = PageContent(
+        strokes + other.strokes, objects + other.objects, notes + other.notes, masks + other.masks, marks + other.marks,
+    )
+
     companion object {
         val EMPTY = PageContent()
 
@@ -55,6 +77,9 @@ sealed interface PageObject {
 
 enum class ShapeKind(val code: Int) {
     LINE(1), ARROW(2), RECTANGLE(3), ELLIPSE(4), TRIANGLE(5), POLYGON(6), CURVE(7);
+
+    /** Whether it encloses an area that can be filled. */
+    val closed get() = this == RECTANGLE || this == ELLIPSE || this == TRIANGLE || this == POLYGON
 
     companion object {
         fun fromCode(code: Int) = entries.firstOrNull { it.code == code } ?: LINE

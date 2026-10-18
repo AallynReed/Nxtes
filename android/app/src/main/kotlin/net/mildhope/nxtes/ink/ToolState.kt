@@ -12,6 +12,7 @@ import androidx.ink.brush.Brush
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import net.mildhope.nxtes.data.Pen
+import net.mildhope.nxtes.edit.LassoType
 
 @Serializable
 data class PenPreset(val pen: Pen, val color: Int, val size: Float) {
@@ -27,7 +28,10 @@ data class PenPreset(val pen: Pen, val color: Int, val size: Float) {
         }
 }
 
-enum class Tool { PEN, ERASER }
+enum class Tool { PEN, ERASER, LASSO }
+
+/** A lasso is drawn freehand or as a box. */
+enum class LassoShape { FREE, RECT }
 
 /** Pen mode draws; gesture mode only navigates. */
 enum class InputMode { PEN, GESTURE }
@@ -53,6 +57,17 @@ class ToolState(private val prefs: SharedPreferences) {
         private set
     var drawWithFinger by mutableStateOf(prefs.getBoolean(KEY_FINGER, false))
         private set
+    var lassoShape by mutableStateOf(runCatching { LassoShape.valueOf(prefs.getString(KEY_LASSO_SHAPE, null)!!) }.getOrDefault(LassoShape.FREE))
+        private set
+    var lassoTypes by mutableStateOf(
+        prefs.getStringSet(KEY_LASSO_TYPES, null)?.mapNotNull { runCatching { LassoType.valueOf(it) }.getOrNull() }?.toSet()
+            ?: LassoType.entries.toSet(),
+    )
+        private set
+
+    /** Clear the selection after moving or changing it. */
+    var autoDeselect by mutableStateOf(prefs.getBoolean(KEY_AUTO_DESELECT, false))
+        private set
 
     val pen: PenPreset get() = presets[selected]
 
@@ -69,9 +84,22 @@ class ToolState(private val prefs: SharedPreferences) {
         prefs.edit { putString(KEY_PRESETS, json.encodeToString(presets)) }
     }
 
-    fun selectEraser() {
-        tool = Tool.ERASER
+    fun selectEraser() = selectTool(Tool.ERASER)
+
+    fun selectTool(newTool: Tool) {
+        tool = newTool
         applyMode(InputMode.PEN)
+    }
+
+    fun updateLasso(shape: LassoShape, types: Set<LassoType>, deselect: Boolean) {
+        lassoShape = shape
+        lassoTypes = types
+        autoDeselect = deselect
+        prefs.edit {
+            putString(KEY_LASSO_SHAPE, shape.name)
+            putStringSet(KEY_LASSO_TYPES, types.map { it.name }.toSet())
+            putBoolean(KEY_AUTO_DESELECT, deselect)
+        }
     }
 
     fun toggleMode() = applyMode(if (mode == InputMode.PEN) InputMode.GESTURE else InputMode.PEN)
@@ -124,6 +152,9 @@ class ToolState(private val prefs: SharedPreferences) {
         private const val KEY_ERASER_RADIUS = "eraser_radius"
         private const val KEY_FINGER = "draw_with_finger"
         private const val KEY_MODE = "mode"
+        private const val KEY_LASSO_SHAPE = "lasso_shape"
+        private const val KEY_LASSO_TYPES = "lasso_types"
+        private const val KEY_AUTO_DESELECT = "auto_deselect"
         const val MAX_PENS = 30
 
         val DEFAULT_PRESETS = listOf(

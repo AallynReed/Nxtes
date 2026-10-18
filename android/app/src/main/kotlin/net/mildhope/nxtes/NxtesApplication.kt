@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.MainScope
 import net.mildhope.nxtes.data.LibraryStore
+import net.mildhope.nxtes.edit.ContentClip
 import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.library.LibraryPrefs
 import net.mildhope.nxtes.page.PageAssets
@@ -25,6 +26,9 @@ class NxtesApplication : Application() {
 
     /** Pages copied in the page navigator, waiting to be pasted. */
     var copiedPages by mutableStateOf<CopiedPages?>(null)
+
+    /** Items copied with the lasso, waiting to be pasted. */
+    var copiedContent by mutableStateOf<ContentClip?>(null)
 
     lateinit var pdf: PdfEngine
         private set
