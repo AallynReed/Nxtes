@@ -57,6 +57,7 @@ import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.nxtes
+import net.mildhope.nxtes.page.PagePainter
 import net.mildhope.nxtes.page.PageResources
 import net.mildhope.nxtes.viewer.PageMapper
 import kotlin.math.roundToInt
@@ -97,8 +98,7 @@ fun TextEditor(
     val density = LocalDensity.current
     val focus = remember { FocusRequester() }
     val typeface = remember(box.font, box.bold, box.italic) {
-        val bits = (if (box.bold) android.graphics.Typeface.BOLD else 0) or (if (box.italic) android.graphics.Typeface.ITALIC else 0)
-        android.graphics.Typeface.create(resources.typeface(box.font), bits)
+        android.graphics.Typeface.create(resources.typeface(box.font), PagePainter.typefaceStyle(box.bold, box.italic))
     }
     val style = TextStyle(
         color = Color(box.color),

@@ -234,7 +234,7 @@ class PagePainter {
         /** The laid-out text of [box]; its height is what the box needs. */
         fun textLayout(box: TextBox, resources: PageResources): StaticLayout = synchronized(layouts) {
             layouts.getOrPut(box) {
-                val style = (if (box.bold) Typeface.BOLD else 0) or (if (box.italic) Typeface.ITALIC else 0)
+                val style = typefaceStyle(box.bold, box.italic)
                 val paint = TextPaint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG or Paint.LINEAR_TEXT_FLAG).apply {
                     textSize = box.size
                     color = box.color
@@ -246,6 +246,13 @@ class PagePainter {
                     .setIncludePad(false)
                     .build()
             }
+        }
+
+        fun typefaceStyle(bold: Boolean, italic: Boolean) = when {
+            bold && italic -> Typeface.BOLD_ITALIC
+            bold -> Typeface.BOLD
+            italic -> Typeface.ITALIC
+            else -> Typeface.NORMAL
         }
 
         /** Sticky note icons are this many points across. */
