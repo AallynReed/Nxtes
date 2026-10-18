@@ -660,6 +660,63 @@ class LibraryStore(
         _state.value.trash().forEach { deletePermanently(it.id) }
     }
 
+    /** A document's page files by page id and its blob files by SHA-256, for sync. */
+    @Synchronized
+    fun documentFiles(id: String): DocumentFiles {
+        val dir = documentDir(id)
+        val pages = File(dir, "pages").listFiles().orEmpty().filter { it.name.endsWith(".pb") }.associateBy { it.name.removeSuffix(".pb") }
+        val blobs = File(dir, "blobs").listFiles().orEmpty().filter { SHA256.matches(it.name) }.associateBy { it.name }
+        return DocumentFiles(pages, blobs)
+    }
+
+    /**
+     * Puts a document that came from sync in place, if [unchanged] still holds once the library is
+     * locked. [pages] and [blobs] list all it has: a file moves in, null keeps the one here, and
+     * anything unlisted goes. When it was last opened here is kept.
+     */
+    @Synchronized
+    fun putSyncedDocument(doc: Document, pages: Map<String, File?>, blobs: Map<String, File?>, unchanged: () -> Boolean): Boolean {
+        if (!unchanged()) return false
+        val dir = documentDir(doc.id)
+        pages.forEach { (pageId, file) -> file?.let { moveInto(it, pageFile(doc.id, pageId)) } }
+        blobs.forEach { (sha256, file) -> file?.let { moveInto(it, blobFile(doc.id, sha256)) } }
+        File(dir, "pages").listFiles().orEmpty().filter { it.name.endsWith(".pb") && it.name.removeSuffix(".pb") !in pages }.forEach { it.delete() }
+        File(dir, "blobs").listFiles().orEmpty().filter { it.name !in blobs }.forEach { it.delete() }
+        val placed = doc.copy(opened = _state.value.document(doc.id)?.opened)
+        writeDocument(placed)
+        _state.value = _state.value.let { lib -> lib.copy(documents = lib.documents.filter { it.id != doc.id } + placed) }
+        return true
+    }
+
+    /** Deletes a document that was deleted elsewhere, if [unchanged] still holds once the library is locked. */
+    @Synchronized
+    fun removeSyncedDocument(id: String, unchanged: () -> Boolean): Boolean {
+        if (!unchanged()) return false
+        deletePermanently(id)
+        return true
+    }
+
+    /** Adds or replaces a folder that came from sync. */
+    @Synchronized
+    fun putSyncedFolder(folder: Folder) {
+        val folders = _state.value.folders
+        writeFolders(if (folders.any { it.id == folder.id }) folders.map { if (it.id == folder.id) folder else it } else folders + folder)
+    }
+
+    /** Removes a folder that was deleted elsewhere; whatever is still in it moves to the top level. */
+    @Synchronized
+    fun removeSyncedFolder(id: String) {
+        val library = _state.value
+        if (library.folder(id) == null) return
+        writeFolders(library.folders.filter { it.id != id }.map { if (it.parentId == id) it.copy(parentId = null) else it })
+        library.documents.filter { it.folderId == id }.forEach { doc -> updateItem(doc.id, { it }, { it.copy(folderId = null) }) }
+    }
+
+    private fun moveInto(source: File, target: File) {
+        target.parentFile?.mkdirs()
+        Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
+
     private fun updateItem(id: String, folder: (Folder) -> Folder, document: (Document) -> Document) {
         val library = _state.value
         if (library.folder(id) != null) {
@@ -798,8 +855,12 @@ class LibraryStore(
         const val DOCUMENT_JSON = "document.json"
         const val BACKUP_MANIFEST = "nxtes-backup.json"
         const val BACKUP_FORMAT = 1
+        val SHA256 = Regex("[0-9a-f]{64}")
     }
 }
+
+/** A document's page files by page id and its blob files by SHA-256. */
+class DocumentFiles(val pages: Map<String, File>, val blobs: Map<String, File>)
 
 /** Marks a zip as a Nxtes backup, with its format and when it was made. */
 @kotlinx.serialization.Serializable
