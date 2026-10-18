@@ -48,15 +48,19 @@ One directory per document, zipped for backup and export:
 
 ```
 <document-id>/
-  document.json        title, timestamps, page order, page sizes and templates, bookmarks, outline
+  document.json        title, timestamps, page order, page sizes and templates, bookmarks, outline,
+                       recordings
   pages/<page-id>.pb   ink, shapes, textboxes, image refs, sticky notes, masks, highlights
   blobs/<sha256>       source PDFs, images, audio, fonts
 ```
 
 - Page files and blobs are identified by SHA-256. A document's manifest maps page IDs to hashes,
   so an edit rewrites, and sync uploads, only the pages that changed.
-- A stroke stores its brush, colour and size, plus points as (x, y, pressure, tilt,
-  milliseconds into the active recording). The time field drives audio sync and replay.
+- A stroke stores its brush, colour and size, the clock time it started, and points as (x, y,
+  pressure, tilt, milliseconds since the stroke started). A recording stores its audio blob (AAC
+  in MP4) and the clock spans it covered, one per stretch between pauses, so any stroke's time
+  maps into the audio and back. That drives tap-to-jump and replay without strokes knowing about
+  recordings.
 - Coordinates are in PDF points on the page, independent of screen size and zoom.
 - `proto/nxtes/document.proto` defines the page format: Wire on Android, prost in Rust when the
   web viewer starts rendering pages itself.

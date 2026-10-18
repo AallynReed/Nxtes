@@ -103,6 +103,13 @@ Full screen, for New note and for an item's "Cover and template".
     tool opens its settings.
   - Right: undo, redo, view settings, and the side panel button. In read-only mode the tools
     give way to a "Read only" pill that turns it off.
+- **Recording:** the microphone button left of undo opens Record (or Pause/Resume and Stop while
+  recording) and the document's recordings, each with play and a ⋮ menu to rename or delete.
+  While recording, the button turns red and a pill at the top left of the pages shows the time
+  with Pause and Stop; recording carries on in the background with a notification that can stop
+  it. Playing a recording opens a bar above the page counter: play/pause, the title, a seek bar
+  with times, speed (0.5× to 2×) and close. While it's open, writing done during the recording
+  appears as it was written, and tapping ink with a finger plays from when it was written.
 - **View settings:** page layout (scroll down or across, continuous or page by page, two pages
   side by side, first page alone); dark pages, keep the screen on, full screen, hide the tab
   bar; use stylus only, show annotations, read only; and which shapes holding the pen still
