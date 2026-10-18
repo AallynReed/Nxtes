@@ -96,7 +96,8 @@ One directory per document, zipped for backup and export:
 | `POST /v1/auth/verify`, `/resend-verification` | Confirm an email address from the link's token; send a new link |
 | `POST /v1/auth/password-reset`, `/password-reset/confirm` | Email a reset link; set a new password with its token |
 | `GET /verify/{token}`, `GET /reset/{token}` | Pages the email links open (served by the server) |
-| `DELETE /v1/account` | Delete the account and its data |
+| `GET /v1/account`, `DELETE /v1/account` | The account's address and quota; delete the account and its data (password required) |
+| `POST /v1/account/email`, `POST /v1/auth/email/confirm`, `GET /confirm-email/{token}` | Change the address: a link goes to the new one and the change happens when it's opened |
 | `GET /v1/devices`, `DELETE /v1/devices/{id}` | Device list and removal |
 | `POST /v1/blobs/missing` | Client sends hashes; server returns the ones it lacks |
 | `PUT /v1/blobs/{sha256}`, `GET /v1/blobs/{sha256}` | Upload and download content |
