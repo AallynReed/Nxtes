@@ -1,7 +1,17 @@
 package net.mildhope.nxtes.library
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -52,6 +62,34 @@ fun NameDialog(title: String, initial: String, onConfirm: (String) -> Unit, onDi
                 Text(stringResource(R.string.ok))
             }
         },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+@Composable
+fun ColourDialog(current: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.folder_colour)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                FOLDER_COLORS.chunked(4).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        row.forEach { colour ->
+                            Box(
+                                Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(colour))
+                                    .border(if (colour == current) 3.dp else 0.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                    .clickable { onPick(colour) },
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }

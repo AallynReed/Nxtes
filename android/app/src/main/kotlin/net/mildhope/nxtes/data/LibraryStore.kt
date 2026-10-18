@@ -34,6 +34,9 @@ class LibraryStore(
 
     fun blobFile(documentId: String, sha256: String) = File(documentDir(documentId), "blobs/$sha256")
 
+    /** Bytes the document uses on disk. */
+    fun documentSize(documentId: String): Long = documentDir(documentId).walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
     fun readPageInk(documentId: String, pageId: String): List<InkStroke> {
         val file = pageInkFile(documentId, pageId)
         return if (file.exists()) InkCodec.decode(file.readBytes()) else emptyList()

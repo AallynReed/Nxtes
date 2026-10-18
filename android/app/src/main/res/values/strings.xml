@@ -2,6 +2,35 @@
 <resources>
     <string name="app_name">Nxtes</string>
     <string name="library_title">Library</string>
+    <string name="documents">Documents</string>
+    <string name="search">Search</string>
+    <string name="search_results">Search results</string>
+    <string name="search_no_results">No matches</string>
+    <string name="recents">Recents</string>
+    <string name="favorites">Favorites</string>
+    <string name="show_all">Show all</string>
+    <string name="nothing_here">Nothing here yet</string>
+    <string name="open_menu">Open menu</string>
+    <string name="filter_all">All</string>
+    <string name="filter_pdfs">PDFs</string>
+    <string name="filter_notes">Notes</string>
+    <string name="sort">Sort</string>
+    <string name="sort_name_asc">Name (A to Z)</string>
+    <string name="sort_name_desc">Name (Z to A)</string>
+    <string name="sort_modified_newest">Modified (newest)</string>
+    <string name="sort_modified_oldest">Modified (oldest)</string>
+    <string name="sort_created_newest">Created (newest)</string>
+    <string name="sort_created_oldest">Created (oldest)</string>
+    <string name="view_list">List view</string>
+    <string name="view_grid">Grid view</string>
+    <string name="add_to_favorites">Add to favorites</string>
+    <string name="remove_from_favorites">Remove from favorites</string>
+    <string name="folder_colour">Folder colour</string>
+    <string name="restore_all">Restore all</string>
+    <plurals name="item_count">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
     <string name="library_empty">No documents yet</string>
     <string name="back">Back</string>
     <string name="add">Add</string>

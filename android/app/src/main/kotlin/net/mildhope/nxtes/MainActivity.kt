@@ -11,15 +11,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.IntentCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.library.LibraryScreen
-import net.mildhope.nxtes.library.TrashScreen
 import net.mildhope.nxtes.library.importPdfs
 import net.mildhope.nxtes.ui.NxtesTheme
 import net.mildhope.nxtes.viewer.DocumentViewer
@@ -66,28 +67,31 @@ private fun NxtesRoot(openRequests: MutableStateFlow<String?>) {
     val library by app.library.state.collectAsState()
     val openRequest by openRequests.collectAsState()
     var folderId by rememberSaveable { mutableStateOf<String?>(null) }
-    var showTrash by rememberSaveable { mutableStateOf(false) }
     var documentId by rememberSaveable { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     val visibleFolder = folderId?.takeIf { library.folder(it) != null && !library.isInTrash(it) }
     val openDocument = library.document(documentId)?.takeIf { it.trashedAt == null && !library.isInTrash(it.folderId) }
 
+    fun open(id: String) {
+        documentId = id
+        scope.launch(Dispatchers.IO) { runCatching { app.library.markOpened(id) } }
+    }
+
     LaunchedEffect(openRequest) {
         openRequest?.let {
-            documentId = it
-            showTrash = false
+            open(it)
             openRequests.value = null
         }
     }
 
-    when {
-        openDocument != null -> DocumentViewer(doc = openDocument, onBack = { documentId = null })
-        showTrash -> TrashScreen(library = library, onBack = { showTrash = false })
-        else -> LibraryScreen(
+    if (openDocument != null) {
+        DocumentViewer(doc = openDocument, onBack = { documentId = null })
+    } else {
+        LibraryScreen(
             library = library,
             folderId = visibleFolder,
             onOpenFolder = { folderId = it },
-            onOpenDocument = { documentId = it },
-            onShowTrash = { showTrash = true },
+            onOpenDocument = ::open,
         )
     }
 }
