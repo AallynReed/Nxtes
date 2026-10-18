@@ -259,7 +259,9 @@ fun PageCanvas(
     /** Draws a page's content from its recording at [scale], recording it again first if it's out of date. */
     fun drawInk(canvas: android.graphics.Canvas, pageId: String, content: PageContent, screen: Rect, scale: Float, assets: Int) {
         val revealed = selection.revealed
-        val cached = inkCache[pageId]?.takeIf { it.content === content && it.scale == scale && it.revealed == revealed && it.assets == assets }
+        val cached = inkCache[pageId]?.takeIf {
+            it.node.hasDisplayList() && it.content === content && it.scale == scale && it.revealed == revealed && it.assets == assets
+        }
         val k = mapper.pixelsPerPoint / scale
         val node = cached?.node ?: (inkCache[pageId]?.node ?: RenderNode("page")).also { node ->
             val w = ceil(screen.width / k).toInt().coerceAtLeast(1)
