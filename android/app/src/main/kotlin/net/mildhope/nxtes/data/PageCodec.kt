@@ -80,6 +80,7 @@ object PageCodec {
         @ProtoNumber(11) val bold: Boolean = false,
         @ProtoNumber(12) val italic: Boolean = false,
         @ProtoNumber(13) val underline: Boolean = false,
+        @ProtoNumber(14) val align: Int = 0,
     )
 
     @Serializable
@@ -167,7 +168,7 @@ object PageCodec {
         is Shape -> WireObject(o.id, shape = WireShape(o.kind.code, o.xs.toList(), o.ys.toList(), o.color, o.width, o.fill, o.line.code))
         is TextBox -> WireObject(
             o.id,
-            text = WireText(o.text, o.x, o.y, o.width, o.height, o.rotation, o.font, o.size, o.color, o.background, o.bold, o.italic, o.underline),
+            text = WireText(o.text, o.x, o.y, o.width, o.height, o.rotation, o.font, o.size, o.color, o.background, o.bold, o.italic, o.underline, o.align.code),
         )
         is Picture -> WireObject(
             o.id,
@@ -186,7 +187,7 @@ object PageCodec {
         w.text?.let { t ->
             return TextBox(
                 w.id, t.text, t.x, t.y, t.width, t.height, t.rotation, t.font.ifEmpty { "sans-serif" }, t.size, t.color,
-                t.background, t.bold, t.italic, t.underline,
+                t.background, t.bold, t.italic, t.underline, TextAlignment.fromCode(t.align),
             )
         }
         w.picture?.let { p ->

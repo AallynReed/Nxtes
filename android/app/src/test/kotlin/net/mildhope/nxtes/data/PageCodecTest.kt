@@ -62,7 +62,7 @@ class PageCodecTest {
         val content = PageContent(
             objects = listOf(
                 Shape("sh", ShapeKind.ELLIPSE, floatArrayOf(1f, 9f, 9f, 1f), floatArrayOf(2f, 2f, 8f, 8f), 0xFF112233.toInt(), 2f, fill = 0x40FF0000, line = LineStyle.DASHED),
-                TextBox("tx", "Hello", 10f, 20f, 100f, 18f, rotation = 15f, font = "blob:abc", size = 12f, bold = true),
+                TextBox("tx", "Hello", 10f, 20f, 100f, 18f, rotation = 15f, font = "blob:abc", size = 12f, bold = true, align = TextAlignment.JUSTIFIED),
                 Picture("pi", "def", 50f, 60f, 40f, 30f, cropLeft = 0.1f, outline = listOf(0f, 0f, 1f, 0f, 1f, 1f), sticker = true),
             ),
             notes = listOf(StickyNote("no", 5f, 6f, "Remember", 0xFFFFE082.toInt(), 99)),
@@ -84,6 +84,16 @@ class PageCodecTest {
         assertEquals("text", decoded.marks.single().text)
         assertEquals(content.links, decoded.links)
         assertEquals(setOf("abc", "def"), decoded.blobs)
+    }
+
+    @Test
+    fun leftAlignedTextIsWrittenAsBeforeAlignmentExisted() {
+        fun bytes(align: TextAlignment) = PageCodec.encode(PageContent(objects = listOf(TextBox("t", "Hi", 1f, 2f, 30f, 10f, align = align))))
+
+        // Field 14 is left out at its default, so older files and older apps see the same bytes.
+        assertEquals(bytes(TextAlignment.LEFT).size + 2, bytes(TextAlignment.RIGHT).size)
+        assertEquals(TextAlignment.LEFT, (PageCodec.decode(bytes(TextAlignment.LEFT)).objects.single() as TextBox).align)
+        assertEquals(TextAlignment.RIGHT, (PageCodec.decode(bytes(TextAlignment.RIGHT)).objects.single() as TextBox).align)
     }
 
     @Test

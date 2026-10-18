@@ -135,6 +135,15 @@ class Shape(
     ) = Shape(id, kind, xs, ys, color, width, fill, line)
 }
 
+/** How a text box lines up its text; justified stretches every line but a paragraph's last. */
+enum class TextAlignment(val code: Int) {
+    LEFT(0), CENTER(1), RIGHT(2), JUSTIFIED(3);
+
+    companion object {
+        fun fromCode(code: Int) = entries.firstOrNull { it.code == code } ?: LEFT
+    }
+}
+
 /**
  * A text box whose unrotated top-left corner is at [x],[y], turned by [rotation] degrees about its
  * centre. [font] is a system family name, or [PageContent.FONT_BLOB] plus a font file's SHA-256.
@@ -154,6 +163,7 @@ data class TextBox(
     val bold: Boolean = false,
     val italic: Boolean = false,
     val underline: Boolean = false,
+    val align: TextAlignment = TextAlignment.LEFT,
 ) : PageObject {
     val centerX get() = x + width / 2
     val centerY get() = y + height / 2

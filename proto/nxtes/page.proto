@@ -101,6 +101,14 @@ message TextBox {
   bool bold = 11;
   bool italic = 12;
   bool underline = 13;
+  TextAlign align = 14;
+}
+
+enum TextAlign {
+  ALIGN_LEFT = 0;
+  ALIGN_CENTER = 1;
+  ALIGN_RIGHT = 2;
+  ALIGN_JUSTIFIED = 3;  // every line but a paragraph's last fills the width
 }
 
 // An image or sticker in blobs/, centred on (cx, cy). It shows the crop box (fractions of the
