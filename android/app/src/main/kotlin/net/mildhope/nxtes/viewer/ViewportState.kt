@@ -4,6 +4,7 @@ import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.DecayAnimationSpec
 import androidx.compose.animation.core.animateDecay
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -73,8 +74,24 @@ class ViewportState {
         private set
     private var contentHeight = 0f
 
+    /** Page rectangles at zoom 1, kept here so other UI can jump to a page. */
+    var pageRects by mutableStateOf<List<Rect>>(emptyList())
+        private set
+
+    /** The page under the middle of the screen. */
+    val currentPage: Int by derivedStateOf {
+        val centre = (size.height / 2 - offset.y) / zoom
+        pageRects.indexOfFirst { it.bottom >= centre }.coerceAtLeast(0)
+    }
+
+    fun goToPage(index: Int) {
+        val rect = pageRects.getOrNull(index) ?: return
+        offset = clamp(Offset(offset.x, -(rect.top - PAGE_TOP_MARGIN) * zoom), zoom)
+    }
+
     /** Applies a new viewport and layout while keeping the same part of the document on screen. */
-    fun updateLayout(newSize: Size, newContentHeight: Float) {
+    fun updateLayout(newSize: Size, newContentHeight: Float, rects: List<Rect>) {
+        pageRects = rects
         val fx = if (size.width > 0) -offset.x / (size.width * zoom) else 0f
         val fy = if (contentHeight > 0) -offset.y / (contentHeight * zoom) else 0f
         size = newSize
@@ -119,5 +136,6 @@ class ViewportState {
         const val MIN_ZOOM = 1f
         const val MAX_ZOOM = 6f
         private const val MIN_FLING_VELOCITY = 50f
+        private const val PAGE_TOP_MARGIN = 8f
     }
 }

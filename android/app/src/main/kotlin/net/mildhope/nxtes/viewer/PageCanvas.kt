@@ -16,7 +16,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +68,7 @@ import net.mildhope.nxtes.data.Page
 import net.mildhope.nxtes.ink.InkPainter
 import net.mildhope.nxtes.ink.InkSession
 import net.mildhope.nxtes.ink.StrokeGeometry
+import net.mildhope.nxtes.ink.InputMode
 import net.mildhope.nxtes.ink.Tool
 import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.ink.erase
@@ -95,13 +95,13 @@ fun PageCanvas(
     renderer: PageRenderer,
     ink: InkSession,
     tools: ToolState,
+    state: ViewportState,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
     val gap = with(density) { 16.dp.toPx() }
     val eraserRadius = with(density) { tools.eraserRadiusDp.dp.toPx() }
     val outline = MaterialTheme.colorScheme.outlineVariant
-    val state = remember(pages) { ViewportState() }
     var size by remember { mutableStateOf(IntSize.Zero) }
     val layout = remember(pages, size.width, gap) { PageLayout(pages, size.width.toFloat(), gap) }
     val base = remember(layout) { mutableStateMapOf<Int, ImageBitmap>() }
@@ -129,7 +129,7 @@ fun PageCanvas(
         ),
     )
 
-    LaunchedEffect(layout, size) { state.updateLayout(size.toSize(), layout.contentHeight) }
+    LaunchedEffect(layout, size) { state.updateLayout(size.toSize(), layout.contentHeight, layout.rects) }
 
     LaunchedEffect(layout, ink) {
         snapshotFlow { layout.visible(state.zoom, state.offset, state.size.height, extra = 1) }
@@ -184,13 +184,6 @@ fun PageCanvas(
         }
     }
 
-    val currentPage by remember(layout) {
-        derivedStateOf {
-            val centre = (state.size.height / 2 - state.offset.y) / state.zoom
-            layout.rects.indexOfFirst { it.bottom >= centre }.coerceAtLeast(0)
-        }
-    }
-
     Box(
         modifier
             .clipToBounds()
@@ -236,7 +229,7 @@ fun PageCanvas(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
             ) {
                 Text(
-                    text = stringResource(R.string.page_of, currentPage + 1, pages.size),
+                    text = stringResource(R.string.page_of, state.currentPage + 1, pages.size),
                     color = MaterialTheme.colorScheme.inverseOnSurface,
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -264,7 +257,7 @@ private fun InkLayer(
     }
     val scratch = remember { StrokeInput() }
     InProgressStrokes(
-        defaultBrush = tools.pen.brush,
+        defaultBrush = if (tools.mode == InputMode.PEN && tools.tool == Tool.PEN) tools.pen.brush else null,
         pointerEventToWorldTransform = pointerToWorld,
         onStrokesFinished = { strokes ->
             val now = System.currentTimeMillis()
@@ -314,6 +307,12 @@ private fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, eras
                 }
                 val down = event.changes.firstOrNull { it.changedToDownIgnoreConsumed() } ?: continue
                 val erasing = tools.tool == Tool.ERASER
+                if (tools.mode == InputMode.GESTURE) {
+                    fling?.cancel()
+                    val velocity = navigate(pen, state, event, everyPointer = true)
+                    fling = launch { state.fling(velocity, decay) }
+                    continue
+                }
                 when {
                     down.type == PointerType.Eraser || (erasing && down.type.draws()) -> erase(pen, event, down.id, eraser())
                     down.type.draws() -> Unit
@@ -381,7 +380,13 @@ private suspend fun AwaitPointerEventScope.secondFingerJoins(pen: PenTracker, fi
 }
 
 /** Pans and zooms until every finger lifts; returns the release velocity for a fling. */
-private suspend fun AwaitPointerEventScope.navigate(pen: PenTracker, state: ViewportState, first: PointerEvent): Velocity {
+private suspend fun AwaitPointerEventScope.navigate(
+    pen: PenTracker,
+    state: ViewportState,
+    first: PointerEvent,
+    everyPointer: Boolean = false,
+): Velocity {
+    fun counts(change: PointerInputChange) = everyPointer || change.type == PointerType.Touch
     val tracker = VelocityTracker()
     var travelled = Offset.Zero
     var event = first
@@ -392,10 +397,10 @@ private suspend fun AwaitPointerEventScope.navigate(pen: PenTracker, state: View
         if (centroid.isValid() && (zoomChange != 1f || pan != Offset.Zero)) {
             state.transformBy(centroid, pan, zoomChange)
         }
-        event.changes.forEach { if (it.type == PointerType.Touch) it.consume() }
+        event.changes.forEach { if (counts(it)) it.consume() }
         travelled += pan
         event.changes.firstOrNull()?.let { tracker.addPosition(it.uptimeMillis, travelled) }
-        if (event.changes.none { it.type == PointerType.Touch && it.pressed }) return tracker.calculateVelocity()
+        if (event.changes.none { counts(it) && it.pressed }) return tracker.calculateVelocity()
         event = nextEvent(pen)
     }
 }

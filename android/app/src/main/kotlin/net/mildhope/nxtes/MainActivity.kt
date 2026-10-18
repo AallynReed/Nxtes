@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -24,6 +25,7 @@ import net.mildhope.nxtes.library.LibraryScreen
 import net.mildhope.nxtes.library.importPdfs
 import net.mildhope.nxtes.ui.NxtesTheme
 import net.mildhope.nxtes.viewer.DocumentViewer
+import net.mildhope.nxtes.viewer.ViewportState
 
 class MainActivity : ComponentActivity() {
     private val openRequests = MutableStateFlow<String?>(null)
@@ -84,8 +86,14 @@ private fun NxtesRoot(openRequests: MutableStateFlow<String?>) {
         }
     }
 
+    val viewports = remember { mutableMapOf<String, ViewportState>() }
+
     if (openDocument != null) {
-        DocumentViewer(doc = openDocument, onBack = { documentId = null })
+        DocumentViewer(
+            doc = openDocument,
+            viewport = viewports.getOrPut(openDocument.id) { ViewportState() },
+            onBack = { documentId = null },
+        )
     } else {
         LibraryScreen(
             library = library,

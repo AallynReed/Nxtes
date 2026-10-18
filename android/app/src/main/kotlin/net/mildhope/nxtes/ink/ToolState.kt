@@ -29,6 +29,9 @@ data class PenPreset(val pen: Pen, val color: Int, val size: Float) {
 
 enum class Tool { PEN, ERASER }
 
+/** Pen mode draws; gesture mode only navigates. */
+enum class InputMode { PEN, GESTURE }
+
 /** The drawing tools and input options, remembered across documents and restarts. */
 @Stable
 class ToolState(private val prefs: SharedPreferences) {
@@ -37,6 +40,8 @@ class ToolState(private val prefs: SharedPreferences) {
     var selected by mutableIntStateOf(prefs.getInt(KEY_SELECTED, 0).coerceIn(presets.indices))
         private set
     var tool by mutableStateOf(Tool.PEN)
+        private set
+    var mode by mutableStateOf(runCatching { InputMode.valueOf(prefs.getString(KEY_MODE, null)!!) }.getOrDefault(InputMode.PEN))
         private set
     var eraserMode by mutableStateOf(
         runCatching { EraserMode.valueOf(prefs.getString(KEY_ERASER_MODE, null)!!) }.getOrDefault(EraserMode.STROKE),
@@ -54,6 +59,7 @@ class ToolState(private val prefs: SharedPreferences) {
     fun selectPen(index: Int) {
         selected = index
         tool = Tool.PEN
+        applyMode(InputMode.PEN)
         prefs.edit { putInt(KEY_SELECTED, index) }
     }
 
@@ -65,6 +71,29 @@ class ToolState(private val prefs: SharedPreferences) {
 
     fun selectEraser() {
         tool = Tool.ERASER
+        applyMode(InputMode.PEN)
+    }
+
+    fun toggleMode() = applyMode(if (mode == InputMode.PEN) InputMode.GESTURE else InputMode.PEN)
+
+    private fun applyMode(newMode: InputMode) {
+        mode = newMode
+        prefs.edit { putString(KEY_MODE, newMode.name) }
+    }
+
+    /** Adds a copy of the selected pen at the end of the toolbar and selects it. */
+    fun addPen() {
+        if (presets.size >= MAX_PENS) return
+        presets = presets + pen
+        prefs.edit { putString(KEY_PRESETS, json.encodeToString(presets)) }
+        selectPen(presets.lastIndex)
+    }
+
+    fun removePen(index: Int) {
+        if (presets.size <= 1) return
+        presets = presets.filterIndexed { i, _ -> i != index }
+        prefs.edit { putString(KEY_PRESETS, json.encodeToString(presets)) }
+        selectPen(selected.coerceAtMost(presets.lastIndex))
     }
 
     fun updateEraser(mode: EraserMode, radiusDp: Float) {
@@ -94,6 +123,8 @@ class ToolState(private val prefs: SharedPreferences) {
         private const val KEY_ERASER_MODE = "eraser_mode"
         private const val KEY_ERASER_RADIUS = "eraser_radius"
         private const val KEY_FINGER = "draw_with_finger"
+        private const val KEY_MODE = "mode"
+        const val MAX_PENS = 30
 
         val DEFAULT_PRESETS = listOf(
             PenPreset(Pen.BALLPOINT, 0xFF1A1A1A.toInt(), 1.2f),
