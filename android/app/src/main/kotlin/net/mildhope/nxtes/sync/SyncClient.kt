@@ -28,6 +28,7 @@ import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import java.io.File
 import java.io.IOException
+import java.net.URLEncoder
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
@@ -43,6 +44,18 @@ data class DeviceInfo(
     @SerialName("created_at") val created: Long,
     @SerialName("last_seen") val lastSeen: Long,
     val current: Boolean = false,
+)
+
+/** A PDF anyone can view in a browser at [url]. */
+@Serializable
+data class ShareInfo(
+    val id: String,
+    val url: String,
+    val title: String,
+    val size: Long,
+    val views: Long = 0,
+    @SerialName("created_at") val created: Long,
+    @SerialName("expires_at") val expires: Long? = null,
 )
 
 /**
@@ -85,6 +98,16 @@ class SyncClient(
     suspend fun logout() = authed("/v1/auth/logout", "POST", EMPTY).check()
 
     suspend fun deleteAccount(password: String) = authed("/v1/account", "DELETE", json(buildJsonObject { put("password", password) })).check()
+
+    /** Uploads a PDF for a web link that lasts [days], or until removed when null. */
+    suspend fun createShare(file: File, title: String, days: Int?): ShareInfo {
+        val query = "title=" + URLEncoder.encode(title, "UTF-8").replace("+", "%20") + (days?.let { "&days=$it" } ?: "")
+        return authed("/v1/shares?$query", "POST", file.asRequestBody(PDF)).read()
+    }
+
+    suspend fun shares(): List<ShareInfo> = authed("/v1/shares").read<ShareList>().shares
+
+    suspend fun removeShare(id: String) = authed("/v1/shares/$id", "DELETE").check()
 
     override suspend fun changes(since: Long): Changes = authed("/v1/changes?since=$since").read()
 
@@ -250,6 +273,9 @@ class SyncClient(
     private class DeviceList(val devices: List<DeviceInfo>)
 
     @Serializable
+    private class ShareList(val shares: List<ShareInfo>)
+
+    @Serializable
     private class Hashes(val hashes: List<String>)
 
     @Serializable
@@ -265,6 +291,7 @@ class SyncClient(
         private const val ATTEMPTS = 5
         private val JSON = "application/json".toMediaType()
         private val OCTETS = "application/octet-stream".toMediaType()
+        private val PDF = "application/pdf".toMediaType()
         private val EMPTY = ByteArray(0).toRequestBody(null)
 
         /** The server's base URL as typed, with https assumed and no trailing slash. */

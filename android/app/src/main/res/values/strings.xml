@@ -428,4 +428,24 @@
     <string name="conflict_keep_both">Keep both</string>
     <string name="conflict_delete">Delete it</string>
     <string name="conflict_copy">%1$s (conflicted copy)</string>
+    <string name="error_too_large">That file is bigger than the server accepts.</string>
+    <string name="share_link">Web link</string>
+    <string name="share_link_title">Share a web link</string>
+    <string name="share_link_text">Anyone with the link can view and download this PDF in a browser, with no app or account.</string>
+    <string name="share_link_expires">The link stops working</string>
+    <string name="expires_never">Never</string>
+    <string name="expires_day">After a day</string>
+    <string name="expires_week">After a week</string>
+    <string name="expires_month">After a month</string>
+    <string name="share_link_create">Create link</string>
+    <string name="share_link_ready">Anyone with this link can view the PDF:</string>
+    <string name="copy_link">Copy link</string>
+    <string name="link_copied">Link copied</string>
+    <string name="shared_links">Web links</string>
+    <plurals name="shared_link_views">
+        <item quantity="one">%d view</item>
+        <item quantity="other">%d views</item>
+    </plurals>
+    <string name="shared_link_expires">Works until %1$s</string>
+    <string name="stop_sharing">Stop sharing %1$s</string>
 </resources>

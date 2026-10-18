@@ -197,6 +197,7 @@ private fun AccountDialog(session: Session, onDismiss: () -> Unit) {
     val status by sync.status.collectAsState()
     var usage by remember { mutableStateOf<Usage?>(null) }
     var devices by remember { mutableStateOf(emptyList<DeviceInfo>()) }
+    var shares by remember { mutableStateOf(emptyList<ShareInfo>()) }
     var reload by remember { mutableIntStateOf(0) }
     var asking by remember { mutableStateOf<AccountAction?>(null) }
 
@@ -204,6 +205,7 @@ private fun AccountDialog(session: Session, onDismiss: () -> Unit) {
         runCatching {
             usage = sync.client.usage()
             devices = sync.client.devices()
+            shares = sync.client.shares()
         }
     }
 
@@ -248,6 +250,14 @@ private fun AccountDialog(session: Session, onDismiss: () -> Unit) {
                                 runCatching { sync.client.removeDevice(device.id) }
                                 reload++
                             }
+                        }
+                    }
+                }
+                if (shares.isNotEmpty()) {
+                    SharedLinks(shares) { share ->
+                        scope.launch {
+                            runCatching { sync.client.removeShare(share.id) }
+                            reload++
                         }
                     }
                 }
@@ -366,7 +376,7 @@ private fun relative(time: Long): String =
     DateUtils.getRelativeTimeSpanString(time, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
 
 @StringRes
-private fun errorMessage(e: Throwable): Int = when ((e as? ApiException)?.code) {
+internal fun errorMessage(e: Throwable): Int = when ((e as? ApiException)?.code) {
     "bad_credentials" -> R.string.error_bad_credentials
     "email_not_verified" -> R.string.error_email_not_verified
     "email_taken" -> R.string.error_email_taken
@@ -375,6 +385,8 @@ private fun errorMessage(e: Throwable): Int = when ((e as? ApiException)?.code) 
     "registration_closed" -> R.string.error_registration_closed
     "device_limit" -> R.string.error_device_limit
     "slow_down" -> R.string.error_slow_down
+    "quota_exceeded" -> R.string.sync_problem_storage
+    "too_large" -> R.string.error_too_large
     null -> if (e is IOException) R.string.error_offline else R.string.error_server
     else -> R.string.error_server
 }

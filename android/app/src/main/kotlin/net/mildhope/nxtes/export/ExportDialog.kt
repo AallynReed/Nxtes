@@ -32,6 +32,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,7 @@ import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.nxtes
+import net.mildhope.nxtes.sync.ShareLinkDialog
 import java.io.File
 
 private enum class PageChoice { ALL, CURRENT, RANGE }
@@ -106,6 +108,8 @@ fun ExportDialog(doc: Document, currentPage: Int, onDismiss: () -> Unit) {
     var choice by rememberSaveable { mutableStateOf(PageChoice.ALL) }
     var range by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var linkFile by remember { mutableStateOf<File?>(null) }
+    val signedIn = app.sync.account.state.collectAsState().value.session != null
     val options = ExportOptions(flatten, background, handwriting, pictures, textBoxes, notes, masks)
     val pages = when (choice) {
         PageChoice.ALL -> doc.pages.indices.toList()
@@ -142,6 +146,11 @@ fun ExportDialog(doc: Document, currentPage: Int, onDismiss: () -> Unit) {
         }
     }
     val imagesSaved = pluralStringResource(R.plurals.images_saved, pages?.size ?: 0, pages?.size ?: 0)
+
+    linkFile?.let { file ->
+        ShareLinkDialog(file, doc.title, onDismiss = onDismiss)
+        return
+    }
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -212,6 +221,11 @@ fun ExportDialog(doc: Document, currentPage: Int, onDismiss: () -> Unit) {
                         onDismiss()
                     }
                 }) { Text(stringResource(R.string.share)) }
+                if (signedIn && !images) {
+                    TextButton(enabled = !busy && pages != null, onClick = { run { linkFile = exportPdf() } }) {
+                        Text(stringResource(R.string.share_link))
+                    }
+                }
             }
         },
         dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
