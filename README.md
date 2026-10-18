@@ -9,6 +9,7 @@ all work, and ink saves automatically. Templates and blank notes come in milesto
 
 - [Feature spec](docs/spec.md): what Nxtes will do
 - [Architecture and plan](docs/plan.md): how it's built, plus the milestones
+- [UI](docs/ui.md): screen layouts, matching what Flexcil users already know
 
 ## Layout
 
