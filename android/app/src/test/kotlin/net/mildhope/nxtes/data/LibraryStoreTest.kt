@@ -122,11 +122,11 @@ class LibraryStoreTest {
             noiseSeed = 0, created = 0, x = floatArrayOf(1f, 2f), y = floatArrayOf(3f, 4f), t = intArrayOf(0, 5),
         )
 
-        store.writePageInk(doc.id, mapOf(page to listOf(stroke)))
-        assertEquals(listOf("s1"), newStore().readPageInk(doc.id, page).map { it.id })
+        store.writePages(doc.id, mapOf(page to PageContent(strokes = listOf(stroke))))
+        assertEquals(listOf("s1"), newStore().readPage(doc.id, page).strokes.map { it.id })
         assertTrue(store.state.value.document(doc.id)!!.modified > doc.modified)
 
-        store.writePageInk(doc.id, mapOf(page to emptyList()))
+        store.writePages(doc.id, mapOf(page to PageContent.EMPTY))
         assertFalse(File(store.documentDir(doc.id), "pages/$page.pb").exists())
     }
 
@@ -212,12 +212,12 @@ class LibraryStoreTest {
     fun duplicatedPagesFollowTheirOriginalsWithTheirInk() {
         val doc = import()
         val (first, second) = doc.pages.map { it.id }
-        store.writePageInk(doc.id, mapOf(first to listOf(stroke())))
+        store.writePages(doc.id, mapOf(first to PageContent(strokes = listOf(stroke()))))
 
         val copy = store.duplicatePages(doc.id, listOf(first)).single()
 
         assertEquals(listOf(first, copy.id, second), pages(doc.id))
-        assertEquals(listOf("s1"), store.readPageInk(doc.id, copy.id).map { it.id })
+        assertEquals(listOf("s1"), store.readPage(doc.id, copy.id).strokes.map { it.id })
         assertEquals(setOf(first, copy.id), store.annotatedPages(doc.id))
     }
 
@@ -225,7 +225,7 @@ class LibraryStoreTest {
     fun deletingPagesRemovesInkAndDeletingAllTrashesTheDocument() {
         val doc = import()
         val (first, second) = doc.pages.map { it.id }
-        store.writePageInk(doc.id, mapOf(first to listOf(stroke())))
+        store.writePages(doc.id, mapOf(first to PageContent(strokes = listOf(stroke()))))
 
         store.deletePages(doc.id, listOf(first))
         assertEquals(listOf(second), pages(doc.id))
@@ -254,18 +254,18 @@ class LibraryStoreTest {
     fun turningAPageSwapsItsSizeAndTurnsItsInk() {
         val doc = import()
         val page = doc.pages.first()
-        store.writePageInk(doc.id, mapOf(page.id to listOf(stroke())))
+        store.writePages(doc.id, mapOf(page.id to PageContent(strokes = listOf(stroke()))))
 
         store.turnPages(doc.id, listOf(page.id), clockwise = true)
 
         val turned = store.state.value.document(doc.id)!!.pages.first()
         assertEquals(Triple(792f, 612f, 1), Triple(turned.width, turned.height, turned.turns))
-        val ink = store.readPageInk(doc.id, page.id).single()
+        val ink = store.readPage(doc.id, page.id).strokes.single()
         assertEquals(792f - 3f, ink.x[0], 0.01f)
         assertEquals(1f, ink.y[0], 0.01f)
 
         store.turnPages(doc.id, listOf(page.id), clockwise = false)
-        val back = store.readPageInk(doc.id, page.id).single()
+        val back = store.readPage(doc.id, page.id).strokes.single()
         assertEquals(1f, back.x[0], 0.01f)
         assertEquals(3f, back.y[0], 0.01f)
         assertEquals(0, store.state.value.document(doc.id)!!.pages.first().turns)
@@ -276,14 +276,14 @@ class LibraryStoreTest {
         val pdf = import()
         val note = store.createNote("Ideas", null, TemplateChoice(), cover = null)
         val second = pdf.pages[1]
-        store.writePageInk(pdf.id, mapOf(second.id to listOf(stroke())))
+        store.writePages(pdf.id, mapOf(second.id to PageContent(strokes = listOf(stroke()))))
 
         val copy = store.copyPages(pdf.id, listOf(second.id), note.id, index = 0).single()
 
         assertEquals(listOf(copy.id, note.pages[0].id), pages(note.id))
         assertEquals(second.pdf, copy.pdf)
         assertTrue(store.blobFile(note.id, sha256(PDF_BYTES)).exists())
-        assertEquals(listOf("s1"), store.readPageInk(note.id, copy.id).map { it.id })
+        assertEquals(listOf("s1"), store.readPage(note.id, copy.id).strokes.map { it.id })
     }
 
     @Test
@@ -365,7 +365,7 @@ class LibraryStoreTest {
         val outer = store.createFolder("Term", null)
         val inner = store.createFolder("Week 1", outer.id)
         val doc = import("Lecture", inner.id)
-        store.writePageInk(doc.id, mapOf(doc.pages[0].id to listOf(stroke())))
+        store.writePages(doc.id, mapOf(doc.pages[0].id to PageContent(strokes = listOf(stroke()))))
 
         val copyId = store.duplicate(outer.id) { "$it copy" }
 
@@ -375,7 +375,7 @@ class LibraryStoreTest {
         assertEquals("Week 1", innerCopy.name)
         val docCopy = library.childDocuments(innerCopy.id).single()
         assertEquals("Lecture", docCopy.title)
-        assertEquals(listOf("s1"), store.readPageInk(docCopy.id, doc.pages[0].id).map { it.id })
+        assertEquals(listOf("s1"), store.readPage(docCopy.id, doc.pages[0].id).strokes.map { it.id })
         assertEquals(1, library.childDocuments(inner.id).size)
     }
 
@@ -385,7 +385,7 @@ class LibraryStoreTest {
         val a = import("A", folder.id)
         val b = store.createNote("B", null, TemplateChoice(), cover = null)
         store.addBookmark(b.id, b.pages[0].id, "Notes")
-        store.writePageInk(b.id, mapOf(b.pages[0].id to listOf(stroke())))
+        store.writePages(b.id, mapOf(b.pages[0].id to PageContent(strokes = listOf(stroke()))))
 
         val merged = store.merge(listOf(a.id, b.id), "A and B")
 
@@ -393,9 +393,23 @@ class LibraryStoreTest {
         assertEquals(listOf(a.pages[0].pdf, a.pages[1].pdf, null), merged.pages.map { it.pdf })
         assertEquals(Pattern.PLAIN, merged.pages[2].background!!.pattern)
         assertEquals(merged.pages[2].id, merged.bookmarks.single().pageId)
-        assertEquals(listOf("s1"), store.readPageInk(merged.id, merged.pages[2].id).map { it.id })
+        assertEquals(listOf("s1"), store.readPage(merged.id, merged.pages[2].id).strokes.map { it.id })
         assertTrue(store.blobFile(merged.id, sha256(PDF_BYTES)).exists())
         assertEquals(3, store.state.value.documents.size)
+    }
+
+    @Test
+    fun pictureBlobsSurvivePruningAndTravelWithCopiedPages() {
+        val doc = import()
+        val sha = store.addBlob(doc.id, ByteArrayInputStream("png".toByteArray()))
+        store.writePages(doc.id, mapOf(doc.pages[1].id to PageContent(objects = listOf(Picture("p", sha, 1f, 1f, 1f, 1f)))))
+
+        store.deletePages(doc.id, listOf(doc.pages[0].id))
+        assertTrue(store.blobFile(doc.id, sha).exists())
+
+        val note = store.createNote("Ideas", null, TemplateChoice(), cover = null)
+        store.copyPages(doc.id, listOf(doc.pages[1].id), note.id)
+        assertTrue(store.blobFile(note.id, sha).exists())
     }
 
     private fun pages(documentId: String) = store.state.value.document(documentId)!!.pages.map { it.id }

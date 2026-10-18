@@ -30,7 +30,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.data.LibraryStore
-import net.mildhope.nxtes.ink.InkSession
+import net.mildhope.nxtes.ink.PageSession
 import net.mildhope.nxtes.library.runLibraryAction
 import net.mildhope.nxtes.nxtes
 import net.mildhope.nxtes.ui.LocalNxtesColors
@@ -59,12 +59,13 @@ fun DocumentViewer(
         }
     }
     val ink = remember(doc.id) {
-        InkSession(
-            load = { pageId -> app.library.readPageInk(doc.id, pageId) },
-            save = { pages -> app.library.writePageInk(doc.id, pages) },
+        PageSession(
+            load = { pageId -> app.library.readPage(doc.id, pageId) },
+            save = { pages -> app.library.writePages(doc.id, pages) },
             scope = app.scope,
         )
     }
+    val resources = remember(doc.id) { app.assets.resources(doc.id, app.scope) }
     val tools = app.tools
     var panelOpen by rememberSaveable { mutableStateOf(false) }
     var panelTab by rememberSaveable { mutableStateOf(SideTab.PAGES) }
@@ -107,9 +108,11 @@ fun DocumentViewer(
                     pages = doc.pages,
                     renderer = renderer,
                     ink = ink,
+                    resources = resources,
                     tools = tools,
                     state = viewport,
                     onPageCounter = { goToPage = true },
+                    assetsLoaded = { app.assets.loaded },
                     modifier = Modifier.fillMaxSize().background(LocalNxtesColors.current.pageBackground),
                 )
                 if (panelOpen) {

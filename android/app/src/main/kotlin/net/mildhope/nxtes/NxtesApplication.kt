@@ -7,10 +7,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.MainScope
 import net.mildhope.nxtes.data.LibraryStore
-import net.mildhope.nxtes.ink.InkPainter
 import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.library.LibraryPrefs
+import net.mildhope.nxtes.page.PageAssets
 import net.mildhope.nxtes.page.PageBackgrounds
+import net.mildhope.nxtes.page.PagePainter
 import net.mildhope.nxtes.pdf.PdfEngine
 import net.mildhope.nxtes.pdf.Thumbnails
 import java.io.File
@@ -31,6 +32,8 @@ class NxtesApplication : Application() {
         private set
     lateinit var backgrounds: PageBackgrounds
         private set
+    lateinit var assets: PageAssets
+        private set
     lateinit var thumbnails: Thumbnails
         private set
 
@@ -39,7 +42,8 @@ class NxtesApplication : Application() {
         pdf = PdfEngine(this)
         library = LibraryStore(File(filesDir, "library"), pdf::pageSizes)
         backgrounds = PageBackgrounds(pdf, library::blobFile)
-        thumbnails = Thumbnails(File(cacheDir, "thumbnails"), backgrounds, library, lazy { InkPainter() })
+        assets = PageAssets(library::blobFile)
+        thumbnails = Thumbnails(File(cacheDir, "thumbnails"), backgrounds, library, assets, lazy { PagePainter() })
         thread(name = "library-load") { library.load() }
     }
 }

@@ -45,23 +45,29 @@ class LibraryStore(
     /** Bytes the document uses on disk. */
     fun documentSize(documentId: String): Long = documentDir(documentId).walkTopDown().filter { it.isFile }.sumOf { it.length() }
 
-    fun readPageInk(documentId: String, pageId: String): List<InkStroke> {
-        val file = pageInkFile(documentId, pageId)
-        return if (file.exists()) InkCodec.decode(file.readBytes()) else emptyList()
+    fun readPage(documentId: String, pageId: String): PageContent {
+        val file = pageFile(documentId, pageId)
+        return if (file.exists()) PageCodec.decode(file.readBytes()) else PageContent.EMPTY
     }
 
-    /** Saves ink for the given pages and marks the document as modified. */
+    /** Saves the given pages and marks the document as modified. */
     @Synchronized
-    fun writePageInk(documentId: String, pages: Map<String, List<InkStroke>>) {
-        pages.forEach { (pageId, strokes) ->
-            val file = pageInkFile(documentId, pageId)
-            if (strokes.isEmpty()) file.delete() else writeAtomically(file, InkCodec.encode(strokes))
-        }
+    fun writePages(documentId: String, pages: Map<String, PageContent>) {
+        pages.forEach { (pageId, content) -> writePage(documentId, pageId, content) }
         val now = clock()
         updateItem(documentId, { it }, { it.copy(modified = now) })
     }
 
-    private fun pageInkFile(documentId: String, pageId: String) = File(documentDir(documentId), "pages/$pageId.pb")
+    /** Stores a file, such as a picture or font, in the document and returns its SHA-256. */
+    @Synchronized
+    fun addBlob(documentId: String, input: InputStream): String = storeBlob(input, File(documentDir(documentId), "blobs"))
+
+    private fun writePage(documentId: String, pageId: String, content: PageContent) {
+        val file = pageFile(documentId, pageId)
+        if (content.isEmpty) file.delete() else writeAtomically(file, PageCodec.encode(content))
+    }
+
+    private fun pageFile(documentId: String, pageId: String) = File(documentDir(documentId), "pages/$pageId.pb")
 
     @Synchronized
     fun load() {
@@ -206,7 +212,7 @@ class LibraryStore(
         updateDocument(documentId) { doc -> doc.copy(outline = doc.outline.filter { it.id != id }) }
     }
 
-    /** Pages that have ink, judged by their ink files. */
+    /** Pages that have content, judged by their page files. */
     fun annotatedPages(documentId: String): Set<String> =
         File(documentDir(documentId), "pages").listFiles().orEmpty()
             .filter { it.name.endsWith(".pb") }
@@ -239,7 +245,7 @@ class LibraryStore(
                 pages = doc.pages.flatMap { page ->
                     if (page.id !in pageIds) return@flatMap listOf(page)
                     val copy = page.copy(id = newId())
-                    copyInk(documentId, page.id, documentId, copy.id)
+                    copyContent(documentId, page.id, documentId, copy.id)
                     copies += copy
                     listOf(page, copy)
                 },
@@ -262,7 +268,7 @@ class LibraryStore(
                 outline = doc.outline.filter { it.pageId !in pageIds },
             )
         }
-        pageIds.forEach { pageInkFile(documentId, it).delete() }
+        pageIds.forEach { pageFile(documentId, it).delete() }
         pruneBlobs(documentId)
     }
 
@@ -277,16 +283,16 @@ class LibraryStore(
         }
     }
 
-    /** Turns pages a quarter turn, with their ink. */
+    /** Turns pages a quarter turn, with everything on them. */
     @Synchronized
     fun turnPages(documentId: String, pageIds: Collection<String>, clockwise: Boolean) {
         updateDocument(documentId) { doc ->
             doc.copy(
                 pages = doc.pages.map { page ->
                     if (page.id !in pageIds) return@map page
-                    val strokes = readPageInk(documentId, page.id)
-                    if (strokes.isNotEmpty()) {
-                        writeAtomically(pageInkFile(documentId, page.id), InkCodec.encode(strokes.map { it.turned(clockwise, page.width, page.height) }))
+                    val content = readPage(documentId, page.id)
+                    if (!content.isEmpty) {
+                        writePage(documentId, page.id, content.transformed(Affine.quarterTurn(clockwise, page.width, page.height)))
                     }
                     page.copy(width = page.height, height = page.width, turns = (page.turns + if (clockwise) 1 else 3) % 4)
                 },
@@ -294,12 +300,12 @@ class LibraryStore(
         }
     }
 
-    /** Copies pages, with their ink and PDF pages, into another document at [index], or at the end. */
+    /** Copies pages, with their content and PDF pages, into another document at [index], or at the end. */
     @Synchronized
     fun copyPages(fromId: String, pageIds: Collection<String>, toId: String, index: Int? = null): List<Page> {
         val copies = requireDocument(fromId).pages.filter { it.id in pageIds }.map { page ->
             page.pdf?.let { copyBlob(fromId, it.blob, toId) }
-            page.copy(id = newId()).also { copyInk(fromId, page.id, toId, it.id) }
+            page.copy(id = newId()).also { copyContent(fromId, page.id, toId, it.id) }
         }
         updateDocument(toId) { doc ->
             val at = (index ?: doc.pages.size).coerceIn(0, doc.pages.size)
@@ -325,15 +331,20 @@ class LibraryStore(
         Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
     }
 
-    private fun copyInk(fromDocument: String, fromPage: String, toDocument: String, toPage: String) {
-        val source = pageInkFile(fromDocument, fromPage)
-        if (source.exists()) writeAtomically(pageInkFile(toDocument, toPage), source.readBytes())
+    /** Copies a page's content and the blobs it uses. */
+    private fun copyContent(fromDocument: String, fromPage: String, toDocument: String, toPage: String) {
+        val source = pageFile(fromDocument, fromPage)
+        if (!source.exists()) return
+        val bytes = source.readBytes()
+        PageCodec.decode(bytes).blobs.forEach { copyBlob(fromDocument, it, toDocument) }
+        writeAtomically(pageFile(toDocument, toPage), bytes)
     }
 
-    /** Deletes blobs that no page or template of the document refers to any more. */
+    /** Deletes blobs that no page, page content or template of the document refers to any more. */
     private fun pruneBlobs(documentId: String) {
         val doc = requireDocument(documentId)
-        val used = (doc.pages.mapNotNull { it.pdf?.blob } + listOfNotNull(doc.template?.pdf?.blob)).toSet()
+        val used = (doc.pages.mapNotNull { it.pdf?.blob } + listOfNotNull(doc.template?.pdf?.blob)).toMutableSet()
+        doc.pages.forEach { used += readPage(documentId, it.id).blobs }
         File(documentDir(documentId), "blobs").listFiles().orEmpty().filter { it.name !in used }.forEach { it.delete() }
     }
 
@@ -418,7 +429,7 @@ class LibraryStore(
                 val newIds = source.pages.associate { it.id to newId() }
                 source.pages.forEach { page ->
                     page.pdf?.let { copyBlob(source.id, it.blob, id) }
-                    copyInk(source.id, page.id, id, newIds.getValue(page.id))
+                    copyContent(source.id, page.id, id, newIds.getValue(page.id))
                     pages += page.copy(id = newIds.getValue(page.id))
                 }
                 bookmarks += source.bookmarks.mapNotNull { mark -> newIds[mark.pageId]?.let { mark.copy(id = newId(), pageId = it) } }

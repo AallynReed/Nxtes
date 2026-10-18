@@ -7,13 +7,14 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import net.mildhope.nxtes.data.InkStroke
 import net.mildhope.nxtes.data.InputTool
+import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.Pen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class InkSessionTest {
+class PageSessionTest {
     private val saves = mutableListOf<Map<String, List<String>>>()
     private val onDisk = mutableMapOf("p1" to listOf(stroke("old")))
 
@@ -22,17 +23,17 @@ class InkSessionTest {
         x = floatArrayOf(0f), y = floatArrayOf(0f), t = intArrayOf(0),
     )
 
-    private fun TestScope.session(): InkSession {
+    private fun TestScope.session(): PageSession {
         val dispatcher = StandardTestDispatcher(testScheduler)
-        return InkSession(
-            load = { onDisk[it].orEmpty() },
-            save = { pages -> saves += pages.mapValues { (_, strokes) -> strokes.map { it.id } } },
+        return PageSession(
+            load = { PageContent(strokes = onDisk[it].orEmpty()) },
+            save = { pages -> saves += pages.mapValues { (_, content) -> content.strokes.map { it.id } } },
             scope = backgroundScope,
             io = dispatcher,
         )
     }
 
-    private fun InkSession.ids(page: String) = strokes(page).map { it.id }
+    private fun PageSession.ids(page: String) = strokes(page).map { it.id }
 
     @Test
     fun undoAndRedoRestoreEachStep() = runTest {

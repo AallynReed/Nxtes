@@ -54,15 +54,22 @@ class InkStroke(
     }
 }
 
-/** The stroke after its [width]x[height] page turns a quarter turn, clockwise or not. */
-fun InkStroke.turned(clockwise: Boolean, width: Float, height: Float): InkStroke {
+/** The stroke moved by [t]: points mapped, size scaled and pen orientation turned with it. */
+fun InkStroke.transformed(t: Affine): InkStroke {
     val fullTurn = (2 * Math.PI).toFloat()
-    val quarter = fullTurn / 4 * (if (clockwise) 1 else -1)
+    val turn = Math.toRadians(t.degrees.toDouble()).toFloat()
+    val nx = FloatArray(pointCount)
+    val ny = FloatArray(pointCount)
+    for (i in 0 until pointCount) t.map(x[i], y[i]).let { (a, b) -> nx[i] = a; ny[i] = b }
     return InkStroke(
-        id = id, pen = pen, color = color, size = size, tool = tool, noiseSeed = noiseSeed, created = created,
-        x = FloatArray(pointCount) { if (clockwise) height - y[it] else y[it] },
-        y = FloatArray(pointCount) { if (clockwise) x[it] else width - x[it] },
-        t = t, pressure = pressure, tilt = tilt,
-        orientation = orientation?.let { o -> FloatArray(pointCount) { (o[it] + quarter).mod(fullTurn) } },
+        id = id, pen = pen, color = color, size = size * t.scale, tool = tool, noiseSeed = noiseSeed, created = created,
+        x = nx, y = ny, t = this.t, pressure = pressure, tilt = tilt,
+        orientation = orientation?.let { o -> FloatArray(pointCount) { (o[it] + turn).mod(fullTurn) } },
     )
 }
+
+/** A copy with another colour. */
+fun InkStroke.recoloured(color: Int) = InkStroke(
+    id = id, pen = pen, color = color, size = size, tool = tool, noiseSeed = noiseSeed, created = created,
+    x = x, y = y, t = t, pressure = pressure, tilt = tilt, orientation = orientation,
+)

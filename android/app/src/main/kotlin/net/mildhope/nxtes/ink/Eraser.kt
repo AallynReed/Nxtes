@@ -14,7 +14,7 @@ import kotlin.math.hypot
 enum class EraserMode { STROKE, PARTIAL }
 
 /** Erases along the segment [from]-[to] (page points) with the given radius. */
-fun erase(ink: InkSession, pageId: String, from: Offset, to: Offset, radius: Float, mode: EraserMode, group: Any) {
+fun erase(ink: PageSession, pageId: String, from: Offset, to: Offset, radius: Float, mode: EraserMode, group: Any) {
     val strokes = ink.strokes(pageId)
     if (strokes.isEmpty()) return
     val area = ImmutableParallelogram.fromSegmentAndPadding(

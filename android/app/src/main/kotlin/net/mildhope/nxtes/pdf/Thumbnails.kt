@@ -12,8 +12,9 @@ import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.data.LibraryStore
 import net.mildhope.nxtes.data.Page
-import net.mildhope.nxtes.ink.InkPainter
+import net.mildhope.nxtes.page.PageAssets
 import net.mildhope.nxtes.page.PageBackgrounds
+import net.mildhope.nxtes.page.PagePainter
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -22,7 +23,8 @@ class Thumbnails(
     private val dir: File,
     private val backgrounds: PageBackgrounds,
     private val library: LibraryStore,
-    private val painter: Lazy<InkPainter>,
+    private val assets: PageAssets,
+    private val painter: Lazy<PagePainter>,
 ) {
     private val memory = object : LruCache<String, Bitmap>(MEMORY_BYTES) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
@@ -50,12 +52,12 @@ class Thumbnails(
         val heightPx = (widthPx * page.height / page.width).roundToInt().coerceAtLeast(1)
         val bitmap = createBitmap(widthPx, heightPx)
         backgrounds.render(doc.id, page, bitmap, 0, 0, widthPx, heightPx)
-        val strokes = library.readPageInk(doc.id, page.id)
-        if (strokes.isNotEmpty()) {
+        val content = library.readPage(doc.id, page.id)
+        if (!content.isEmpty) {
             val scale = widthPx / page.width
             val matrix = Matrix().apply { setScale(scale, scale) }
             val clip = RectF(0f, 0f, widthPx.toFloat(), heightPx.toFloat())
-            synchronized(painter) { painter.value.draw(Canvas(bitmap), strokes, matrix, clip) }
+            synchronized(painter) { painter.value.draw(Canvas(bitmap), content, matrix, clip, assets.blockingResources(doc.id)) }
         }
         return bitmap
     }

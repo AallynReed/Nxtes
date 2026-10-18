@@ -14,27 +14,28 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.data.InkStroke
+import net.mildhope.nxtes.data.PageContent
 
 /**
- * The ink of one open document. Pages load on demand, every change can be undone, and changed
- * pages are saved shortly after the last edit. Call from the main thread.
+ * What's on the pages of one open document. Pages load on demand, every change can be undone, and
+ * changed pages are saved shortly after the last edit. Call from the main thread.
  */
-class InkSession(
-    private val load: (pageId: String) -> List<InkStroke>,
-    private val save: (Map<String, List<InkStroke>>) -> Unit,
+class PageSession(
+    private val load: (pageId: String) -> PageContent,
+    private val save: (Map<String, PageContent>) -> Unit,
     private val scope: CoroutineScope,
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val saveDelayMs: Long = 1000,
 ) {
     private class Edit(val pages: Map<String, Change>, val group: Any?)
-    private class Change(val before: List<InkStroke>, val after: List<InkStroke>)
+    private class Change(val before: PageContent, val after: PageContent)
 
     private val undoStack = ArrayDeque<Edit>()
     private val redoStack = ArrayDeque<Edit>()
     private val dirty = mutableSetOf<String>()
     private var saveJob: Job? = null
 
-    var pages by mutableStateOf<Map<String, List<InkStroke>>>(emptyMap())
+    var pages by mutableStateOf<Map<String, PageContent>>(emptyMap())
         private set
     var canUndo by mutableStateOf(false)
         private set
@@ -45,7 +46,9 @@ class InkSession(
     var generation by mutableIntStateOf(0)
         private set
 
-    fun strokes(pageId: String): List<InkStroke> = pages[pageId].orEmpty()
+    fun content(pageId: String): PageContent = pages[pageId] ?: PageContent.EMPTY
+
+    fun strokes(pageId: String): List<InkStroke> = content(pageId).strokes
 
     /** Loads the given pages in the background, leaving pages that are already loaded alone. */
     suspend fun ensureLoaded(pageIds: Collection<String>) {
@@ -55,22 +58,26 @@ class InkSession(
         pages = pages + loaded.filterKeys { it !in pages }
     }
 
-    fun add(pageId: String, stroke: InkStroke) = replace(pageId, current(pageId) + stroke)
+    fun add(pageId: String, stroke: InkStroke) = update(pageId) { it.copy(strokes = it.strokes + stroke) }
 
     /** Replaces a page's strokes. Consecutive changes with the same non-null [group] are undone together. */
-    fun replace(pageId: String, strokes: List<InkStroke>, group: Any? = null) {
+    fun replace(pageId: String, strokes: List<InkStroke>, group: Any? = null) = update(pageId, group) { it.copy(strokes = strokes) }
+
+    /** Changes a page's content. Consecutive changes with the same non-null [group] are undone together. */
+    fun update(pageId: String, group: Any? = null, change: (PageContent) -> PageContent) {
         val before = current(pageId)
-        if (before == strokes) return
+        val after = change(before)
+        if (before == after) return
         val top = undoStack.lastOrNull()
         if (group != null && top?.group == group) {
             val original = top.pages[pageId]?.before ?: before
-            undoStack[undoStack.lastIndex] = Edit(top.pages + (pageId to Change(original, strokes)), group)
+            undoStack[undoStack.lastIndex] = Edit(top.pages + (pageId to Change(original, after)), group)
         } else {
-            undoStack.addLast(Edit(mapOf(pageId to Change(before, strokes)), group))
+            undoStack.addLast(Edit(mapOf(pageId to Change(before, after)), group))
             if (undoStack.size > MAX_UNDO) undoStack.removeFirst()
         }
         redoStack.clear()
-        set(pageId, strokes)
+        set(pageId, after)
     }
 
     fun undo() {
@@ -105,7 +112,7 @@ class InkSession(
 
     private suspend fun writeDirty() {
         if (dirty.isEmpty()) return
-        val changed = dirty.associateWith(::strokes)
+        val changed = dirty.associateWith(::content)
         dirty.clear()
         try {
             withContext(io) { save(changed) }
@@ -113,19 +120,19 @@ class InkSession(
             dirty += changed.keys
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Saving ink failed", e)
+            Log.e(TAG, "Saving pages failed", e)
             dirty += changed.keys
         }
     }
 
-    private fun current(pageId: String): List<InkStroke> =
+    private fun current(pageId: String): PageContent =
         pages[pageId] ?: loadOrEmpty(pageId).also { pages = pages + (pageId to it) }
 
-    private fun loadOrEmpty(pageId: String): List<InkStroke> =
-        runCatching { load(pageId) }.onFailure { Log.e(TAG, "Loading ink for $pageId failed", it) }.getOrDefault(emptyList())
+    private fun loadOrEmpty(pageId: String): PageContent =
+        runCatching { load(pageId) }.onFailure { Log.e(TAG, "Loading page $pageId failed", it) }.getOrDefault(PageContent.EMPTY)
 
-    private fun set(pageId: String, strokes: List<InkStroke>) {
-        pages = pages + (pageId to strokes)
+    private fun set(pageId: String, content: PageContent) {
+        pages = pages + (pageId to content)
         dirty += pageId
         updateFlags()
         saveJob?.cancel()
@@ -141,7 +148,7 @@ class InkSession(
     }
 
     private companion object {
-        const val TAG = "InkSession"
+        const val TAG = "PageSession"
         const val MAX_UNDO = 200
     }
 }

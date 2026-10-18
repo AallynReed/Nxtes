@@ -65,8 +65,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Page
-import net.mildhope.nxtes.ink.InkPainter
-import net.mildhope.nxtes.ink.InkSession
+import net.mildhope.nxtes.page.PagePainter
+import net.mildhope.nxtes.page.PageResources
+import net.mildhope.nxtes.ink.PageSession
 import net.mildhope.nxtes.ink.StrokeGeometry
 import net.mildhope.nxtes.ink.InputMode
 import net.mildhope.nxtes.ink.Tool
@@ -93,11 +94,13 @@ private const val WHEEL_STEP_PX = 64f
 fun PageCanvas(
     pages: List<Page>,
     renderer: PageRenderer,
-    ink: InkSession,
+    ink: PageSession,
+    resources: PageResources,
     tools: ToolState,
     state: ViewportState,
     onPageCounter: () -> Unit,
     modifier: Modifier = Modifier,
+    assetsLoaded: () -> Int = { 0 },
 ) {
     val density = LocalDensity.current
     val gap = with(density) { 16.dp.toPx() }
@@ -107,7 +110,7 @@ fun PageCanvas(
     val layout = remember(pages, size.width, gap) { PageLayout(pages, size.width.toFloat(), gap) }
     val base = remember(layout) { mutableStateMapOf<Int, ImageBitmap>() }
     val detail = remember(layout) { mutableStateMapOf<Int, Detail>() }
-    val painter = remember { InkPainter() }
+    val painter = remember { PagePainter() }
     val strokeMatrix = remember { android.graphics.Matrix() }
     val strokeClip = remember { RectF() }
     var eraserAt by remember { mutableStateOf<Offset?>(null) }
@@ -192,6 +195,7 @@ fun PageCanvas(
             .canvasGestures(state, tools) { eraser },
     ) {
         Canvas(Modifier.fillMaxSize()) {
+            assetsLoaded()
             val zoom = state.zoom
             val offset = state.offset
             val viewport = Rect(Offset.Zero, this.size)
@@ -210,13 +214,13 @@ fun PageCanvas(
                 detail[i]?.takeIf { it.zoom == zoom }?.let { d ->
                     drawImage(d.bitmap, topLeft = d.topLeft + (offset - d.offset))
                 }
-                val strokes = ink.strokes(pages[i].id)
-                if (strokes.isNotEmpty()) {
+                val content = ink.content(pages[i].id)
+                if (!content.isEmpty) {
                     val k = layout.scale * zoom
                     strokeMatrix.setScale(k, k)
                     strokeMatrix.postTranslate(screen.left, screen.top)
                     strokeClip.set(screen.left, screen.top, screen.right, screen.bottom)
-                    drawIntoCanvas { painter.draw(it.nativeCanvas, strokes, strokeMatrix, strokeClip) }
+                    drawIntoCanvas { painter.draw(it.nativeCanvas, content, strokeMatrix, strokeClip, resources) }
                 }
                 drawRect(outline, screen.topLeft, screen.size, style = Stroke(1f))
             }
@@ -247,7 +251,7 @@ private fun InkLayer(
     state: ViewportState,
     layout: PageLayout,
     pages: List<Page>,
-    ink: InkSession,
+    ink: PageSession,
     tools: ToolState,
 ) {
     val toWorld = 1f / (state.zoom * layout.scale)

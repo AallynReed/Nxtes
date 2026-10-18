@@ -2,12 +2,17 @@ syntax = "proto3";
 
 package nxtes;
 
-// The ink on one page: pages/<page-id>.pb inside a document package.
-message PageInk {
+// What's on one page besides its background: pages/<page-id>.pb inside a document package.
+// Coordinates are page points from the top-left corner. Drawn bottom to top: marks, objects in
+// order, highlighter strokes, other strokes, notes, masks.
+message PageContent {
   repeated InkStroke strokes = 1;
+  repeated PageObject objects = 2;
+  repeated StickyNote notes = 3;
+  repeated Mask masks = 4;
+  repeated TextMark marks = 5;
 }
 
-// Coordinates are page points from the top-left corner.
 message InkStroke {
   string id = 1;
   Pen pen = 2;
@@ -43,4 +48,115 @@ enum InputTool {
   MOUSE = 1;
   TOUCH = 2;
   STYLUS = 3;
+}
+
+// Exactly one of shape, text and picture is set.
+message PageObject {
+  string id = 1;
+  Shape shape = 2;
+  TextBox text = 3;
+  Picture picture = 4;
+}
+
+enum ShapeKind {
+  SHAPE_KIND_UNSPECIFIED = 0;
+  LINE = 1;
+  ARROW = 2;
+  RECTANGLE = 3;
+  ELLIPSE = 4;    // points are the corners of its box, clockwise from top-left
+  TRIANGLE = 5;
+  POLYGON = 6;
+  CURVE = 7;      // a smooth line through the points
+}
+
+enum LineStyle {
+  SOLID = 0;
+  DASHED = 1;
+  DOTTED = 2;
+}
+
+message Shape {
+  ShapeKind kind = 1;
+  repeated float x = 2;
+  repeated float y = 3;
+  fixed32 color = 4;
+  float width = 5;
+  fixed32 fill = 6;  // 0 for none
+  LineStyle line = 7;
+}
+
+// The unrotated box has its top-left at (x, y) and turns about its centre.
+message TextBox {
+  string text = 1;
+  float x = 2;
+  float y = 3;
+  float width = 4;
+  float height = 5;
+  float rotation = 6;  // degrees, clockwise
+  string font = 7;     // a system family, or "blob:" + the SHA-256 of a font file in blobs/
+  float size = 8;      // points
+  fixed32 color = 9;
+  fixed32 background = 10;
+  bool bold = 11;
+  bool italic = 12;
+  bool underline = 13;
+}
+
+// An image or sticker in blobs/, centred on (cx, cy). It shows the crop box (fractions of the
+// image), clipped to the outline when there is one (x, y pairs as fractions of the crop box).
+message Picture {
+  string blob = 1;
+  float cx = 2;
+  float cy = 3;
+  float width = 4;
+  float height = 5;
+  float rotation = 6;
+  float crop_left = 7;
+  float crop_top = 8;
+  float crop_right = 9;
+  float crop_bottom = 10;
+  repeated float outline = 11;
+  bool sticker = 12;
+}
+
+message StickyNote {
+  string id = 1;
+  float x = 2;
+  float y = 3;
+  string text = 4;
+  fixed32 color = 5;
+  int64 created = 6;
+}
+
+enum MaskKind {
+  MASK_KIND_UNSPECIFIED = 0;
+  TAPE = 1;  // four corners
+  PEN = 2;   // a line of the given width
+}
+
+message Mask {
+  string id = 1;
+  MaskKind kind = 2;
+  repeated float x = 3;
+  repeated float y = 4;
+  float width = 5;
+  fixed32 color = 6;
+  int32 tries = 7;    // times it was checked
+  int32 correct = 8;  // times the answer was right
+}
+
+enum MarkKind {
+  MARK_KIND_UNSPECIFIED = 0;
+  HIGHLIGHT = 1;
+  UNDERLINE = 2;
+  STRIKEOUT = 3;
+}
+
+// A mark on the PDF's text: rects holds x, y, width, height for each line.
+message TextMark {
+  string id = 1;
+  MarkKind kind = 2;
+  fixed32 color = 3;
+  repeated float rects = 4;
+  string text = 5;
 }
