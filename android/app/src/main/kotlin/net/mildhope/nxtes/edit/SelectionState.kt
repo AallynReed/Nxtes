@@ -14,10 +14,15 @@ import net.mildhope.nxtes.ink.PageSession
 import net.mildhope.nxtes.page.PagePainter
 import net.mildhope.nxtes.page.PageResources
 import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /** Where a touch landed on a selection. */
-enum class Handle { NONE, BODY, SCALE_TOP_LEFT, SCALE_TOP_RIGHT, SCALE_BOTTOM_RIGHT, SCALE_BOTTOM_LEFT, ROTATE, TEXT_START, TEXT_END }
+enum class Handle { NONE, BODY, SCALE_TOP_LEFT, SCALE_TOP_RIGHT, SCALE_BOTTOM_RIGHT, SCALE_BOTTOM_LEFT, ROTATE, TEXT_START, TEXT_END, SIDE_LEFT, SIDE_RIGHT }
 
 /** Characters [start] to [end] picked on a PDF page. */
 class TextPick(val pageId: String, val text: PageText, val start: Int, val end: Int) {
@@ -49,6 +54,10 @@ class SelectionState {
 
     /** The transform being dragged, in page points. */
     var preview by mutableStateOf(Affine())
+        private set
+
+    /** The text box rewrapped to the width its side is being dragged to. */
+    var resized by mutableStateOf<TextBox?>(null)
         private set
 
     /** The lasso being drawn, in screen pixels. */
@@ -106,6 +115,15 @@ class SelectionState {
 
     private var dragHandle = Handle.NONE
     private var dragStart = Offset.Zero
+    private var resizing: TextBox? = null
+
+    /** The text box, when that's all that's picked. */
+    fun singleText(content: PageContent): TextBox? {
+        val p = picked
+        if (p.strokes.isNotEmpty() || p.notes.isNotEmpty() || p.masks.isNotEmpty()) return null
+        val id = p.objects.singleOrNull() ?: return null
+        return content.objects.firstOrNull { it.id == id } as? TextBox
+    }
 
     fun select(pageId: String, picked: Picked, content: PageContent) {
         val box = Geometry.bounds(picked.of(content))
@@ -193,20 +211,36 @@ class SelectionState {
         picked = Picked()
         bounds = null
         preview = Affine()
+        resized = null
+        resizing = null
         dragHandle = Handle.NONE
     }
 
-    /** Starts dragging [handle] from [at], in page points. */
-    fun startDrag(handle: Handle, at: Offset) {
+    /** Starts dragging [handle] from [at], in page points, on the selection in [content]. */
+    fun startDrag(handle: Handle, at: Offset, content: PageContent) {
         dragHandle = handle
         dragStart = at
         preview = Affine()
+        resized = null
+        resizing = if (handle == Handle.SIDE_LEFT || handle == Handle.SIDE_RIGHT) singleText(content) else null
     }
 
-    fun drag(to: Offset) {
+    fun drag(to: Offset, resources: PageResources) {
         val box = bounds ?: return
+        resizing?.let { from ->
+            val r = Math.toRadians(from.rotation.toDouble())
+            val along = ((to.x - dragStart.x) * cos(r) + (to.y - dragStart.y) * sin(r)).toFloat()
+            val left = dragHandle == Handle.SIDE_LEFT
+            val width = (from.width + if (left) -along else along).roundToInt().toFloat()
+                .coerceAtLeast(min(from.width, max(from.size * 2, MIN_TEXT_WIDTH)))
+            val height = PagePainter.textLayout(from.copy(width = width), resources).height.toFloat().coerceAtLeast(from.size)
+            val next = from.resized(width, height, keepRight = left)
+            resized = next
+            bounds = Geometry.bounds(next)
+            return
+        }
         preview = when (dragHandle) {
-            Handle.NONE -> Affine()
+            Handle.NONE, Handle.SIDE_LEFT, Handle.SIDE_RIGHT -> Affine()
             Handle.BODY -> Affine.translate(to.x - dragStart.x, to.y - dragStart.y)
             Handle.ROTATE -> {
                 val before = atan2(dragStart.y - box.centerY, dragStart.x - box.centerX)
@@ -227,7 +261,14 @@ class SelectionState {
     fun endDrag(session: PageSession) {
         val page = pageId ?: return
         val t = preview
+        val box = resized?.takeIf { it != resizing }
         dragHandle = Handle.NONE
+        resized = null
+        resizing = null
+        if (box != null) {
+            session.update(page) { c -> c.copy(objects = c.objects.map { if (it.id == box.id) box else it }) }
+            return select(page, picked, session.content(page))
+        }
         if (t == Affine()) return
         session.update(page) { picked.transform(it, t) }
         select(page, picked, session.content(page))
@@ -243,5 +284,8 @@ class SelectionState {
     private companion object {
         const val MIN_SCALE = 0.1f
         const val MAX_SCALE = 10f
+
+        /** Page points a text box can be narrowed to, unless its text is bigger. */
+        const val MIN_TEXT_WIDTH = 24f
     }
 }

@@ -44,11 +44,7 @@ class SelectionActions(
         }
 
     /** The text box, when that's all that's picked. */
-    fun singleText(): TextBox? {
-        val page = selection.pageId ?: return null
-        val picked = selection.picked.of(session.content(page))
-        return (picked.objects.singleOrNull() as? TextBox)?.takeIf { picked.strokes.isEmpty() && picked.notes.isEmpty() && picked.masks.isEmpty() }
-    }
+    fun singleText(): TextBox? = selection.pageId?.let { selection.singleText(session.content(it)) }
 
     /** The picture, when that's all that's picked. */
     fun singlePicture(): Picture? {

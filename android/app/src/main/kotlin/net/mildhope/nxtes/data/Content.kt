@@ -174,6 +174,19 @@ data class TextBox(
         val h = height * t.scale
         return copy(x = cx - w / 2, y = cy - h / 2, width = w, height = h, size = size * t.scale, rotation = rotation + t.degrees)
     }
+
+    /** This box [width] by [height], with the top corner of its left side, or right with [keepRight], left where it was. */
+    fun resized(width: Float, height: Float, keepRight: Boolean): TextBox {
+        val r = Math.toRadians(rotation.toDouble())
+        val c = cos(r).toFloat()
+        val s = sin(r).toFloat()
+        val side = if (keepRight) 1f else -1f
+        val (ax, ay) = Pair(side * this.width / 2, -this.height / 2).let { (dx, dy) -> dx * c - dy * s to dx * s + dy * c }
+        val (bx, by) = Pair(side * width / 2, -height / 2).let { (dx, dy) -> dx * c - dy * s to dx * s + dy * c }
+        val cx = centerX + ax - bx
+        val cy = centerY + ay - by
+        return copy(x = cx - width / 2, y = cy - height / 2, width = width, height = height)
+    }
 }
 
 /**

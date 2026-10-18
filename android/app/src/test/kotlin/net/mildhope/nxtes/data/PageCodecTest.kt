@@ -97,6 +97,24 @@ class PageCodecTest {
     }
 
     @Test
+    fun resizedTextKeepsTheSideNotDragged() {
+        val box = TextBox("t", "x", 10f, 20f, 100f, 30f)
+
+        val narrower = box.resized(60f, 50f, keepRight = false)
+        assertEquals(listOf(10f, 20f, 60f, 50f), listOf(narrower.x, narrower.y, narrower.width, narrower.height))
+        val fromLeft = box.resized(60f, 50f, keepRight = true)
+        assertEquals(listOf(50f, 20f), listOf(fromLeft.x, fromLeft.y))
+
+        val turned = box.copy(rotation = 90f).resized(60f, 50f, keepRight = false)
+        val (before, after) = listOf(box.copy(rotation = 90f), turned).map { b ->
+            val (xs, ys) = net.mildhope.nxtes.edit.Geometry.corners(b.centerX, b.centerY, b.width, b.height, b.rotation)
+            xs[0] to ys[0]
+        }
+        assertEquals(before.first, after.first, 0.001f)
+        assertEquals(before.second, after.second, 0.001f)
+    }
+
+    @Test
     fun quarterTurnsMoveEverythingWithThePage() {
         val turn = Affine.quarterTurn(clockwise = true, width = 100f, height = 200f)
         val box = TextBox("t", "x", 10f, 20f, 30f, 10f).transformed(turn)

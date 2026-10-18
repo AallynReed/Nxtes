@@ -134,7 +134,8 @@ Full screen, for New note and for an item's "Cover and template".
   - Page by page turns one page (or pair of pages) per swipe.
 - **Tools.**
   - Lasso: freehand or box, picking up the item types ticked in its settings. The selection gets
-    a dashed box with corner handles to resize and a handle above to turn, and a menu above it:
+    a dashed box with corner handles to resize and a handle above to turn (a lone text box also
+    gets side handles that change its width and rewrap its text), and a menu above it:
     colors, then copy, cut, bring to front, send to back and delete, plus edit text, crop, open
     note or add to stickers when they apply.
   - Touch and hold an item to select it; on an empty spot it opens paste, image, text box, add

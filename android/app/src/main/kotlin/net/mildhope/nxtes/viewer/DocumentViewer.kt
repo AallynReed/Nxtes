@@ -616,7 +616,7 @@ private fun EditMenus(
     val app = context.nxtes
     val box = selection.bounds
     val index = mapper.indexOf(selection.pageId)
-    if (selection.active && box != null && index >= 0 && selection.lasso.isEmpty() && selection.preview == Affine()) {
+    if (selection.active && box != null && index >= 0 && selection.lasso.isEmpty() && selection.preview == Affine() && selection.resized == null) {
         val topLeft = mapper.toScreen(index, Offset(box.left, box.top))
         val bottomRight = mapper.toScreen(index, Offset(box.right, box.bottom))
         val single = selection.pageId?.let { page -> doc.pages.firstOrNull { it.id == page } }

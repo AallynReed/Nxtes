@@ -34,8 +34,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -46,6 +48,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -113,8 +116,10 @@ import net.mildhope.nxtes.edit.ShapeRecognizer
 import net.mildhope.nxtes.edit.newTextBox
 import java.util.UUID
 import kotlin.math.ceil
+import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /** Draws [width]x[height] of page [index] into [bitmap] at ([left], [top]); offsets may be negative. */
 fun interface PageRenderer {
@@ -198,6 +203,11 @@ private const val DETAIL_MIN_ZOOM = 1.05f
 private val HANDLE_RADIUS = 9.dp
 private val HANDLE_TOUCH = 28.dp
 private val ROTATE_DISTANCE = 36.dp
+private val SIDE_HANDLE_WIDTH = 8.dp
+private val SIDE_HANDLE_LENGTH = 22.dp
+
+/** A lone text box's width handles on screen, at the middle of its left and right sides, and how far it's turned. */
+private class SideHandles(val left: Offset, val right: Offset, val degrees: Float)
 
 @Composable
 fun PageCanvas(
@@ -314,6 +324,18 @@ fun PageCanvas(
         }
     }
 
+    fun sideHandles(): SideHandles? {
+        val page = selection.pageId ?: return null
+        val box = selection.resized ?: selection.singleText(ink.content(page)) ?: return null
+        val index = mapper.indexOf(page).takeIf { it >= 0 } ?: return null
+        val r = Math.toRadians(box.rotation.toDouble())
+        val dx = (cos(r) * box.width / 2).toFloat()
+        val dy = (sin(r) * box.width / 2).toFloat()
+        val t = selection.preview
+        fun at(x: Float, y: Float) = t.map(x, y).let { (px, py) -> mapper.toScreen(index, Offset(px, py)) }
+        return SideHandles(at(box.centerX - dx, box.centerY - dy), at(box.centerX + dx, box.centerY + dy), box.rotation + t.degrees)
+    }
+
     val canvasTools = object : CanvasTools {
         override fun handleAt(at: Offset): Handle {
             selection.textPick?.let(::textHandles)?.let { (start, end) ->
@@ -323,9 +345,14 @@ fun PageCanvas(
             if (!selection.active) return Handle.NONE
             val corners = selectionCorners() ?: return Handle.NONE
             val top = (corners[0] + corners[1]) / 2f
-            if ((at - (top - Offset(0f, rotateDistance))).getDistance() < handleTouch) return Handle.ROTATE
+            val handles = mutableListOf(Handle.ROTATE to top - Offset(0f, rotateDistance))
             val scales = listOf(Handle.SCALE_TOP_LEFT, Handle.SCALE_TOP_RIGHT, Handle.SCALE_BOTTOM_RIGHT, Handle.SCALE_BOTTOM_LEFT)
-            corners.forEachIndexed { i, c -> if ((at - c).getDistance() < handleTouch) return scales[i] }
+            corners.forEachIndexed { i, c -> handles += scales[i] to c }
+            sideHandles()?.let {
+                handles += Handle.SIDE_LEFT to it.left
+                handles += Handle.SIDE_RIGHT to it.right
+            }
+            handles.filter { (at - it.second).getDistance() < handleTouch }.minByOrNull { (at - it.second).getDistance() }?.let { return it.first }
             val xs = corners.map { it.x }.toFloatArray()
             val ys = corners.map { it.y }.toFloatArray()
             return if (Geometry.inside(at.x, at.y, xs, ys)) Handle.BODY else Handle.NONE
@@ -396,7 +423,7 @@ fun PageCanvas(
                 DragKind.SELECTION -> if (handle == Handle.TEXT_START || handle == Handle.TEXT_END) {
                     drag.textHandle = handle
                 } else {
-                    selection.startDrag(handle, mapper.toPage(mapper.indexOf(selection.pageId), at))
+                    selection.startDrag(handle, mapper.toPage(mapper.indexOf(selection.pageId), at), selection.pageId?.let(ink::content) ?: PageContent.EMPTY)
                 }
                 DragKind.PLACE -> Unit
                 DragKind.LASER -> {
@@ -426,7 +453,7 @@ fun PageCanvas(
                 DragKind.ERASE -> eraseAlong(drag.last, to)
                 DragKind.LASSO -> selection.lasso =
                     if (tools.lassoShape == LassoShape.RECT) listOf(selection.lasso.first(), to) else selection.lasso + to
-                DragKind.SELECTION -> if (drag.textHandle != null) moveTextHandle(to) else selection.drag(mapper.toPage(mapper.indexOf(selection.pageId), to))
+                DragKind.SELECTION -> if (drag.textHandle != null) moveTextHandle(to) else selection.drag(mapper.toPage(mapper.indexOf(selection.pageId), to), resources)
                 DragKind.PLACE -> Unit
                 DragKind.LASER -> laser.add(to, tools.laserMode)
                 DragKind.MASK -> {
@@ -786,9 +813,11 @@ fun PageCanvas(
                 val editing = selection.text?.takeIf { it.pageId == pages[i].id }?.box?.id
                     ?: selection.crop?.takeIf { it.pageId == pages[i].id }?.picture?.id
                 val replaying = replay()
+                val resized = selection.resized?.takeIf { selection.pageId == pages[i].id }
                 val saved = ink.content(pages[i].id)
                 val content = saved
                     .let { c -> if (editing == null) c else c.copy(objects = c.objects.filter { it.id != editing }) }
+                    .let { c -> if (resized == null) c else c.copy(objects = c.objects.map { if (it.id == resized.id) resized else it }) }
                     .let { c -> if (replaying == null) c else c.copy(strokes = replayed(c.strokes, replaying)) }
                 if (!content.isEmpty && !tools.annotationsHidden) {
                     val k = layout.scale * zoom
@@ -851,7 +880,7 @@ fun PageCanvas(
             }
             drawLasso(selection.lasso, tools.lassoShape, accent)
             if (laser.visible) drawLaser(laser, tools.laserMode, Color(tools.laserColor))
-            if (selection.active && selection.lasso.isEmpty()) selectionCorners()?.let { drawSelection(it, accent, rotateDistance) }
+            if (selection.active && selection.lasso.isEmpty()) selectionCorners()?.let { drawSelection(it, sideHandles(), accent, rotateDistance) }
         }
         InkLayer(state, layout, pages, ink, tools, !readOnly, darkPages, pageText, onWritten) {
             drag.convert.also {
@@ -952,7 +981,7 @@ private fun DrawScope.drawLasso(points: List<Offset>, shape: LassoShape, color: 
     drawPath(path, color, style = Stroke(1.5.dp.toPx(), pathEffect = dash))
 }
 
-private fun DrawScope.drawSelection(corners: List<Offset>, color: Color, rotateDistance: Float) {
+private fun DrawScope.drawSelection(corners: List<Offset>, sides: SideHandles?, color: Color, rotateDistance: Float) {
     val dash = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 5.dp.toPx()))
     val box = Path().apply {
         moveTo(corners[0].x, corners[0].y)
@@ -966,6 +995,16 @@ private fun DrawScope.drawSelection(corners: List<Offset>, color: Color, rotateD
     (corners + rotate).forEach {
         drawCircle(Color.White, HANDLE_RADIUS.toPx(), it)
         drawCircle(color, HANDLE_RADIUS.toPx(), it, style = Stroke(2.dp.toPx()))
+    }
+    if (sides == null) return
+    val size = Size(SIDE_HANDLE_WIDTH.toPx(), SIDE_HANDLE_LENGTH.toPx())
+    val round = CornerRadius(size.width / 2)
+    listOf(sides.left, sides.right).forEach { at ->
+        rotate(sides.degrees, at) {
+            val topLeft = at - Offset(size.width / 2, size.height / 2)
+            drawRoundRect(Color.White, topLeft, size, round)
+            drawRoundRect(color, topLeft, size, round, style = Stroke(2.dp.toPx()))
+        }
     }
 }
 
