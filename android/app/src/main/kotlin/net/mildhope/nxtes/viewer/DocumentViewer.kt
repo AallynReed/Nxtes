@@ -109,6 +109,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.CancellationException
@@ -134,6 +135,7 @@ fun DocumentViewer(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val strings = LocalResources.current
     val app = LocalContext.current.nxtes
     val renderer = remember(doc.id, doc.pages) {
         PageRenderer { index, bitmap, left, top, width, height ->
@@ -183,7 +185,7 @@ fun DocumentViewer(
             read = { strokes, before ->
                 val reader = app.handwriting
                 if (!reader.isDownloaded(reader.language)) {
-                    Toast.makeText(context, context.getString(R.string.handwriting_downloading, languageName(reader.language)), Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, strings.getString(R.string.handwriting_downloading, languageName(reader.language)), Toast.LENGTH_LONG).show()
                 }
                 reader.read(strokes, before)
             },
