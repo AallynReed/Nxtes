@@ -130,6 +130,42 @@ class LibraryStoreTest {
         assertFalse(File(store.documentDir(doc.id), "pages/$page.pb").exists())
     }
 
+    @Test
+    fun recentsFollowOpenOrderAndSkipTrash() {
+        val a = import("A")
+        val b = import("B")
+        val c = import("C")
+        store.markOpened(a.id)
+        store.markOpened(c.id)
+        store.markOpened(b.id)
+        store.trash(c.id)
+
+        assertEquals(listOf("B", "A"), store.state.value.recents().map { it.title })
+        assertEquals(a.modified, store.state.value.document(a.id)!!.modified)
+    }
+
+    @Test
+    fun favoritesAndFolderColourPersist() {
+        val folder = store.createFolder("Ideas", null)
+        val doc = import("Draft")
+        store.setFavorite(folder.id, true)
+        store.setFavorite(doc.id, true)
+        store.setFolderColor(folder.id, 0xFFE57373.toInt())
+
+        val reloaded = newStore().apply { load() }.state.value
+        assertEquals(listOf("Draft", "Ideas"), reloaded.favorites().map { it.displayName })
+        assertEquals(0xFFE57373.toInt(), reloaded.folder(folder.id)!!.color)
+    }
+
+    @Test
+    fun searchMatchesNamesAcrossFolders() {
+        val folder = store.createFolder("Physics", null)
+        import("Physics notes", folder.id)
+        import("Chemistry")
+
+        assertEquals(setOf("Physics", "Physics notes"), store.state.value.search("phys").map { it.displayName }.toSet())
+    }
+
     private fun sha256(bytes: ByteArray) =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 

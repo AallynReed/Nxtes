@@ -6,6 +6,8 @@ sealed interface LibraryItem {
     val id: String
     val displayName: String
     val trashedAt: Long?
+    val favorite: Boolean
+    val modified: Long
 }
 
 @Serializable
@@ -14,8 +16,11 @@ data class Folder(
     val name: String,
     val parentId: String? = null,
     val created: Long,
-    val modified: Long,
+    override val modified: Long,
     override val trashedAt: Long? = null,
+    override val favorite: Boolean = false,
+    /** ARGB, or null for the default folder colour. */
+    val color: Int? = null,
 ) : LibraryItem {
     override val displayName get() = name
 }
@@ -27,8 +32,11 @@ data class Document(
     val title: String,
     val folderId: String? = null,
     val created: Long,
-    val modified: Long,
+    override val modified: Long,
     override val trashedAt: Long? = null,
+    override val favorite: Boolean = false,
+    /** When the document was last opened, for Recents. */
+    val opened: Long? = null,
     val pages: List<Page>,
 ) : LibraryItem {
     override val displayName get() = title
@@ -83,6 +91,29 @@ data class Library(
         val trashedDocs = documents.filter { it.trashedAt != null && !isInTrash(it.folderId) }
         return (trashedFolders + trashedDocs).sortedByDescending { it.trashedAt }
     }
+
+    /** Documents opened at least once, most recent first, not counting anything in the trash. */
+    fun recents(): List<Document> =
+        documents.filter { it.opened != null && it.trashedAt == null && !isInTrash(it.folderId) }
+            .sortedByDescending { it.opened }
+
+    fun favorites(): List<LibraryItem> =
+        (folders.filter { it.favorite && it.trashedAt == null && !isInTrash(it.parentId) } +
+            documents.filter { it.favorite && it.trashedAt == null && !isInTrash(it.folderId) })
+            .sortedBy { it.displayName.lowercase() }
+
+    /** Non-trashed folders and documents whose name contains the query. */
+    fun search(query: String): List<LibraryItem> {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) return emptyList()
+        return (folders.filter { it.trashedAt == null && !isInTrash(it.parentId) } +
+            documents.filter { it.trashedAt == null && !isInTrash(it.folderId) })
+            .filter { q in it.displayName.lowercase() }
+    }
+
+    fun itemCount(folderId: String): Int =
+        folders.count { it.parentId == folderId && it.trashedAt == null } +
+            documents.count { it.folderId == folderId && it.trashedAt == null }
 
     /** The folder and every folder below it. */
     fun subtree(folderId: String): Set<String> {

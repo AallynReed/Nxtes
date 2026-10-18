@@ -111,6 +111,23 @@ class LibraryStore(
     }
 
     @Synchronized
+    fun setFavorite(id: String, favorite: Boolean) {
+        updateItem(id, { it.copy(favorite = favorite) }, { it.copy(favorite = favorite) })
+    }
+
+    @Synchronized
+    fun setFolderColor(id: String, color: Int?) {
+        updateItem(id, { it.copy(color = color) }, { it })
+    }
+
+    /** Records that the document was opened, without changing its modified time. */
+    @Synchronized
+    fun markOpened(id: String) {
+        val now = clock()
+        updateItem(id, { it }, { it.copy(opened = now) })
+    }
+
+    @Synchronized
     fun trash(id: String) {
         val now = clock()
         updateItem(id, { it.copy(trashedAt = now) }, { it.copy(trashedAt = now) })
