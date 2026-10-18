@@ -17,12 +17,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.IntentCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.library.LibraryScreen
 import net.mildhope.nxtes.library.importFiles
+import net.mildhope.nxtes.sync.SyncConflicts
 import net.mildhope.nxtes.ui.NxtesTheme
 import net.mildhope.nxtes.viewer.DocumentViewer
 import net.mildhope.nxtes.viewer.ViewportState
@@ -89,6 +92,10 @@ private fun NxtesRoot(openRequests: MutableStateFlow<String?>) {
     }
 
     val viewports = remember { mutableMapOf<String, ViewportState>() }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { app.sync.setForeground(true) }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { app.sync.setForeground(false) }
+    SyncConflicts()
 
     val tabs = tabIds.mapNotNull { id -> library.document(id)?.takeIf { it.trashedAt == null && !library.isInTrash(it.folderId) } }
 

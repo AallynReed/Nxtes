@@ -97,6 +97,7 @@ class PageSession(
     /** Forgets loaded pages and history, after pages changed on disk. Call [flush] first. */
     fun reset() {
         saveJob?.cancel()
+        dirty.clear()
         pages = emptyMap()
         undoStack.clear()
         redoStack.clear()

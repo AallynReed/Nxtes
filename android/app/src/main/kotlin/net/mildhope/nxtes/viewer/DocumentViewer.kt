@@ -181,7 +181,13 @@ fun DocumentViewer(
         }
     }
 
-    DisposableEffect(ink) { onDispose { app.scope.launch { ink.flush() } } }
+    DisposableEffect(ink) {
+        app.sync.sessions.register(doc.id, ink)
+        onDispose {
+            app.sync.sessions.unregister(doc.id, ink)
+            app.scope.launch { ink.flush() }
+        }
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { app.scope.launch { ink.flush() } }
     BackHandler(onBack = onBack)
     BackHandler(enabled = selection.text != null) { selection.commitText(ink, resources)?.let { tools.updateTextStyle(it.style) } }

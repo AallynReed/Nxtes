@@ -20,6 +20,7 @@ import net.mildhope.nxtes.pdf.PdfEngine
 import net.mildhope.nxtes.pdf.Thumbnails
 import net.mildhope.nxtes.search.SearchIndex
 import net.mildhope.nxtes.search.SearchIndexer
+import net.mildhope.nxtes.sync.SyncManager
 import net.mildhope.nxtes.viewer.ViewSettings
 import java.io.File
 import kotlin.concurrent.thread
@@ -55,6 +56,8 @@ class NxtesApplication : Application() {
     val player by lazy { AudioPlayer() }
     lateinit var indexer: SearchIndexer
         private set
+    lateinit var sync: SyncManager
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -66,6 +69,8 @@ class NxtesApplication : Application() {
         recorder = AudioRecorder(this, library, scope)
         searchIndex = SearchIndex(this)
         indexer = SearchIndexer(searchIndex, library, pdf, scope)
+        sync = SyncManager(this, library, scope)
+        sync.schedule()
         thread(name = "library-load") { library.load() }
     }
 }

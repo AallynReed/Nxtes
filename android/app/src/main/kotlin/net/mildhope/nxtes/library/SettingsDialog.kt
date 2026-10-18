@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
@@ -27,11 +29,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.R
+import net.mildhope.nxtes.sync.SyncSettings
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** App settings: backing up and restoring the library, and the version. */
+/** App settings: sync, backing up and restoring the library, and the version. */
 @Composable
 fun SettingsDialog(onDismiss: () -> Unit, extra: @Composable () -> Unit = {}) {
     val context = LocalContext.current
@@ -63,7 +66,9 @@ fun SettingsDialog(onDismiss: () -> Unit, extra: @Composable () -> Unit = {}) {
         onDismissRequest = { if (!busy) onDismiss() },
         title = { Text(stringResource(R.string.settings)) },
         text = {
-            Column(Modifier.width(400.dp)) {
+            Column(Modifier.width(400.dp).verticalScroll(rememberScrollState())) {
+                SyncSettings()
+                HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 extra()
                 Text(stringResource(R.string.library_backup), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
                 Text(
