@@ -12,8 +12,8 @@ android {
         applicationId = "net.mildhope.nxtes"
         minSdk = 29
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.13.0"
+        versionCode = 15
+        versionName = "0.13.1"
     }
 
     buildFeatures {
