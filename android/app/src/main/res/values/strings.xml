@@ -273,6 +273,11 @@
     <string name="no_stickers">Stickers you stamp show up here.</string>
     <string name="add_to_stickers">Add to stickers</string>
     <string name="convert_to_text">Convert to text</string>
+    <string name="auto_text">Turn writing into text</string>
+    <string name="auto_text_on">Writing turns into text when you pause, read as %1$s. Touch and hold the button to change the language.</string>
+    <string name="auto_text_off">Writing stays as ink.</string>
+    <string name="handwriting_language">Handwriting language</string>
+    <string name="handwriting_failed_short">The handwriting couldn’t be read.</string>
     <string name="convert">Convert</string>
     <string name="try_again">Try again</string>
     <string name="handwriting_reading">Reading the handwriting…</string>

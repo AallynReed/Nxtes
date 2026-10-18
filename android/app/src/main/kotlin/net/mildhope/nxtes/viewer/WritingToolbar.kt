@@ -1,10 +1,12 @@
 package net.mildhope.nxtes.viewer
 
+import android.widget.Toast
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -36,6 +38,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -90,7 +93,9 @@ import net.mildhope.nxtes.data.LineStyle
 import net.mildhope.nxtes.data.MaskKind
 import net.mildhope.nxtes.data.Pen
 import net.mildhope.nxtes.data.ShapeKind
+import net.mildhope.nxtes.edit.HandwritingReader
 import net.mildhope.nxtes.edit.LassoType
+import net.mildhope.nxtes.edit.languageName
 import net.mildhope.nxtes.ink.EraserMode
 import net.mildhope.nxtes.ink.LaserMode
 import net.mildhope.nxtes.ink.LassoShape
@@ -107,6 +112,7 @@ private val BAR_HEIGHT = 52.dp
 fun WritingToolbar(
     tools: ToolState,
     view: ViewSettings,
+    handwriting: HandwritingReader,
     canUndo: Boolean,
     canRedo: Boolean,
     onBack: () -> Unit,
@@ -183,6 +189,7 @@ fun WritingToolbar(
                             Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         }
                     }
+                    AutoTextToggle(tools, handwriting)
                     ToolbarSeparator()
                     val erasing = penMode && tools.tool == Tool.ERASER
                     Box {
@@ -392,6 +399,55 @@ private fun DrawScope.drawPen(preset: PenPreset, lift: Dp, outline: Color, body:
     val bodySize = Size(bodyWidth, size.height - bodyTop + 4f)
     drawRect(body, Offset(left, bodyTop), bodySize)
     drawRect(outline, Offset(left, bodyTop), bodySize, style = Stroke(1.dp.toPx()))
+}
+
+/** Turns writing into text after a pause; touch and hold to pick the language it's read in. */
+@Composable
+private fun AutoTextToggle(tools: ToolState, reader: HandwritingReader) {
+    val context = LocalContext.current
+    var languages by remember { mutableStateOf(false) }
+    val on = tools.autoText
+    val label = stringResource(R.string.auto_text)
+    val onMessage = stringResource(R.string.auto_text_on, languageName(reader.language))
+    val offMessage = stringResource(R.string.auto_text_off)
+    Box {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .padding(horizontal = 2.dp)
+                .size(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (on) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                .combinedClickable(onClickLabel = label, role = Role.Switch, onLongClick = { languages = true }) {
+                    tools.toggleAutoText()
+                    Toast.makeText(context, if (tools.autoText) onMessage else offMessage, Toast.LENGTH_LONG).show()
+                },
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_to_text), label,
+                tint = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        DropdownMenu(expanded = languages, onDismissRequest = { languages = false }) {
+            Text(
+                stringResource(R.string.handwriting_language),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+            val current = reader.language
+            reader.languages.forEach { tag ->
+                DropdownMenuItem(
+                    text = { Text(languageName(tag)) },
+                    trailingIcon = { RadioButton(selected = tag == current, onClick = null) },
+                    onClick = {
+                        reader.language = tag
+                        languages = false
+                    },
+                )
+            }
+        }
+    }
 }
 
 /** Where a new image comes from. */

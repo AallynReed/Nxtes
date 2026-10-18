@@ -24,7 +24,12 @@ import android.content.Intent
 import android.os.Build
 import net.mildhope.nxtes.data.TextMark
 import net.mildhope.nxtes.data.InkStroke
+import net.mildhope.nxtes.edit.AutoText
 import net.mildhope.nxtes.edit.ConvertTextDialog
+import net.mildhope.nxtes.edit.bounds
+import net.mildhope.nxtes.edit.continueText
+import net.mildhope.nxtes.edit.languageName
+import net.mildhope.nxtes.edit.textBoxFor
 import net.mildhope.nxtes.edit.MarkMenu
 import net.mildhope.nxtes.edit.PageText
 import net.mildhope.nxtes.edit.TextPick
@@ -56,6 +61,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import android.net.Uri
 import net.mildhope.nxtes.library.displayName
 import net.mildhope.nxtes.ink.style
+import net.mildhope.nxtes.ink.Tool
 import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.edit.newTextBox
 import net.mildhope.nxtes.edit.TextEditor
@@ -96,6 +102,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -168,6 +175,26 @@ fun DocumentViewer(
     val scope = rememberCoroutineScope()
     LaunchedEffect(ink.generation) { selection.clear() }
     val tools = app.tools
+    val currentDoc by rememberUpdatedState(doc)
+    val autoText = remember(doc.id, ink) {
+        AutoText(
+            scope = scope,
+            session = ink,
+            read = { strokes, before ->
+                val reader = app.handwriting
+                if (!reader.isDownloaded(reader.language)) {
+                    Toast.makeText(context, context.getString(R.string.handwriting_downloading, languageName(reader.language)), Toast.LENGTH_LONG).show()
+                }
+                reader.read(strokes, before)
+            },
+            place = { pageId, writing, text, previous ->
+                val width = currentDoc.pages.firstOrNull { it.id == pageId }?.width ?: writing.maxOf { it.bounds.right }
+                previous?.let { continueText(it, writing, text, width, resources) } ?: textBoxFor(writing, text, tools.textStyle.font, width, resources)
+            },
+            onFailed = { Toast.makeText(context, R.string.handwriting_failed_short, Toast.LENGTH_SHORT).show() },
+        )
+    }
+    LaunchedEffect(tools.autoText, tools.tool) { if (!tools.autoText || tools.tool != Tool.PEN) autoText.cancel() }
     var panelOpen by rememberSaveable { mutableStateOf(false) }
     var panelTab by rememberSaveable { mutableStateOf(SideTab.PAGES) }
     var navigatorOpen by rememberSaveable { mutableStateOf(false) }
@@ -354,6 +381,7 @@ fun DocumentViewer(
             WritingToolbar(
                 tools = tools,
                 view = app.view,
+                handwriting = app.handwriting,
                 canUndo = ink.canUndo,
                 canRedo = ink.canRedo,
                 onBack = onBack,
@@ -410,6 +438,8 @@ fun DocumentViewer(
                     assetsLoaded = { app.assets.loaded },
                     onStamp = ::stamp,
                     pageText = ::pageText,
+                    onWritten = { pageId, stroke -> if (tools.autoText) autoText.written(pageId, stroke) },
+                    onPenDown = autoText::pressed,
                     pdfLinks = { source ->
                         try {
                             app.pdf.links(app.library.blobFile(doc.id, source.blob), source.index)

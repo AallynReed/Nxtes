@@ -119,5 +119,6 @@ private fun LanguagePicker(current: String, options: List<String>, onPick: (Stri
     }
 }
 
-private fun languageName(tag: String): String =
+/** [tag] as a language name in that language, like "Português (Portugal)". */
+fun languageName(tag: String): String =
     Locale.forLanguageTag(tag).let { it.getDisplayName(it) }.replaceFirstChar { it.titlecase() }

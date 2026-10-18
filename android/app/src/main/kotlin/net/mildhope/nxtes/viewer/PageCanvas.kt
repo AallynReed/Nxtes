@@ -26,6 +26,9 @@ import net.mildhope.nxtes.ink.LaserMode
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -216,6 +219,8 @@ fun PageCanvas(
     onStamp: (pageIndex: Int, point: Offset) -> Unit = { _, _ -> },
     pageText: suspend (pageIndex: Int) -> PageText? = { null },
     pdfLinks: suspend (PdfSource) -> List<PdfLink> = { emptyList() },
+    onWritten: (pageId: String, stroke: InkStroke) -> Unit = { _, _ -> },
+    onPenDown: (Boolean) -> Unit = {},
     overlay: @Composable BoxScope.(PageMapper) -> Unit = {},
 ) {
     val density = LocalDensity.current
@@ -753,7 +758,8 @@ fun PageCanvas(
     }
 
     Box(modifier.clipToBounds().onSizeChanged { size = it }) {
-        Box(Modifier.fillMaxSize().canvasGestures(state, tools) { currentTools }) {
+        val penDown by rememberUpdatedState(onPenDown)
+        Box(Modifier.fillMaxSize().penWatch(tools) { penDown(it) }.canvasGestures(state, tools) { currentTools }) {
         Canvas(Modifier.fillMaxSize()) {
             val assets = assetsLoaded()
             val inkScale = layout.scale * inkZoom
@@ -847,7 +853,7 @@ fun PageCanvas(
             if (laser.visible) drawLaser(laser, tools.laserMode, Color(tools.laserColor))
             if (selection.active && selection.lasso.isEmpty()) selectionCorners()?.let { drawSelection(it, accent, rotateDistance) }
         }
-        InkLayer(state, layout, pages, ink, tools, !readOnly, darkPages, pageText) {
+        InkLayer(state, layout, pages, ink, tools, !readOnly, darkPages, pageText, onWritten) {
             drag.convert.also {
                 drag.convert = null
                 shapePreview = null
@@ -982,6 +988,16 @@ private fun straightenOverWriting(ink: PageSession, pageId: String, group: Any, 
     }
 }
 
+/** Tells [onChange] whether something that can write is touching the page, without taking the input. */
+private fun Modifier.penWatch(tools: ToolState, onChange: (Boolean) -> Unit) = pointerInput(tools) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            onChange(event.changes.any { it.pressed && (it.type != PointerType.Touch || tools.drawWithFinger) })
+        }
+    }
+}
+
 /** Live, low-latency strokes; finished strokes move onto the page they started on. */
 @Composable
 private fun InkLayer(
@@ -993,6 +1009,7 @@ private fun InkLayer(
     enabled: Boolean,
     darkPages: Boolean,
     pageText: suspend (pageIndex: Int) -> PageText?,
+    onWritten: (pageId: String, stroke: InkStroke) -> Unit,
     takeConversion: () -> Pair<Int, Shape>?,
 ) {
     val pen = tools.pen
@@ -1026,6 +1043,7 @@ private fun InkLayer(
                 val page = pages[index]
                 if (finished.pen != Pen.HIGHLIGHTER) {
                     ink.add(page.id, finished)
+                    onWritten(page.id, finished)
                     continue
                 }
                 val group = Any()

@@ -28,10 +28,6 @@ import kotlin.math.roundToInt
 /** Page points kept clear around a selection turned into a sticker. */
 private const val STICKER_MARGIN = 2f
 
-/** Handwriting turned into text gets a font size this share of its line height. */
-private const val TEXT_PER_LINE = 0.75f
-private val TEXT_SIZES = 6f..96f
-
 /** What the selection menu does to the picked items. */
 class SelectionActions(
     private val app: NxtesApplication,
@@ -75,22 +71,11 @@ class SelectionActions(
             return selection.picked.of(session.content(page)).strokes.filter { it.isWriting }
         }
 
-    /**
-     * Puts a text box saying [text] in place of the picked handwriting, sized to its lines and in its
-     * color, in [font], and selects it. [pageWidth] is as far as the box may reach.
-     */
+    /** Puts a text box saying [text] in [font] in place of the picked handwriting, and selects it. [pageWidth] is as far as it may reach. */
     fun replaceWriting(text: String, font: String, pageWidth: Float, resources: PageResources) {
         val page = selection.pageId ?: return
         val writing = writing.ifEmpty { return }
-        val boxes = writing.map { it.bounds }
-        val area = boxes.reduce(Box::union)
-        val lineHeight = writingLines(boxes).map { line -> line.map { boxes[it] }.reduce(Box::union).height }.sorted().let { it[it.size / 2] }
-        val color = writing.groupingBy { it.color }.eachCount().maxBy { it.value }.key
-        val room = (pageWidth - area.left).coerceAtLeast(area.width)
-        val probe = TextBox(UUID.randomUUID().toString(), text, area.left, area.top, room, 0f, font = font, size = (lineHeight * TEXT_PER_LINE).coerceIn(TEXT_SIZES), color = color)
-        val natural = PagePainter.textLayout(probe, resources).let { layout -> (0 until layout.lineCount).maxOf { layout.getLineWidth(it) } }
-        val sized = probe.copy(width = (natural + 1f).coerceIn(area.width, room))
-        val box = sized.copy(height = PagePainter.textLayout(sized, resources).height.toFloat().coerceAtLeast(sized.size))
+        val box = textBoxFor(writing, text, font, pageWidth, resources)
         val ids = writing.map { it.id }.toSet()
         session.update(page) { c -> c.copy(strokes = c.strokes.filter { it.id !in ids }, objects = c.objects + box) }
         selection.select(page, Picked(objects = setOf(box.id)), session.content(page))

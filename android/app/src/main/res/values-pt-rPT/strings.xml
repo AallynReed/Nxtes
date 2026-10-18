@@ -281,6 +281,11 @@
     <string name="no_stickers">Os autocolantes que usar aparecem aqui.</string>
     <string name="add_to_stickers">Adicionar aos autocolantes</string>
     <string name="convert_to_text">Converter em texto</string>
+    <string name="auto_text">Transformar a escrita em texto</string>
+    <string name="auto_text_on">A escrita passa a texto quando faz uma pausa, lida em %1$s. Toque sem soltar no botão para mudar o idioma.</string>
+    <string name="auto_text_off">A escrita fica como tinta.</string>
+    <string name="handwriting_language">Idioma da escrita</string>
+    <string name="handwriting_failed_short">Não foi possível ler a escrita.</string>
     <string name="convert">Converter</string>
     <string name="try_again">Tentar novamente</string>
     <string name="handwriting_reading">A ler a escrita…</string>

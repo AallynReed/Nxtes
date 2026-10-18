@@ -186,6 +186,15 @@ class ToolState(private val prefs: SharedPreferences) {
         prefs.edit { putString(KEY_STICKERS, json.encodeToString(recentStickers)) }
     }
 
+    /** Writing turns into text by itself after a pause. */
+    var autoText by mutableStateOf(prefs.getBoolean(KEY_AUTO_TEXT, false))
+        private set
+
+    fun toggleAutoText() {
+        autoText = !autoText
+        prefs.edit { putBoolean(KEY_AUTO_TEXT, autoText) }
+    }
+
     /** Shapes a pen stroke turns into when the pen is held still at its end. */
     var convertShapes by mutableStateOf(
         prefs.getStringSet(KEY_CONVERT, null)?.mapNotNull { runCatching { ShapeKind.valueOf(it) }.getOrNull() }?.toSet() ?: CONVERTIBLE,
@@ -284,6 +293,7 @@ class ToolState(private val prefs: SharedPreferences) {
         private const val KEY_LASSO_TYPES = "lasso_types"
         private const val KEY_AUTO_DESELECT = "auto_deselect"
         private const val KEY_CONVERT = "convert_shapes"
+        private const val KEY_AUTO_TEXT = "auto_text"
         private const val KEY_TEXT_STYLE = "text_style"
         private const val KEY_NOTE_COLOR = "note_color"
         private const val KEY_LASER_MODE = "laser_mode"

@@ -38,8 +38,11 @@ class HandwritingReader(private val context: Context) {
 
     suspend fun isDownloaded(tag: String): Boolean = models.isModelDownloaded(model(tag)).await()
 
-    /** The text written in [strokes], a line of text per line of writing, downloading the language's model first if needed. */
-    suspend fun read(strokes: List<InkStroke>): String {
+    /**
+     * The text written in [strokes], a line of text per line of writing, downloading the language's
+     * model first if needed. [before] is text that came just before the writing, to help read it.
+     */
+    suspend fun read(strokes: List<InkStroke>, before: String = ""): String {
         val tag = language
         val model = model(tag)
         if (!models.isModelDownloaded(model).await()) models.download(model, DownloadConditions.Builder().build()).await()
@@ -59,8 +62,9 @@ class HandwritingReader(private val context: Context) {
                 ink.addStroke(stroke.build())
                 clock = start + s.t.last()
             }
-            val before = if (out.isEmpty()) "" else "${out.toString().replace('\n', ' ')} ".takeLast(PRE_CONTEXT)
-            val result = reader.recognize(ink.build(), RecognitionContext.builder().setPreContext(before).build()).await()
+            val so = "$before\n$out".replace('\n', ' ').trim()
+            val hint = if (so.isEmpty()) "" else "$so ".takeLast(PRE_CONTEXT)
+            val result = reader.recognize(ink.build(), RecognitionContext.builder().setPreContext(hint).build()).await()
             val text = result.candidates.firstOrNull()?.text?.trim().orEmpty()
             if (text.isEmpty()) continue
             if (out.isNotEmpty()) out.append('\n')
