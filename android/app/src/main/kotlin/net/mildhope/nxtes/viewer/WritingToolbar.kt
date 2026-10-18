@@ -77,6 +77,7 @@ import net.mildhope.nxtes.data.Pen
 import net.mildhope.nxtes.data.ShapeKind
 import net.mildhope.nxtes.edit.LassoType
 import net.mildhope.nxtes.ink.EraserMode
+import net.mildhope.nxtes.ink.LaserMode
 import net.mildhope.nxtes.ink.LassoShape
 import net.mildhope.nxtes.ink.InputMode
 import net.mildhope.nxtes.ink.PenPreset
@@ -192,6 +193,12 @@ fun WritingToolbar(
                         glyph = { Icon(painterResource(R.drawable.ic_sticky_note), null, tint = it, modifier = Modifier.size(24.dp)) },
                     ) { NoteSettings(tools) }
                     StickerSlot(tools, selected = penMode && tools.tool == Tool.STICKER)
+                    ToolSlot(
+                        selected = penMode && tools.tool == Tool.LASER,
+                        label = stringResource(R.string.laser),
+                        onSelect = { tools.selectTool(Tool.LASER) },
+                        glyph = { Icon(painterResource(R.drawable.ic_laser), null, tint = it, modifier = Modifier.size(24.dp)) },
+                    ) { LaserSettings(tools) }
                 }
                 Row(Modifier.align(Alignment.CenterEnd).padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     BarButton(painterResource(R.drawable.ic_undo), stringResource(R.string.undo), enabled = canUndo, onClick = onUndo)
@@ -203,6 +210,11 @@ fun WritingToolbar(
                                 text = { Text(stringResource(R.string.use_stylus_only)) },
                                 trailingIcon = { Checkbox(checked = !tools.drawWithFinger, onCheckedChange = null) },
                                 onClick = tools::toggleDrawWithFinger,
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.show_annotations)) },
+                                trailingIcon = { Checkbox(checked = !tools.annotationsHidden, onCheckedChange = null) },
+                                onClick = tools::toggleAnnotations,
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             Text(
@@ -355,6 +367,35 @@ private fun ToolSlot(
         ) { glyph(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
         if (settings != null) {
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) { settings { open = false } }
+        }
+    }
+}
+
+/** Dot or trailing line, and the laser's colour. */
+@Composable
+private fun LaserSettings(tools: ToolState) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(LaserMode.DOT to R.string.laser_dot, LaserMode.LINE to R.string.laser_line).forEach { (mode, label) ->
+                FilterChip(
+                    selected = tools.laserMode == mode,
+                    onClick = { tools.updateLaser(mode, tools.laserColor) },
+                    label = { Text(stringResource(label)) },
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            ToolState.LASER_COLORS.forEach { colour ->
+                val selected = colour == tools.laserColor
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color(colour))
+                        .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                        .clickable { tools.updateLaser(tools.laserMode, colour) },
+                )
+            }
         }
     }
 }

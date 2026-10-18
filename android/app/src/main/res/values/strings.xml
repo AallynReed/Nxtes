@@ -260,6 +260,11 @@
     <string name="add_to_stickers">Add to stickers</string>
     <string name="my_stickers">My stickers</string>
     <string name="added_to_stickers">Added to %1$s</string>
+    <string name="laser">Laser pointer</string>
+    <string name="laser_dot">Dot</string>
+    <string name="laser_line">Trailing line</string>
+    <string name="show_annotations">Show annotations</string>
+    <string name="annotations_hidden">Annotations hidden (tap to show)</string>
     <string name="action_failed">That didn\'t work. Please try again.</string>
     <plurals name="import_failed">
         <item quantity="one">%d PDF couldn\'t be imported</item>

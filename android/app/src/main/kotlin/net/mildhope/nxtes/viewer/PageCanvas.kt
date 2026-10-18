@@ -14,7 +14,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import android.os.SystemClock
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.withFrameMillis
+import androidx.compose.ui.graphics.StrokeCap
+import net.mildhope.nxtes.ink.LaserMode
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -114,6 +120,37 @@ private class DragState {
     var convert: Pair<Int, Shape>? = null
 }
 
+/** A point the laser passed, in screen pixels, and when. */
+private class LaserPoint(val at: Offset, val time: Long)
+
+/** The laser's recent path; it fades and is never saved. */
+private class LaserTrail {
+    val points = mutableStateListOf<LaserPoint>()
+    var down by mutableStateOf(false)
+    var liftedAt = 0L
+    var now by mutableLongStateOf(0L)
+    val visible get() = down || points.isNotEmpty()
+
+    fun add(at: Offset, mode: LaserMode) {
+        val now = SystemClock.uptimeMillis()
+        if (mode == LaserMode.DOT) points.clear()
+        points += LaserPoint(at, now)
+    }
+
+    /** Drops what has faded by [time]; the head stays while the pointer is down. */
+    fun tick(time: Long, mode: LaserMode) {
+        now = time
+        if (mode == LaserMode.DOT) {
+            if (!down && time - liftedAt > LASER_DOT_FADE_MS) points.clear()
+            return
+        }
+        val keep = if (down) 1 else 0
+        while (points.size > keep && time - points.first().time > LASER_TRAIL_MS) points.removeAt(0)
+    }
+}
+
+private const val LASER_TRAIL_MS = 700L
+private const val LASER_DOT_FADE_MS = 300L
 private const val DETAIL_DELAY_MS = 120L
 private const val DETAIL_MIN_ZOOM = 1.05f
 private val HANDLE_RADIUS = 9.dp
@@ -153,6 +190,7 @@ fun PageCanvas(
     var eraserAt by remember { mutableStateOf<Offset?>(null) }
     var shapePreview by remember { mutableStateOf<Pair<Int, Shape>?>(null) }
     val drag = remember { DragState() }
+    val laser = remember { LaserTrail() }
 
     /** The shape the shape pen makes for the current drag. */
     fun dragShape(end: Offset): Shape? {
@@ -190,6 +228,7 @@ fun PageCanvas(
         }
 
         override fun drawingDrag() = when {
+            tools.tool == Tool.LASER -> DragKind.LASER
             tools.tool == Tool.LASSO -> DragKind.LASSO
             tools.tool == Tool.PEN && tools.pen.pen == Pen.SHAPE -> DragKind.SHAPE
             tools.tool == Tool.TEXT || tools.tool == Tool.NOTE || tools.tool == Tool.STICKER -> DragKind.PLACE
@@ -200,6 +239,7 @@ fun PageCanvas(
 
         /** The sticky note under the point, with its page. */
         private fun noteAt(at: Offset): Pair<String, StickyNote>? {
+            if (tools.annotationsHidden) return null
             val index = mapper.pageAt(at)
             val page = pages.getOrNull(index) ?: return null
             val point = mapper.toPage(index, at)
@@ -222,6 +262,10 @@ fun PageCanvas(
                 }
                 DragKind.SELECTION -> selection.startDrag(handle, mapper.toPage(mapper.indexOf(selection.pageId), at))
                 DragKind.PLACE -> Unit
+                DragKind.LASER -> {
+                    laser.down = true
+                    laser.add(at, tools.laserMode)
+                }
                 DragKind.SHAPE -> {
                     selection.clear()
                     drag.page = mapper.pageAt(at)
@@ -239,6 +283,7 @@ fun PageCanvas(
                     if (tools.lassoShape == LassoShape.RECT) listOf(selection.lasso.first(), to) else selection.lasso + to
                 DragKind.SELECTION -> selection.drag(mapper.toPage(mapper.indexOf(selection.pageId), to))
                 DragKind.PLACE -> Unit
+                DragKind.LASER -> laser.add(to, tools.laserMode)
                 DragKind.SHAPE -> {
                     val point = mapper.toPage(drag.page, to)
                     drag.path += point
@@ -258,6 +303,10 @@ fun PageCanvas(
                     if (tools.autoDeselect) selection.clear()
                 }
                 DragKind.PLACE -> Unit
+                DragKind.LASER -> {
+                    laser.down = false
+                    laser.liftedAt = SystemClock.uptimeMillis()
+                }
                 DragKind.SHAPE -> {
                     shapePreview = null
                     dragShape(mapper.toPage(drag.page, drag.last))?.let { shape ->
@@ -350,6 +399,7 @@ fun PageCanvas(
         }
 
         override fun longPress(at: Offset) {
+            if (tools.annotationsHidden) return
             val index = mapper.pageAt(at)
             val page = pages.getOrNull(index) ?: return
             val point = mapper.toPage(index, at)
@@ -390,6 +440,12 @@ fun PageCanvas(
     val currentTools by rememberUpdatedState(canvasTools)
 
     LaunchedEffect(layout, size) { state.updateLayout(size.toSize(), layout.contentHeight, layout.rects) }
+
+    LaunchedEffect(laser.visible) {
+        while (laser.visible) withFrameMillis { laser.tick(SystemClock.uptimeMillis(), tools.laserMode) }
+    }
+
+    LaunchedEffect(tools.annotationsHidden) { if (tools.annotationsHidden) selection.clear() }
 
     LaunchedEffect(layout, ink, ink.generation) {
         snapshotFlow { layout.visible(state.zoom, state.offset, state.size.height, extra = 1) }
@@ -469,7 +525,7 @@ fun PageCanvas(
                 val editing = selection.text?.takeIf { it.pageId == pages[i].id }?.box?.id
                     ?: selection.crop?.takeIf { it.pageId == pages[i].id }?.picture?.id
                 val content = ink.content(pages[i].id).let { c -> if (editing == null) c else c.copy(objects = c.objects.filter { it.id != editing }) }
-                if (!content.isEmpty) {
+                if (!content.isEmpty && !tools.annotationsHidden) {
                     val k = layout.scale * zoom
                     strokeMatrix.setScale(k, k)
                     strokeMatrix.postTranslate(screen.left, screen.top)
@@ -498,6 +554,7 @@ fun PageCanvas(
                 }
             }
             drawLasso(selection.lasso, tools.lassoShape, accent)
+            if (laser.visible) drawLaser(laser, tools.laserMode, Color(tools.laserColor))
             if (selection.active && selection.lasso.isEmpty()) selectionCorners()?.let { drawSelection(it, accent, rotateDistance) }
         }
         InkLayer(state, layout, pages, ink, tools) {
@@ -506,6 +563,21 @@ fun PageCanvas(
                 shapePreview = null
             }
         }
+        }
+        if (tools.annotationsHidden) {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.8f),
+                onClick = tools::toggleAnnotations,
+                modifier = Modifier.align(Alignment.TopCenter).padding(12.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.annotations_hidden),
+                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
         }
         if (pages.size > 1) {
             Surface(
@@ -527,6 +599,26 @@ fun PageCanvas(
 }
 
 private fun Affine.toMatrix() = android.graphics.Matrix().apply { setValues(floatArrayOf(a, c, e, b, d, f, 0f, 0f, 1f)) }
+
+/** The laser: a glowing dot at its head, and in line mode a trail that fades with age. */
+private fun DrawScope.drawLaser(trail: LaserTrail, mode: LaserMode, colour: Color) {
+    val points = trail.points
+    if (points.isEmpty()) return
+    val now = trail.now
+    if (mode == LaserMode.LINE) {
+        for (i in 1 until points.size) {
+            val alpha = (1f - (now - points[i].time).toFloat() / LASER_TRAIL_MS).coerceIn(0f, 1f)
+            drawLine(colour.copy(alpha = alpha * 0.3f), points[i - 1].at, points[i].at, 12.dp.toPx(), StrokeCap.Round)
+            drawLine(colour.copy(alpha = alpha), points[i - 1].at, points[i].at, 4.dp.toPx(), StrokeCap.Round)
+        }
+    }
+    val fade = if (trail.down) 1f else (1f - (now - trail.liftedAt).toFloat() / LASER_DOT_FADE_MS).coerceIn(0f, 1f)
+    if (fade <= 0f) return
+    val head = points.last().at
+    drawCircle(colour.copy(alpha = 0.3f * fade), 12.dp.toPx(), head)
+    drawCircle(colour.copy(alpha = fade), 6.dp.toPx(), head)
+    drawCircle(Color.White.copy(alpha = 0.8f * fade), 2.5.dp.toPx(), head)
+}
 
 private fun DrawScope.drawLasso(points: List<Offset>, shape: LassoShape, colour: Color) {
     if (points.size < 2) return
@@ -579,7 +671,7 @@ private fun InkLayer(
     }
     val scratch = remember { StrokeInput() }
     InProgressStrokes(
-        defaultBrush = if (tools.mode == InputMode.PEN && tools.tool == Tool.PEN && tools.pen.pen.inks) tools.pen.brush else null,
+        defaultBrush = if (tools.mode == InputMode.PEN && tools.tool == Tool.PEN && tools.pen.pen.inks && !tools.annotationsHidden) tools.pen.brush else null,
         pointerEventToWorldTransform = pointerToWorld,
         onStrokesFinished = { strokes ->
             val now = System.currentTimeMillis()

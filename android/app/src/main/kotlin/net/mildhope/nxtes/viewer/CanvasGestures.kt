@@ -27,7 +27,7 @@ import net.mildhope.nxtes.ink.ToolState
 
 /** Drags a pointer can make on the canvas. */
 enum class DragKind {
-    ERASE, LASSO, SELECTION, SHAPE,
+    ERASE, LASSO, SELECTION, SHAPE, LASER,
 
     /** A tool that places something where it's tapped; dragging does nothing. */
     PLACE,
@@ -134,7 +134,7 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                     drag(pen, event, down.id, canvas, DragKind.SELECTION, handle)
                     continue
                 }
-                if (tools.mode == InputMode.GESTURE) {
+                if (tools.mode == InputMode.GESTURE || (tools.annotationsHidden && tools.tool != Tool.LASER)) {
                     navigateFrom(event, everyPointer = true)
                     continue
                 }

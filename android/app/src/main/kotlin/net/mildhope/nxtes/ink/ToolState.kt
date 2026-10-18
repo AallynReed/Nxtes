@@ -41,7 +41,10 @@ data class PenPreset(
         }
 }
 
-enum class Tool { PEN, ERASER, LASSO, TEXT, NOTE, STICKER }
+enum class Tool { PEN, ERASER, LASSO, TEXT, NOTE, STICKER, LASER }
+
+/** The laser pointer shows a dot, or a line that fades behind it. */
+enum class LaserMode { DOT, LINE }
 
 /** A sticker to stamp: one Nxtes draws, by name, or an image from a pack, with its size in pixels. */
 @Serializable
@@ -108,6 +111,28 @@ class ToolState(private val prefs: SharedPreferences) {
         if (style == textStyle) return
         textStyle = style
         prefs.edit { putString(KEY_TEXT_STYLE, json.encodeToString(style)) }
+    }
+
+    var laserMode by mutableStateOf(runCatching { LaserMode.valueOf(prefs.getString(KEY_LASER_MODE, null)!!) }.getOrDefault(LaserMode.LINE))
+        private set
+    var laserColor by mutableIntStateOf(prefs.getInt(KEY_LASER_COLOR, LASER_COLORS[0]))
+        private set
+
+    fun updateLaser(mode: LaserMode, colour: Int) {
+        laserMode = mode
+        laserColor = colour
+        prefs.edit {
+            putString(KEY_LASER_MODE, mode.name)
+            putInt(KEY_LASER_COLOR, colour)
+        }
+    }
+
+    /** Hides everything written on the pages, for reading or presenting; only the laser still draws. Not kept across restarts. */
+    var annotationsHidden by mutableStateOf(false)
+        private set
+
+    fun toggleAnnotations() {
+        annotationsHidden = !annotationsHidden
     }
 
     /** The colour new sticky notes get. */
@@ -241,9 +266,12 @@ class ToolState(private val prefs: SharedPreferences) {
         private const val KEY_CONVERT = "convert_shapes"
         private const val KEY_TEXT_STYLE = "text_style"
         private const val KEY_NOTE_COLOR = "note_color"
+        private const val KEY_LASER_MODE = "laser_mode"
+        private const val KEY_LASER_COLOR = "laser_color"
         private const val KEY_STICKERS = "recent_stickers"
         private const val MAX_RECENT_STICKERS = 16
 
+        val LASER_COLORS = listOf(0xFFFF2D2D, 0xFF2DD36F, 0xFF2D7DFF, 0xFFFFC400, 0xFFC04DFF, 0xFFFF6FB5).map { it.toInt() }
         val NOTE_COLORS = listOf(0xFFFFE082, 0xFFFFCC80, 0xFFF8BBD0, 0xFFD1C4E9, 0xFFB3E5FC, 0xFFC5E1A5).map { it.toInt() }
 
         /** Shapes hold-to-convert can make. */
