@@ -16,7 +16,8 @@ annotation and search panels, and full-text search across the library. Recording
 writing works too, in the background, with playback at 0.5× to 2×, replay of the writing in step
 with the sound, and tap-on-ink to hear that moment. Documents export as PDFs that keep their
 original pages (or flattened) and as pictures, images import as documents, and the whole library
-backs up to one zip. The sync server comes in milestone 8.
+backs up to one zip. Sign in from Settings to sync the library between devices, live while the
+app is open and hourly in the background, through the official server or [your own](server/README.md).
 
 Debug builds of each version are attached to the [GitHub releases](https://github.com/AallynReed/Nxtes/releases).
 

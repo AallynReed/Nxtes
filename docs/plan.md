@@ -112,6 +112,25 @@ One directory per document, zipped for backup and export:
 A 409 response makes the app ask whether to keep this device's copy, the server's copy, or both
 (the server's copy is kept as a "conflicted copy").
 
+### How the app syncs
+
+- Each folder and document is one item. A document's body holds its data (without when it was
+  last opened, which stays per device), the SHA-256 of each page file, the hashes of the files in
+  its package, and every hash it uses under `blobs`.
+- The app remembers, per item, the revision and body hash it last agreed on with the server. A
+  sync pulls `/v1/changes` first, then pushes whatever differs from the remembered hash. A change
+  on one side applies quietly; a document changed on both sides asks the user. Folders never ask:
+  this device's version wins.
+- A document deleted on one device and edited on another is kept. Deleting a folder elsewhere
+  moves anything still in it here to the top level.
+- Uploads go one blob at a time, only for hashes the server is missing. Downloads land in a
+  staging folder and move into place only if the document didn't change meanwhile.
+- It syncs a few seconds after a local change, when `/v1/events` reports another device's change
+  while the app is open, when a network comes back, hourly through WorkManager, and on demand.
+  "Sync on Wi-Fi only" limits all of these to unmetered networks except a manual sync.
+- Tokens live in `noBackupFilesDir`, so Android backups never copy them. Templates, fonts and
+  sticker packs don't sync yet.
+
 The v1 web viewer displays PDFs the app exports, using pdf.js (Apache-2.0), so the server never
 has to render ink. Rendering synced documents straight from their page files comes later.
 
