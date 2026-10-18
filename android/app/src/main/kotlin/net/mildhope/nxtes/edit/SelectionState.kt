@@ -68,6 +68,9 @@ class SelectionState {
 
     var textPick by mutableStateOf<TextPick?>(null)
 
+    /** A search match marked on a page: page id and rectangles (x, y, width, height each). */
+    var searchMark by mutableStateOf<Pair<String, FloatArray>?>(null)
+
     /** A highlight or other text mark touched and held, as page id and mark id. */
     var markAt by mutableStateOf<Pair<String, String>?>(null)
 

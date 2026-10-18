@@ -166,6 +166,7 @@ private class LaserTrail {
 private const val LASER_TRAIL_MS = 700L
 private const val LASER_DOT_FADE_MS = 300L
 private val TEXT_KNOB = 8.dp
+private val SEARCH_MARK = Color(0xFFFF8F00)
 private const val DETAIL_DELAY_MS = 120L
 private const val DETAIL_MIN_ZOOM = 1.05f
 private val HANDLE_RADIUS = 9.dp
@@ -403,6 +404,7 @@ fun PageCanvas(
         }
 
         override fun tap(at: Offset) {
+            selection.searchMark = null
             if (readOnly) {
                 maskAt(at)?.let { (pageId, mask) -> selection.toggleMask(pageId, mask.id) }
                 selection.asking = null
@@ -696,6 +698,16 @@ fun PageCanvas(
                     canvas.nativeCanvas.withMatrix(android.graphics.Matrix().apply { setScale(k, k); postTranslate(origin.x, origin.y) }) {
                         painter.drawMask(this, mask, revealed = false)
                     }
+                }
+            }
+            selection.searchMark?.let { (pageId, rects) ->
+                val index = mapper.indexOf(pageId)
+                if (index >= 0) for (i in rects.indices step 4) {
+                    val a = mapper.toScreen(index, Offset(rects[i], rects[i + 1]))
+                    val b = mapper.toScreen(index, Offset(rects[i] + rects[i + 2], rects[i + 1] + rects[i + 3]))
+                    val size = androidx.compose.ui.geometry.Size(b.x - a.x, b.y - a.y)
+                    drawRect(SEARCH_MARK.copy(alpha = 0.35f), a, size)
+                    drawRect(SEARCH_MARK, a, size, style = Stroke(1.5.dp.toPx()))
                 }
             }
             selection.textPick?.let { pick ->

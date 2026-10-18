@@ -317,6 +317,13 @@
         <item quantity="one">Highlighter, %d stroke</item>
         <item quantity="other">Highlighter, %d strokes</item>
     </plurals>
+    <string name="search_document">Search this document</string>
+    <string name="searching">Searching… %1$d of %2$d pages</string>
+    <plurals name="search_matches">
+        <item quantity="one">%d match</item>
+        <item quantity="other">%d matches</item>
+    </plurals>
+    <string name="hit_pdf">PDF text</string>
     <string name="action_failed">That didn\'t work. Please try again.</string>
     <plurals name="import_failed">
         <item quantity="one">%d PDF couldn\'t be imported</item>

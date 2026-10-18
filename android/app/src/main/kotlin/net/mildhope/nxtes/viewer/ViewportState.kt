@@ -76,10 +76,23 @@ class ViewportState {
         )
     }
 
-    /** Scrolls to the page, or does so once the layout is known. */
-    fun goToPage(index: Int) {
+    /**
+     * Scrolls to the page, or does so once the layout is known. With [focus] (a point as fractions
+     * of the page) that point comes to a third of the way into the view instead of the page's start.
+     */
+    fun goToPage(index: Int, focus: Offset? = null) {
         if (pageRects.isEmpty() || size.height <= 0f) {
             pendingPage = index
+            return
+        }
+        if (focus != null && slotSize == 0f) {
+            val r = pageRects[index.coerceIn(pageRects.indices)]
+            anchor = index
+            offset = clamp(
+                if (flow.axis == ScrollAxis.VERTICAL) Offset(offset.x, -(r.top + focus.y * r.height) * zoom + size.height / 3)
+                else Offset(-(r.left + focus.x * r.width) * zoom + size.width / 3, offset.y),
+                zoom,
+            )
             return
         }
         val i = index.coerceIn(pageRects.indices)

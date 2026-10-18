@@ -135,6 +135,7 @@ fun DocumentViewer(
     }
     val resources = remember(doc.id) { app.assets.resources(doc.id, app.scope) }
     val pageTexts = remember(doc.id) { HashMap<String, PageText>() }
+    val search = remember(doc.id) { DocumentSearch(app.scope) }
 
     /** The PDF text on page [index] as it's shown, read once per page. */
     suspend fun pageText(index: Int): PageText? {
@@ -174,6 +175,7 @@ fun DocumentViewer(
     BackHandler(onBack = onBack)
     BackHandler(enabled = selection.text != null) { selection.commitText(ink, resources)?.let { tools.updateTextStyle(it.style) } }
     BackHandler(enabled = selection.note != null) { selection.commitNote(ink) }
+    BackHandler(enabled = panelOpen) { panelOpen = false }
 
     LaunchedEffect(app.view.readOnly) {
         if (!app.view.readOnly) return@LaunchedEffect
@@ -407,6 +409,8 @@ fun DocumentViewer(
                         viewport = viewport,
                         ink = ink,
                         selection = selection,
+                        search = search,
+                        pageText = ::pageText,
                         tab = panelTab,
                         onTab = { panelTab = it },
                         onClose = { panelOpen = false },

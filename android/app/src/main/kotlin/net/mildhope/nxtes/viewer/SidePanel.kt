@@ -29,6 +29,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import net.mildhope.nxtes.edit.PageText
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -70,7 +72,7 @@ import net.mildhope.nxtes.library.NameDialog
 import net.mildhope.nxtes.library.runLibraryAction
 import net.mildhope.nxtes.nxtes
 
-enum class SideTab { PAGES, OUTLINE, BOOKMARKS, ANNOTATIONS, MASKS }
+enum class SideTab { SEARCH, PAGES, OUTLINE, BOOKMARKS, ANNOTATIONS, MASKS }
 
 /** An outline row: the PDF's own entries are read-only, the user's ([item]) can be edited. */
 private class OutlineRow(val title: String, val pageIndex: Int, val depth: Int, val item: OutlineItem? = null)
@@ -89,6 +91,8 @@ fun SidePanel(
     viewport: ViewportState,
     ink: PageSession,
     selection: SelectionState,
+    search: DocumentSearch,
+    pageText: suspend (Int) -> PageText?,
     tab: SideTab,
     onTab: (SideTab) -> Unit,
     onClose: () -> Unit,
@@ -102,6 +106,7 @@ fun SidePanel(
         scope.launch { runLibraryAction(context, action) }
     }
     val tabs = listOf(
+        Triple(SideTab.SEARCH, rememberVectorPainter(Icons.Default.Search), stringResource(R.string.search)),
         Triple(SideTab.PAGES, painterResource(R.drawable.ic_grid_view), stringResource(R.string.pages)),
         Triple(SideTab.OUTLINE, rememberVectorPainter(Icons.AutoMirrored.Filled.List), stringResource(R.string.outline)),
         Triple(SideTab.BOOKMARKS, painterResource(R.drawable.ic_bookmark), stringResource(R.string.bookmarks)),
@@ -127,6 +132,7 @@ fun SidePanel(
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             when (tab) {
+                SideTab.SEARCH -> SearchTab(doc, search, ink, pageText, viewport, selection)
                 SideTab.PAGES -> PageGrid(doc, viewport)
                 SideTab.MASKS -> MaskList(doc, ink, selection, viewport)
                 SideTab.ANNOTATIONS -> AnnotationList(doc, ink, viewport)
