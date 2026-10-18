@@ -25,8 +25,11 @@ Licensed AGPL-3.0. Every dependency must be AGPL-compatible.
   API ships; strokes keep their pen type, so they'll pick it up then.
 - **PDF:** PDFium through `io.legere:pdfiumandroid` (Apache-2.0), which bundles the native
   libraries, so no NDK build is needed. It covers rendering, text extraction for search and
-  selection, links and outlines. Writing annotations into exported PDFs may need extra native
-  calls; that's decided in milestone 7. Its matrix render call passes the two skew terms in
+  selection, links and outlines. It can't import pages or add content, so export uses
+  PDFBox for Android (Apache-2.0, without its BouncyCastle encryption add-on): the writing is drawn
+  with Android's PDF canvas, so it stays vector, then laid onto copies of the original pages, and
+  sticky notes become PDF text annotations. A PDF PDFBox can't open, like an encrypted one, is
+  exported as rendered pages. Its matrix render call passes the two skew terms in
   swapped order, so turned pages pre-swap them, and its page-to-screen mapping rounds to whole
   pixels, so text boxes are mapped at 16 times the size and scaled back.
 - **Stickers and fonts:** kept in library-level folders. Stamping a sticker or using a font copies

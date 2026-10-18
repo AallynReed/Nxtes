@@ -14,7 +14,9 @@ correct rates, a laser pointer, and PDF text highlighting. The screens follow Fl
 pages at a time, with dark pages, read-only mode, full screen, multi-finger undo and redo,
 annotation and search panels, and full-text search across the library. Recording audio while
 writing works too, in the background, with playback at 0.5× to 2×, replay of the writing in step
-with the sound, and tap-on-ink to hear that moment. PDF export and backups come in milestone 7.
+with the sound, and tap-on-ink to hear that moment. Documents export as PDFs that keep their
+original pages (or flattened) and as pictures, images import as documents, and the whole library
+backs up to one zip. The sync server comes in milestone 8.
 
 Debug builds of each version are attached to the [GitHub releases](https://github.com/AallynReed/Nxtes/releases).
 

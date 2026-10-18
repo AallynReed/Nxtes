@@ -34,7 +34,8 @@ library menu as a bottom bar.
 
 - **Left menu (240 dp):** a search box at the top; Documents and Trash; a Recents/Favorites
   switch with a "Show all" button and the matching list of documents (thumbnail + title);
-  Settings at the bottom.
+  Settings at the bottom: back up the library to a zip, restore one (adding only what's missing),
+  and the version.
 - **Title bar:** a back button to the parent folder on the left, the folder name centred, and
   selection mode on the right.
 - **Selection mode:** "Select all" on the left and Done on the right until something is picked;
@@ -44,9 +45,10 @@ library menu as a bottom bar.
 - **Filter row:** All, PDFs and Notes, centred; sort and grid/list on the right.
 - **Grid cell:** a coloured folder icon, the note's cover, or the first-page thumbnail, with a
   favourite star in its top-right corner. Below it the name with a ▾ menu (rename, cover and
-  template, move, duplicate, colour, favourite, move to trash), then a line with the item count
+  template, export, move, duplicate, colour, favourite, move to trash), then a line with the item count
   or file size and the date (`yyyy.MM.dd`).
-- **Add button:** bottom right. It opens a labelled menu: New folder, New note, Import PDF.
+- **Add button:** bottom right. It opens a labelled menu: New folder, New note, Import PDF or
+  image. Images become one-page documents; PDFs and images can also be shared to Nxtes.
 - **Trash** opens in the same main area, with Restore all and Empty in the title bar.
 - **Search:** typing in the search box shows Titles (matching names) and Inside documents
   (pages whose PDF text, text boxes, sticky notes or highlights contain every word typed, each
@@ -101,7 +103,7 @@ Full screen, for New note and for an item's "Cover and template".
     pen type with a shape, line style, fill and polygon sides. After a "+" to add a pen come the
     eraser, lasso, image, text box, sticky note, sticker, masking and laser. Tapping a selected
     tool opens its settings.
-  - Right: undo, redo, view settings, and the side panel button. In read-only mode the tools
+  - Right: export, the microphone, undo, redo, view settings, and the side panel button. In read-only mode the tools
     give way to a "Read only" pill that turns it off.
 - **Recording:** the microphone button left of undo opens Record (or Pause/Resume and Stop while
   recording) and the document's recordings, each with play and a ⋮ menu to rename or delete.
@@ -110,6 +112,11 @@ Full screen, for New note and for an item's "Cover and template".
   it. Playing a recording opens a bar above the page counter: play/pause, the title, a seek bar
   with times, speed (0.5× to 2×) and close. While it's open, writing done during the recording
   appears as it was written, and tapping ink with a finger plays from when it was written.
+- **Export:** PDF or pictures. A PDF keeps the original PDF pages with the writing on top (sticky
+  notes become PDF comments), or flattens each page into a picture. Checkboxes pick what to
+  include (background and PDF, handwriting with shapes and highlights, images and stickers, text
+  boxes, sticky notes, masks) and the pages (all, this one, or a range like 1–3, 5). Save writes a
+  PDF where you choose, or pictures to Pictures/Nxtes; Share opens the share sheet.
 - **View settings:** page layout (scroll down or across, continuous or page by page, two pages
   side by side, first page alone); dark pages, keep the screen on, full screen, hide the tab
   bar; use stylus only, show annotations, read only; and which shapes holding the pen still
