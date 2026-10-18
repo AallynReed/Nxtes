@@ -1,6 +1,7 @@
 package net.mildhope.nxtes.viewer
 
 import android.util.Log
+import net.mildhope.nxtes.export.ExportDialog
 import android.Manifest
 import androidx.compose.foundation.layout.padding
 import net.mildhope.nxtes.audio.PlaybackBar
@@ -169,6 +170,7 @@ fun DocumentViewer(
     var panelTab by rememberSaveable { mutableStateOf(SideTab.PAGES) }
     var navigatorOpen by rememberSaveable { mutableStateOf(false) }
     var goToPage by remember { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf(false) }
 
     /** Runs a page change, saving this document's ink first and reloading it after if it changed. */
     fun editPages(documentId: String, action: LibraryStore.() -> Unit) {
@@ -357,6 +359,7 @@ fun DocumentViewer(
                 },
                 onSidePanel = { panelOpen = !panelOpen },
                 onAddImage = ::addImage,
+                onExport = { exporting = true },
                 recordButton = {
                     RecordButton(
                         doc = doc,
@@ -517,6 +520,7 @@ fun DocumentViewer(
             scope.launch { runLibraryAction(context) { deleteRecording(doc.id, recording.id) } }
         }, onDismiss = { deletingRecording = null })
     }
+    if (exporting) ExportDialog(doc, viewport.currentPage) { exporting = false }
     if (goToPage) {
         GoToPageDialog(
             pageCount = doc.pages.size,

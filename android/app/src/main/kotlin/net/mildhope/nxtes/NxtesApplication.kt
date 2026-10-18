@@ -15,6 +15,7 @@ import net.mildhope.nxtes.page.PageBackgrounds
 import net.mildhope.nxtes.page.PagePainter
 import net.mildhope.nxtes.audio.AudioPlayer
 import net.mildhope.nxtes.audio.AudioRecorder
+import net.mildhope.nxtes.export.Exporter
 import net.mildhope.nxtes.pdf.PdfEngine
 import net.mildhope.nxtes.pdf.Thumbnails
 import net.mildhope.nxtes.search.SearchIndex
@@ -50,6 +51,7 @@ class NxtesApplication : Application() {
         private set
     lateinit var recorder: AudioRecorder
         private set
+    val exporter by lazy { Exporter(this, library, backgrounds, assets) }
     val player by lazy { AudioPlayer() }
     lateinit var indexer: SearchIndexer
         private set

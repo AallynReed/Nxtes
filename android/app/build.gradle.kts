@@ -34,6 +34,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.serialization.protobuf)
     implementation(libs.pdfium)
+    implementation(libs.pdfbox.android) { exclude(group = "org.bouncycastle") }
     implementation(libs.androidx.ink.authoring.compose)
     implementation(libs.androidx.ink.brush)
     implementation(libs.androidx.ink.geometry)

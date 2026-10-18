@@ -3,6 +3,7 @@ package net.mildhope.nxtes.library
 import androidx.compose.material3.FilterChip
 import kotlinx.coroutines.delay
 import net.mildhope.nxtes.search.ContentHit
+import net.mildhope.nxtes.export.ExportDialog
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.collectAsState
 import android.content.Context
@@ -102,6 +103,7 @@ private sealed interface LibraryDialog {
     data class Colour(val folder: Folder) : LibraryDialog
     data class DeleteForever(val item: LibraryItem) : LibraryDialog
     data object EmptyTrash : LibraryDialog
+    data class Export(val doc: Document) : LibraryDialog
 }
 
 /** The library: side menu on the left, the selected section on the right. See docs/ui.md. */
@@ -252,6 +254,7 @@ private fun MainPane(
 
     val renameLabel = stringResource(R.string.rename)
     val settingsLabel = stringResource(R.string.cover_and_template)
+    val exportLabel = stringResource(R.string.export)
     val moveLabel = stringResource(R.string.move)
     val duplicateLabel = stringResource(R.string.duplicate)
     val colourLabel = stringResource(R.string.folder_colour)
@@ -373,6 +376,7 @@ private fun MainPane(
                             listOfNotNull(
                                 MenuAction(renameLabel) { dialog = LibraryDialog.Rename(item) },
                                 (item as? Document)?.let { MenuAction(settingsLabel) { dialog = LibraryDialog.Settings(it) } },
+                                (item as? Document)?.let { MenuAction(exportLabel) { dialog = LibraryDialog.Export(it) } },
                                 MenuAction(moveLabel) { dialog = LibraryDialog.Move(listOf(item)) },
                                 MenuAction(duplicateLabel) { duplicate(listOf(item.id)) },
                                 (item as? Folder)?.let { MenuAction(colourLabel) { dialog = LibraryDialog.Colour(it) } },
@@ -410,6 +414,7 @@ private fun MainPane(
             },
             onDismiss = { dialog = null },
         )
+        is LibraryDialog.Export -> ExportDialog(d.doc, 0) { dialog = null }
         is LibraryDialog.Settings -> {
             val doc = d.doc
             val original = TemplateChoice.of(doc.template, prefs.lastTemplate)

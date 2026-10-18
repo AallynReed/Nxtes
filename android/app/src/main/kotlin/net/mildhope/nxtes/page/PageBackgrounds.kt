@@ -3,6 +3,7 @@ package net.mildhope.nxtes.page
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import androidx.core.graphics.withSave
 import androidx.core.graphics.withTranslation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,19 +23,29 @@ class PageBackgrounds(private val pdf: PdfEngine, private val blobFile: (documen
                 val scale = width / page.width
                 Canvas(bitmap).withTranslation(left.toFloat(), top.toFloat()) {
                     scale(scale, height / page.height)
-                    val sideways = page.turns % 2 == 1
-                    val sourceWidth = if (sideways) page.height else page.width
-                    val sourceHeight = if (sideways) page.width else page.height
-                    when (page.turns.mod(4)) {
-                        1 -> translate(page.width, 0f)
-                        2 -> translate(page.width, page.height)
-                        3 -> translate(0f, page.height)
-                    }
-                    rotate(90f * page.turns.mod(4))
-                    TemplatePainter.draw(this, background, sourceWidth, sourceHeight, scale)
+                    drawTemplate(this, page, scale)
                 }
             }
             else -> bitmap.eraseColor(Color.WHITE)
+        }
+    }
+
+    companion object {
+        /** Draws a page's generated background in page points, turned with the page. [pxPerPt] keeps hairlines visible. */
+        fun drawTemplate(canvas: Canvas, page: Page, pxPerPt: Float) {
+            val background = page.background ?: return
+            val sideways = page.turns % 2 == 1
+            val sourceWidth = if (sideways) page.height else page.width
+            val sourceHeight = if (sideways) page.width else page.height
+            canvas.withSave {
+                when (page.turns.mod(4)) {
+                    1 -> translate(page.width, 0f)
+                    2 -> translate(page.width, page.height)
+                    3 -> translate(0f, page.height)
+                }
+                rotate(90f * page.turns.mod(4))
+                TemplatePainter.draw(this, background, sourceWidth, sourceHeight, pxPerPt)
+            }
         }
     }
 }
