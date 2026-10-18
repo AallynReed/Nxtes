@@ -304,6 +304,19 @@
     <string name="full_screen">Full screen</string>
     <string name="read_only">Read only</string>
     <string name="read_only_banner">Read only (tap to edit)</string>
+    <string name="annotations">Annotations</string>
+    <string name="annotations_highlights">Highlights</string>
+    <string name="annotations_ink">Handwriting</string>
+    <string name="annotations_none">Nothing here yet</string>
+    <string name="empty_note">Empty note</string>
+    <plurals name="stroke_count">
+        <item quantity="one">Handwriting, %d stroke</item>
+        <item quantity="other">Handwriting, %d strokes</item>
+    </plurals>
+    <plurals name="highlighter_count">
+        <item quantity="one">Highlighter, %d stroke</item>
+        <item quantity="other">Highlighter, %d strokes</item>
+    </plurals>
     <string name="action_failed">That didn\'t work. Please try again.</string>
     <plurals name="import_failed">
         <item quantity="one">%d PDF couldn\'t be imported</item>

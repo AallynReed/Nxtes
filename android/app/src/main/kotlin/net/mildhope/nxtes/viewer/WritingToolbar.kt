@@ -754,7 +754,7 @@ private fun penName(pen: Pen) = when (pen) {
 
 private val SHAPE_CHOICES = listOf(null, ShapeKind.ELLIPSE, ShapeKind.TRIANGLE, ShapeKind.RECTANGLE, ShapeKind.POLYGON, ShapeKind.LINE, ShapeKind.ARROW, ShapeKind.CURVE)
 
-private fun shapeName(kind: ShapeKind?) = when (kind) {
+internal fun shapeName(kind: ShapeKind?) = when (kind) {
     null -> R.string.shape_free
     ShapeKind.LINE -> R.string.shape_line
     ShapeKind.ARROW -> R.string.shape_arrow

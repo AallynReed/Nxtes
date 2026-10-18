@@ -70,7 +70,7 @@ import net.mildhope.nxtes.library.NameDialog
 import net.mildhope.nxtes.library.runLibraryAction
 import net.mildhope.nxtes.nxtes
 
-enum class SideTab { PAGES, OUTLINE, BOOKMARKS, MASKS }
+enum class SideTab { PAGES, OUTLINE, BOOKMARKS, ANNOTATIONS, MASKS }
 
 /** An outline row: the PDF's own entries are read-only, the user's ([item]) can be edited. */
 private class OutlineRow(val title: String, val pageIndex: Int, val depth: Int, val item: OutlineItem? = null)
@@ -105,6 +105,7 @@ fun SidePanel(
         Triple(SideTab.PAGES, painterResource(R.drawable.ic_grid_view), stringResource(R.string.pages)),
         Triple(SideTab.OUTLINE, rememberVectorPainter(Icons.AutoMirrored.Filled.List), stringResource(R.string.outline)),
         Triple(SideTab.BOOKMARKS, painterResource(R.drawable.ic_bookmark), stringResource(R.string.bookmarks)),
+        Triple(SideTab.ANNOTATIONS, painterResource(R.drawable.ic_annotations), stringResource(R.string.annotations)),
         Triple(SideTab.MASKS, painterResource(R.drawable.ic_masking), stringResource(R.string.masking)),
     )
 
@@ -128,6 +129,7 @@ fun SidePanel(
             when (tab) {
                 SideTab.PAGES -> PageGrid(doc, viewport)
                 SideTab.MASKS -> MaskList(doc, ink, selection, viewport)
+                SideTab.ANNOTATIONS -> AnnotationList(doc, ink, viewport)
                 SideTab.OUTLINE -> Outline(doc, viewport, { dialog = PanelDialog.AddOutline }, { dialog = PanelDialog.EditOutline(it) }) {
                     edit { deleteOutline(doc.id, it.id) }
                 }
