@@ -471,9 +471,11 @@ pub async fn remove_user(state: &AppState, user_id: &str) -> ApiResult<()> {
         .bind(user_id)
         .execute(&state.db)
         .await?;
-    let dir = state.config.blob_dir().join(user_id);
-    if dir.exists() {
-        tokio::fs::remove_dir_all(dir).await?;
+    for dir in [state.config.blob_dir(), state.config.share_dir()] {
+        let dir = dir.join(user_id);
+        if dir.exists() {
+            tokio::fs::remove_dir_all(dir).await?;
+        }
     }
     Ok(())
 }

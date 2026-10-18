@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[derive(Clone, Debug)]
 pub struct Config {
     pub bind: String,
-    /// Holds the database (`nxtes.db`) and the blobs.
+    /// Holds the database (`nxtes.db`), the blobs and shared PDFs.
     pub data_dir: PathBuf,
     /// The address users reach the server at, for links in emails.
     pub public_url: String,
@@ -17,7 +17,12 @@ pub struct Config {
     /// 0 for no limit.
     pub max_devices: i64,
     pub max_blob_bytes: usize,
+    /// Static files for the web viewer, such as `pdfjs/`; the viewer uses a CDN without them.
+    pub assets_dir: Option<PathBuf>,
 }
+
+/// Where the web viewer loads pdf.js from when the server has no copy of its own.
+pub const PDFJS_CDN: &str = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build";
 
 impl Config {
     pub fn from_env() -> Self {
@@ -47,6 +52,7 @@ impl Config {
             default_quota_bytes: number("NXTES_DEFAULT_QUOTA_MB", 2048) * 1024 * 1024,
             max_devices: number("NXTES_MAX_DEVICES", 0),
             max_blob_bytes: number("NXTES_MAX_BLOB_MB", 1024) as usize * 1024 * 1024,
+            assets_dir: var("NXTES_ASSETS").map(PathBuf::from),
         }
     }
 
@@ -63,10 +69,23 @@ impl Config {
             default_quota_bytes: 10 * 1024 * 1024,
             max_devices: 0,
             max_blob_bytes: 4 * 1024 * 1024,
+            assets_dir: None,
         }
     }
 
     pub fn blob_dir(&self) -> PathBuf {
         self.data_dir.join("blobs")
+    }
+
+    pub fn share_dir(&self) -> PathBuf {
+        self.data_dir.join("shares")
+    }
+
+    /// The base URL of pdf.js for the viewer: the server's own copy if it has one.
+    pub fn pdfjs_base(&self) -> String {
+        match &self.assets_dir {
+            Some(dir) if dir.join("pdfjs/pdf.min.mjs").exists() => "/assets/pdfjs".into(),
+            _ => PDFJS_CDN.into(),
+        }
     }
 }

@@ -38,16 +38,17 @@ fn blob_path(state: &AppState, user: &str, sha: &str) -> PathBuf {
     state.config.blob_dir().join(user).join(&sha[..2]).join(sha)
 }
 
-async fn used_bytes(state: &AppState, user: &str) -> ApiResult<i64> {
-    Ok(
-        sqlx::query_scalar("SELECT COALESCE(SUM(size), 0) FROM blobs WHERE user_id = ?")
-            .bind(user)
-            .fetch_one(&state.db)
-            .await?,
+/// Bytes the user's blobs and shared PDFs take up.
+pub(crate) async fn used_bytes(state: &AppState, user: &str) -> ApiResult<i64> {
+    Ok(sqlx::query_scalar(
+        "SELECT (SELECT COALESCE(SUM(size), 0) FROM blobs WHERE user_id = ?1) + (SELECT COALESCE(SUM(size), 0) FROM shares WHERE user_id = ?1)",
     )
+    .bind(user)
+    .fetch_one(&state.db)
+    .await?)
 }
 
-async fn quota(state: &AppState, user: &str) -> ApiResult<i64> {
+pub(crate) async fn quota(state: &AppState, user: &str) -> ApiResult<i64> {
     let q: Option<i64> = sqlx::query_scalar("SELECT quota_bytes FROM users WHERE id = ?")
         .bind(user)
         .fetch_one(&state.db)

@@ -55,6 +55,9 @@ async fn serve(state: AppState) {
             if let Err(e) = nxtes_server::sync::collect_all_blobs(&collector).await {
                 tracing::warn!("blob collection failed: {:?}", e.body);
             }
+            if let Err(e) = nxtes_server::shares::collect_expired(&collector).await {
+                tracing::warn!("expired share cleanup failed: {:?}", e.body);
+            }
         }
     });
     axum::serve(listener, nxtes_server::app(state))

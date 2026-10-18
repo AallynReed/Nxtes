@@ -6,7 +6,7 @@ use axum::response::Html;
 use serde::Deserialize;
 
 /// A small page in the server's own style, with [body] already escaped.
-fn page(title: &str, body: &str) -> Html<String> {
+pub(crate) fn page(title: &str, body: &str) -> Html<String> {
     Html(format!(
         r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} · Nxtes</title><style>
@@ -21,7 +21,7 @@ button{{background:var(--accent);color:#fff;border:0;border-radius:999px;padding
     ))
 }
 
-fn escape(s: &str) -> String {
+pub(crate) fn escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")

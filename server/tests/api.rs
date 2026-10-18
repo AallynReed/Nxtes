@@ -646,3 +646,78 @@ async fn emailed_links_open_pages_that_need_a_click() {
         String::from_utf8(res.into_body().collect().await.unwrap().to_bytes().to_vec()).unwrap();
     assert!(page.contains("Address confirmed"));
 }
+
+#[tokio::test]
+async fn shared_pdfs_open_by_link_until_removed_or_expired() {
+    let s = Server::new().await;
+    let t = s.signed_in("ana@example.com").await;
+    let pdf = b"%PDF-1.4 pretend".to_vec();
+
+    let (status, _) = s
+        .raw("POST", "/v1/shares?title=Notes", &t, b"hello".to_vec())
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = s.call("POST", "/v1/shares", None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let (status, body) = s
+        .raw("POST", "/v1/shares?title=My%20%3Cnotes%3E", &t, pdf.clone())
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let share: Value = serde_json::from_slice(&body).unwrap();
+    let url = share["url"].as_str().unwrap();
+    let path = url.strip_prefix("http://nxtes.test").unwrap().to_string();
+    assert!(path.starts_with("/s/"));
+
+    let (status, page) = s.raw("GET", &path, "", vec![]).await;
+    assert_eq!(status, StatusCode::OK);
+    let page = String::from_utf8(page).unwrap();
+    assert!(page.contains("My &lt;notes&gt;"));
+    assert!(page.contains("pdf.min.mjs"));
+    let (status, file) = s.raw("GET", &format!("{path}/file.pdf"), "", vec![]).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(file, pdf);
+
+    let (_, list) = s.call("GET", "/v1/shares", Some(&t), None).await;
+    assert_eq!(list["shares"][0]["views"], 1);
+    assert_eq!(list["shares"][0]["url"], url);
+    let (_, usage) = s.call("GET", "/v1/usage", Some(&t), None).await;
+    assert_eq!(usage["used"], pdf.len());
+
+    let id = share["id"].as_str().unwrap();
+    let (status, _) = s
+        .call("DELETE", &format!("/v1/shares/{id}"), Some(&t), None)
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(
+        s.raw("GET", &path, "", vec![]).await.0,
+        StatusCode::NOT_FOUND
+    );
+
+    let (_, body) = s
+        .raw("POST", "/v1/shares?title=Soon&days=1", &t, pdf.clone())
+        .await;
+    let share: Value = serde_json::from_slice(&body).unwrap();
+    let path = share["url"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("http://nxtes.test")
+        .unwrap()
+        .to_string();
+    sqlx::query("UPDATE shares SET expires_at = 1")
+        .execute(&s.state.db)
+        .await
+        .unwrap();
+    assert_eq!(
+        s.raw("GET", &path, "", vec![]).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        nxtes_server::shares::collect_expired(&s.state)
+            .await
+            .unwrap(),
+        1
+    );
+    let (_, list) = s.call("GET", "/v1/shares", Some(&t), None).await;
+    assert_eq!(list["shares"].as_array().unwrap().len(), 0);
+}

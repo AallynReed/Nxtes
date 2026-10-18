@@ -4,6 +4,7 @@ pub mod config;
 pub mod error;
 pub mod mail;
 pub mod pages;
+pub mod shares;
 pub mod state;
 pub mod sync;
 pub mod util;
@@ -16,7 +17,8 @@ use state::AppState;
 /// Every route; see docs/plan.md for the API.
 pub fn app(state: AppState) -> Router {
     let blob_limit = state.config.max_blob_bytes;
-    Router::new()
+    let assets = state.config.assets_dir.clone();
+    let router = Router::new()
         .route("/", get(pages::home))
         .route("/healthz", get(|| async { "ok" }))
         .route("/v1/auth/register", post(auth::register))
@@ -52,6 +54,15 @@ pub fn app(state: AppState) -> Router {
                 .get(sync::get_blob)
                 .layer(DefaultBodyLimit::max(blob_limit)),
         )
+        .route(
+            "/v1/shares",
+            post(shares::create)
+                .get(shares::list)
+                .layer(DefaultBodyLimit::max(blob_limit)),
+        )
+        .route("/v1/shares/{id}", delete(shares::remove))
+        .route("/s/{token}", get(shares::view))
+        .route("/s/{token}/file.pdf", get(shares::file))
         .route("/v1/library", get(sync::library))
         .route("/v1/changes", get(sync::changes))
         .route("/v1/events", get(sync::events))
@@ -77,5 +88,9 @@ pub fn app(state: AppState) -> Router {
         )
         .layer(DefaultBodyLimit::max(4 * 1024 * 1024))
         .layer(tower_http::trace::TraceLayer::new_for_http())
-        .with_state(state)
+        .with_state(state);
+    match assets {
+        Some(dir) => router.nest_service("/assets", tower_http::services::ServeDir::new(dir)),
+        None => router,
+    }
 }

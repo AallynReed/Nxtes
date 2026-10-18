@@ -22,7 +22,7 @@ docker run -d -p 8080:8080 -v nxtes-data:/data -e NXTES_PUBLIC_URL=https://notes
 | Variable | Default | Meaning |
 |---|---|---|
 | `NXTES_BIND` | `127.0.0.1:8080` | Address to listen on (`0.0.0.0:8080` in the image) |
-| `NXTES_DATA` | `data` | Folder for the database and blobs (`/data` in the image) |
+| `NXTES_DATA` | `data` | Folder for the database, blobs and shared PDFs (`/data` in the image) |
 | `NXTES_PUBLIC_URL` | `http://<bind>` | Address users reach the server at, used in email links |
 | `NXTES_SMTP_URL` | unset | For example `smtp://mail.example.com:587?tls=required`, `smtps://user:pass@host`. Unset, emails are only logged |
 | `NXTES_MAIL_FROM` | `Nxtes <nxtes@localhost>` | Sender of account emails |
@@ -30,7 +30,8 @@ docker run -d -p 8080:8080 -v nxtes-data:/data -e NXTES_PUBLIC_URL=https://notes
 | `NXTES_ALLOW_REGISTRATION` | `true` | Whether anyone can create an account |
 | `NXTES_DEFAULT_QUOTA_MB` | `2048` | Storage per account unless set with `admin set-quota` |
 | `NXTES_MAX_DEVICES` | `0` | Devices per account; 0 means no limit |
-| `NXTES_MAX_BLOB_MB` | `1024` | Largest single file |
+| `NXTES_MAX_BLOB_MB` | `1024` | Largest single file or shared PDF |
+| `NXTES_ASSETS` | unset | Folder with the web viewer's `pdfjs/` files (`/usr/share/nxtes` in the image). Unset, shared-link pages load pdf.js from jsDelivr |
 
 ## Admin commands
 
@@ -42,5 +43,12 @@ Run inside the container with `docker exec nxtes nxtes-server admin <command>`:
 - `list-users`
 - `delete-user <email>`
 - `collect-blobs`: delete files no document uses (this also runs hourly)
+
+## Shared links
+
+The app can upload an exported PDF and get a link anyone can open at `/s/<token>`, without an
+account. The page draws the PDF with pdf.js and offers a download. Links can expire after a set
+number of days or last until the owner removes them; expired ones are deleted hourly. Shared PDFs
+count toward the account's storage.
 
 The API is described in [docs/plan.md](../docs/plan.md#sync-api-v1).
