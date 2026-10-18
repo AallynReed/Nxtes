@@ -1,5 +1,5 @@
 pub const EN: &str = r#"<p class="meta">Last updated 18 October 2026 · <a href="/privacy/pt">Português</a></p>
-<p>Nxtes is a handwriting and PDF app made by Aallyn, an independent developer in Portugal. This policy covers the Nxtes Android app and the sync server at nxtes.mildhope.net. Questions go to <a href="mailto:support@aallyn.net">support@aallyn.net</a>.</p>
+<p>Nxtes is a handwriting and PDF app made by Aallyn, an independent developer in Portugal. This policy covers the Nxtes Android app and the sync server at nxtes.mildhope.net. Questions go to <a href="mailto:nxtes@mildhope.net">nxtes@mildhope.net</a>.</p>
 
 <h2>Without an account</h2>
 <p>Your documents, notes, recordings and settings stay on your device. Nxtes has no ads, no analytics and no tracking, and it doesn't sell or share your data.</p>
@@ -31,7 +31,7 @@ pub const EN: &str = r#"<p class="meta">Last updated 18 October 2026 · <a href=
 <p>If this policy changes, the new version is posted here with a new date.</p>"#;
 
 pub const PT: &str = r#"<p class="meta">Última atualização a 18 de outubro de 2026 · <a href="/privacy">English</a></p>
-<p>O Nxtes é uma app de escrita à mão e PDF feita por Aallyn, um programador independente em Portugal. Esta política abrange a app Nxtes para Android e o servidor de sincronização em nxtes.mildhope.net. Questões para <a href="mailto:support@aallyn.net">support@aallyn.net</a>.</p>
+<p>O Nxtes é uma app de escrita à mão e PDF feita por Aallyn, um programador independente em Portugal. Esta política abrange a app Nxtes para Android e o servidor de sincronização em nxtes.mildhope.net. Questões para <a href="mailto:nxtes@mildhope.net">nxtes@mildhope.net</a>.</p>
 
 <h2>Sem conta</h2>
 <p>Os seus documentos, notas, gravações e definições ficam no seu dispositivo. O Nxtes não tem anúncios, análises nem rastreio, e não vende nem partilha os seus dados.</p>
