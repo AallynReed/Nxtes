@@ -28,6 +28,13 @@ class LibraryStore(
     private val foldersFile = File(root, "folders.json")
     private val templatesDir = File(root, "templates")
     private val templatesFile = File(templatesDir, "templates.json")
+    private val stickersDir = File(root, "stickers")
+    private val packsFile = File(stickersDir, "packs.json")
+    private val _packs = MutableStateFlow<List<StickerPack>>(emptyList())
+
+    /** The user's sticker packs. */
+    val stickerPacks: StateFlow<List<StickerPack>> = _packs.asStateFlow()
+
     private val fontsDir = File(root, "fonts")
     private val fontsFile = File(fontsDir, "fonts.json")
     private val _fonts = MutableStateFlow<List<FontFile>>(emptyList())
@@ -85,6 +92,7 @@ class LibraryStore(
         _state.value = Library(folders, documents, loaded = true)
         _templates.value = if (templatesFile.exists()) json.decodeFromString(templatesFile.readText()) else emptyList()
         _fonts.value = if (fontsFile.exists()) json.decodeFromString(fontsFile.readText()) else emptyList()
+        _packs.value = if (packsFile.exists()) json.decodeFromString(packsFile.readText()) else emptyList()
     }
 
     @Synchronized
@@ -161,6 +169,57 @@ class LibraryStore(
         val template = CustomTemplate(newId(), name, sha256, size.width, size.height, clock())
         writeTemplates(listOf(template) + _templates.value)
         return template
+    }
+
+    fun stickerFile(blob: String) = File(stickersDir, "blobs/$blob")
+
+    @Synchronized
+    fun addStickerPack(name: String): StickerPack {
+        val pack = StickerPack(newId(), name)
+        writePacks(_packs.value + pack)
+        return pack
+    }
+
+    @Synchronized
+    fun renameStickerPack(id: String, name: String) = writePacks(_packs.value.map { if (it.id == id) it.copy(name = name) else it })
+
+    @Synchronized
+    fun deleteStickerPack(id: String) {
+        val doomed = _packs.value.find { it.id == id } ?: return
+        writePacks(_packs.value - doomed)
+        doomed.stickers.forEach(::deleteStickerBlobIfUnused)
+    }
+
+    /** Adds an image file (PNG or JPEG, [width]x[height] pixels) to a pack. */
+    @Synchronized
+    fun addSticker(packId: String, input: InputStream, width: Int, height: Int): Sticker {
+        val sticker = Sticker(newId(), storeBlob(input, File(stickersDir, "blobs")), width, height)
+        writePacks(_packs.value.map { if (it.id == packId) it.copy(stickers = it.stickers + sticker) else it })
+        return sticker
+    }
+
+    @Synchronized
+    fun deleteSticker(packId: String, stickerId: String) {
+        val pack = _packs.value.find { it.id == packId } ?: return
+        val doomed = pack.stickers.find { it.id == stickerId } ?: return
+        writePacks(_packs.value.map { if (it.id == packId) it.copy(stickers = it.stickers - doomed) else it })
+        deleteStickerBlobIfUnused(doomed)
+    }
+
+    /** Copies a sticker's image into the document so it doesn't depend on the sticker library. */
+    @Synchronized
+    fun useSticker(documentId: String, blob: String) {
+        val target = blobFile(documentId, blob)
+        if (!target.exists()) writeAtomically(target, stickerFile(blob).readBytes())
+    }
+
+    private fun deleteStickerBlobIfUnused(sticker: Sticker) {
+        if (_packs.value.none { pack -> pack.stickers.any { it.blob == sticker.blob } }) stickerFile(sticker.blob).delete()
+    }
+
+    private fun writePacks(packs: List<StickerPack>) {
+        writeAtomically(packsFile, json.encodeToString(packs))
+        _packs.value = packs
     }
 
     /** Adds a .ttf or .otf font; adding the same file twice keeps one. */

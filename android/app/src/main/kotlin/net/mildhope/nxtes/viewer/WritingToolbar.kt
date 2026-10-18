@@ -61,7 +61,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import net.mildhope.nxtes.R
+import net.mildhope.nxtes.edit.StickerPanel
+import net.mildhope.nxtes.edit.importSticker
+import net.mildhope.nxtes.edit.ref
+import net.mildhope.nxtes.library.runLibraryAction
 import net.mildhope.nxtes.data.LineStyle
 import net.mildhope.nxtes.data.Pen
 import net.mildhope.nxtes.data.ShapeKind
@@ -175,6 +185,13 @@ fun WritingToolbar(
                         onSelect = { tools.selectTool(Tool.TEXT) },
                         glyph = { Icon(painterResource(R.drawable.ic_text), null, tint = it, modifier = Modifier.size(24.dp)) },
                     )
+                    ToolSlot(
+                        selected = penMode && tools.tool == Tool.NOTE,
+                        label = stringResource(R.string.sticky_note),
+                        onSelect = { tools.selectTool(Tool.NOTE) },
+                        glyph = { Icon(painterResource(R.drawable.ic_sticky_note), null, tint = it, modifier = Modifier.size(24.dp)) },
+                    ) { NoteSettings(tools) }
+                    StickerSlot(tools, selected = penMode && tools.tool == Tool.STICKER)
                 }
                 Row(Modifier.align(Alignment.CenterEnd).padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     BarButton(painterResource(R.drawable.ic_undo), stringResource(R.string.undo), enabled = canUndo, onClick = onUndo)
@@ -323,7 +340,7 @@ private fun ToolSlot(
     label: String,
     onSelect: () -> Unit,
     glyph: @Composable (Color) -> Unit,
-    settings: (@Composable () -> Unit)? = null,
+    settings: (@Composable (close: () -> Unit) -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -337,8 +354,53 @@ private fun ToolSlot(
                 .clickable(onClickLabel = label, role = Role.Button) { if (selected && settings != null) open = true else onSelect() },
         ) { glyph(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
         if (settings != null) {
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) { settings() }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) { settings { open = false } }
         }
+    }
+}
+
+/** The colour new sticky notes get. */
+@Composable
+private fun NoteSettings(tools: ToolState) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(stringResource(R.string.note_colour), style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            ToolState.NOTE_COLORS.forEach { colour ->
+                val selected = colour == tools.noteColor
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color(colour))
+                        .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                        .clickable { tools.updateNoteColor(colour) },
+                )
+            }
+        }
+    }
+}
+
+/** The sticker tool, whose settings are the sticker panel; images picked there join the open pack. */
+@Composable
+private fun StickerSlot(tools: ToolState, selected: Boolean) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pack by remember { mutableStateOf<String?>(null) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        val packId = pack
+        if (uri == null || packId == null) return@rememberLauncherForActivityResult
+        scope.launch { runLibraryAction(context) { importSticker(context, uri, packId, this) }?.let { tools.armSticker(it.ref()) } }
+    }
+    ToolSlot(
+        selected = selected,
+        label = stringResource(R.string.sticker),
+        onSelect = { tools.selectTool(Tool.STICKER) },
+        glyph = { Icon(painterResource(R.drawable.ic_sticker), null, tint = it, modifier = Modifier.size(24.dp)) },
+    ) { close ->
+        StickerPanel(tools, onPicked = close, onAddImage = { id ->
+            pack = id
+            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        })
     }
 }
 

@@ -69,6 +69,7 @@ import androidx.core.graphics.withMatrix
 import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.Pen
 import net.mildhope.nxtes.data.Shape
+import net.mildhope.nxtes.data.StickyNote
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.edit.ShapeBuilder
 import net.mildhope.nxtes.edit.ShapeRecognizer
@@ -131,6 +132,7 @@ fun PageCanvas(
     onPageCounter: () -> Unit,
     modifier: Modifier = Modifier,
     assetsLoaded: () -> Int = { 0 },
+    onStamp: (pageIndex: Int, point: Offset) -> Unit = { _, _ -> },
     overlay: @Composable BoxScope.(PageMapper) -> Unit = {},
 ) {
     val density = LocalDensity.current
@@ -190,8 +192,20 @@ fun PageCanvas(
         override fun drawingDrag() = when {
             tools.tool == Tool.LASSO -> DragKind.LASSO
             tools.tool == Tool.PEN && tools.pen.pen == Pen.SHAPE -> DragKind.SHAPE
-            tools.tool == Tool.TEXT -> DragKind.PLACE
+            tools.tool == Tool.TEXT || tools.tool == Tool.NOTE || tools.tool == Tool.STICKER -> DragKind.PLACE
             else -> null
+        }
+
+        override fun opensOnTap(at: Offset) = noteAt(at) != null
+
+        /** The sticky note under the point, with its page. */
+        private fun noteAt(at: Offset): Pair<String, StickyNote>? {
+            val index = mapper.pageAt(at)
+            val page = pages.getOrNull(index) ?: return null
+            val point = mapper.toPage(index, at)
+            val slop = handleTouch / mapper.pixelsPerPoint / 4
+            val note = ink.content(page.id).notes.lastOrNull { Geometry.bounds(it).inflate(slop).contains(point.x, point.y) } ?: return null
+            return page.id to note
         }
 
         override fun dragStart(kind: DragKind, at: Offset, handle: Handle) {
@@ -257,13 +271,54 @@ fun PageCanvas(
         }
 
         override fun tap(at: Offset) {
-            if (selection.text != null) {
-                selection.commitText(ink, resources)?.let { tools.updateTextStyle(it.style) }
-                return
-            }
+            if (finishEditing()) return
             selection.clear()
             selection.menuAt = null
-            if (tools.mode == InputMode.PEN && tools.tool == Tool.TEXT) placeText(at)
+            if (openNote(at)) return
+            if (tools.mode != InputMode.PEN) return
+            when (tools.tool) {
+                Tool.TEXT -> placeText(at)
+                Tool.NOTE -> placeNote(at)
+                Tool.STICKER -> {
+                    val index = mapper.pageAt(at)
+                    if (index >= 0) onStamp(index, mapper.toPage(index, at))
+                }
+                else -> Unit
+            }
+        }
+
+        /** Closes a text box or note being written; false if there was none. */
+        private fun finishEditing(): Boolean {
+            if (selection.text != null) {
+                selection.commitText(ink, resources)?.let { tools.updateTextStyle(it.style) }
+                return true
+            }
+            if (selection.note != null) {
+                selection.commitNote(ink)
+                return true
+            }
+            return false
+        }
+
+        /** Opens the sticky note under the point, if there is one. */
+        private fun openNote(at: Offset): Boolean {
+            val (pageId, note) = noteAt(at) ?: return false
+            selection.startNote(ink, pageId, note, isNew = false)
+            return true
+        }
+
+        private fun placeNote(at: Offset) {
+            val index = mapper.pageAt(at)
+            val page = pages.getOrNull(index) ?: return
+            val point = mapper.toPage(index, at)
+            val half = PagePainter.NOTE_SIZE / 2
+            val note = StickyNote(
+                UUID.randomUUID().toString(),
+                (point.x - half).coerceIn(0f, (page.width - 2 * half).coerceAtLeast(0f)),
+                (point.y - half).coerceIn(0f, (page.height - 2 * half).coerceAtLeast(0f)),
+                "", tools.noteColor, System.currentTimeMillis(),
+            )
+            selection.startNote(ink, page.id, note, isNew = true)
         }
 
         /** Edits the text box under the point, or starts a new one there. */
@@ -277,7 +332,10 @@ fun PageCanvas(
         }
 
         override fun penDown(at: Offset) {
-            tap(at)
+            if (!finishEditing()) {
+                selection.clear()
+                selection.menuAt = null
+            }
             drag.convert = null
         }
 

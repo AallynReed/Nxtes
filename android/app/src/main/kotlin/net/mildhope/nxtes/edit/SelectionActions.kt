@@ -1,6 +1,11 @@
 package net.mildhope.nxtes.edit
 
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.RectF
 import androidx.compose.ui.geometry.Offset
+import androidx.core.graphics.createBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.NxtesApplication
@@ -8,10 +13,18 @@ import net.mildhope.nxtes.data.Affine
 import net.mildhope.nxtes.data.Pen
 import net.mildhope.nxtes.data.Picture
 import net.mildhope.nxtes.data.Shape
+import net.mildhope.nxtes.data.Sticker
+import net.mildhope.nxtes.data.StickyNote
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.data.recoloured
 import net.mildhope.nxtes.ink.PageSession
+import net.mildhope.nxtes.page.PagePainter
+import net.mildhope.nxtes.page.keepBitmap
 import java.util.UUID
+import kotlin.math.roundToInt
+
+/** Page points kept clear around a selection turned into a sticker. */
+private const val STICKER_MARGIN = 2f
 
 /** What the selection menu does to the picked items. */
 class SelectionActions(
@@ -40,6 +53,13 @@ class SelectionActions(
         val page = selection.pageId ?: return null
         val picked = selection.picked.of(session.content(page))
         return (picked.objects.singleOrNull() as? Picture)?.takeIf { picked.strokes.isEmpty() && picked.notes.isEmpty() && picked.masks.isEmpty() }
+    }
+
+    /** The sticky note, when that's all that's picked. */
+    fun singleNote(): StickyNote? {
+        val page = selection.pageId ?: return null
+        val picked = selection.picked.of(session.content(page))
+        return picked.notes.singleOrNull()?.takeIf { picked.strokes.isEmpty() && picked.objects.isEmpty() && picked.masks.isEmpty() }
     }
 
     /** Whether anything picked can change its stacking order. */
@@ -93,6 +113,31 @@ class SelectionActions(
             .transformed(Affine.translate(at.x - clip.bounds.centerX, at.y - clip.bounds.centerY))
         session.update(pageId) { it + placed }
         selection.select(pageId, Picked.all(placed), session.content(pageId))
+    }
+
+    /** Draws the picked items into a sticker in the pack called [packName], making the pack if needed. */
+    suspend fun addToStickers(context: Context, packName: String): Sticker? {
+        val page = selection.pageId ?: return null
+        val box = selection.bounds?.inflate(STICKER_MARGIN) ?: return null
+        val content = selection.picked.of(session.content(page))
+        return withContext(Dispatchers.IO) {
+            val scale = STICKER_PIXELS / maxOf(box.width, box.height)
+            val w = (box.width * scale).roundToInt().coerceAtLeast(1)
+            val h = (box.height * scale).roundToInt().coerceAtLeast(1)
+            val bitmap = createBitmap(w, h)
+            try {
+                val matrix = Matrix().apply {
+                    setTranslate(-box.left, -box.top)
+                    postScale(scale, scale)
+                }
+                PagePainter().draw(Canvas(bitmap), content, matrix, RectF(0f, 0f, w.toFloat(), h.toFloat()), app.assets.blockingResources(documentId))
+                val library = app.library
+                val pack = library.stickerPacks.value.firstOrNull { it.name == packName } ?: library.addStickerPack(packName)
+                keepBitmap(context, bitmap) { library.addSticker(pack.id, it, w, h) }
+            } finally {
+                bitmap.recycle()
+            }
+        }
     }
 
     private fun change(transform: (net.mildhope.nxtes.data.PageContent) -> net.mildhope.nxtes.data.PageContent) {

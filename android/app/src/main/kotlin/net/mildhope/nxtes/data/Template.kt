@@ -54,6 +54,14 @@ data class PageTemplate(
     val pdf: PdfSource? = null,
 )
 
+/** A sticker image; [blob] is its SHA-256 in the stickers folder and the size is in pixels. */
+@Serializable
+data class Sticker(val id: String, val blob: String, val width: Int, val height: Int)
+
+/** A named folder of stickers. */
+@Serializable
+data class StickerPack(val id: String, val name: String, val stickers: List<Sticker> = emptyList())
+
 /** A font file the user added; [blob] is its SHA-256 in the fonts folder. */
 @Serializable
 data class FontFile(val blob: String, val name: String)

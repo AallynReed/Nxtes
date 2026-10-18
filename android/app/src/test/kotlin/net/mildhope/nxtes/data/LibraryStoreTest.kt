@@ -412,6 +412,28 @@ class LibraryStoreTest {
         assertTrue(store.blobFile(note.id, sha).exists())
     }
 
+    @Test
+    fun stickerPacksKeepSharedImagesUntilTheLastUseGoes() {
+        val bytes = byteArrayOf(1, 2, 3)
+        val first = store.addStickerPack("Animals")
+        val second = store.addStickerPack("Faces")
+        val a = store.addSticker(first.id, ByteArrayInputStream(bytes), 4, 2)
+        val b = store.addSticker(second.id, ByteArrayInputStream(bytes), 4, 2)
+        store.renameStickerPack(first.id, "Pets")
+
+        val reloaded = newStore().apply { load() }
+        assertEquals(listOf("Pets", "Faces"), reloaded.stickerPacks.value.map { it.name })
+        assertEquals(a.blob, b.blob)
+
+        val doc = import()
+        store.useSticker(doc.id, a.blob)
+        store.deleteStickerPack(first.id)
+        assertTrue(store.stickerFile(a.blob).exists())
+        store.deleteSticker(second.id, b.id)
+        assertFalse(store.stickerFile(a.blob).exists())
+        assertTrue(store.blobFile(doc.id, a.blob).exists())
+    }
+
     private fun pages(documentId: String) = store.state.value.document(documentId)!!.pages.map { it.id }
 
     private fun stroke() = InkStroke(

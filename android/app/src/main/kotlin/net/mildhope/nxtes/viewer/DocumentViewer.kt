@@ -1,6 +1,15 @@
 package net.mildhope.nxtes.viewer
 
 import android.util.Log
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import net.mildhope.nxtes.edit.NoteEditor
+import net.mildhope.nxtes.edit.STICKER_PIXELS
+import net.mildhope.nxtes.page.BasicStickers
+import net.mildhope.nxtes.page.keepBitmap
 import java.util.UUID
 import net.mildhope.nxtes.page.importImage
 import net.mildhope.nxtes.page.cameraTarget
@@ -126,6 +135,34 @@ fun DocumentViewer(
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { app.scope.launch { ink.flush() } }
     BackHandler(onBack = onBack)
     BackHandler(enabled = selection.text != null) { selection.commitText(ink, resources)?.let { tools.updateTextStyle(it.style) } }
+    BackHandler(enabled = selection.note != null) { selection.commitNote(ink) }
+
+    /** Stamps the sticker tool's sticker centred on [point]. */
+    fun stamp(pageIndex: Int, point: Offset) {
+        val ref = tools.sticker
+        val page = doc.pages.getOrNull(pageIndex) ?: return
+        scope.launch {
+            val blob = runLibraryAction(context) {
+                val basic = ref.basic
+                if (basic != null) {
+                    val bitmap = BasicStickers.render(basic, STICKER_PIXELS / 2)
+                    try {
+                        keepBitmap(context, bitmap) { addBlob(doc.id, it) }
+                    } finally {
+                        bitmap.recycle()
+                    }
+                } else {
+                    useSticker(doc.id, requireNotNull(ref.blob))
+                    ref.blob
+                }
+            } ?: return@launch
+            val aspect = ref.width.toFloat() / ref.height.coerceAtLeast(1)
+            val w = if (aspect >= 1f) STICKER_POINTS else STICKER_POINTS * aspect
+            val h = if (aspect >= 1f) STICKER_POINTS / aspect else STICKER_POINTS
+            val picture = Picture(UUID.randomUUID().toString(), blob, point.x, point.y, w, h, sticker = true)
+            ink.update(page.id) { it.copy(objects = it.objects + picture) }
+        }
+    }
 
     var imageTarget by remember { mutableStateOf<Pair<Int, Offset>?>(null) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
@@ -223,17 +260,35 @@ fun DocumentViewer(
                     selection = selection,
                     onPageCounter = { goToPage = true },
                     assetsLoaded = { app.assets.loaded },
+                    onStamp = ::stamp,
                     overlay = { mapper ->
                         val edit = selection.text
                         val crop = selection.crop
-                        if (crop != null) {
+                        val note = selection.note
+                        if (note != null) {
+                            NoteEditor(
+                                edit = note,
+                                mapper = mapper,
+                                onChange = selection::updateNote,
+                                onDelete = { selection.deleteNote(ink) },
+                                onDone = { selection.commitNote(ink) },
+                            )
+                        } else if (crop != null) {
                             CropEditor(crop, mapper, resources) { selection.endCrop(ink, it) }
                         } else if (edit == null) {
-                            EditMenus(doc, mapper, selection, actions, scope, tools) { pageIndex, point ->
+                            EditMenus(doc, mapper, selection, actions, scope, tools, ink) { pageIndex, point ->
                                 imageTarget = pageIndex to point
                                 addImage(ImageSource.GALLERY)
                             }
                         } else {
+                            val box = edit.box
+                            val index = mapper.indexOf(edit.pageId)
+                            if (index >= 0) {
+                                KeepAboveKeyboard(
+                                    Rect(mapper.toScreen(index, Offset(box.x, box.y)), mapper.toScreen(index, Offset(box.x + box.width, box.y + box.height))),
+                                    viewport,
+                                )
+                            }
                             TextEditor(
                                 edit = edit,
                                 mapper = mapper,
@@ -298,6 +353,7 @@ private fun EditMenus(
     actions: SelectionActions,
     scope: CoroutineScope,
     tools: ToolState,
+    ink: PageSession,
     onImage: (pageIndex: Int, point: Offset) -> Unit,
 ) {
     val context = LocalContext.current
@@ -312,6 +368,19 @@ private fun EditMenus(
             val box = actions.singleText()
             if (box != null && single != null) {
                 MenuIcon(rememberVectorPainter(Icons.Default.Edit), stringResource(R.string.edit_text)) { selection.startText(single.id, box, isNew = false) }
+            }
+            val note = actions.singleNote()
+            if (note != null && single != null) {
+                MenuIcon(painterResource(R.drawable.ic_sticky_note), stringResource(R.string.edit_note)) { selection.startNote(ink, single.id, note, isNew = false) }
+            }
+            val myStickers = stringResource(R.string.my_stickers)
+            val addedToStickers = stringResource(R.string.added_to_stickers, myStickers)
+            val failed = stringResource(R.string.action_failed)
+            MenuIcon(painterResource(R.drawable.ic_sticker), stringResource(R.string.add_to_stickers)) {
+                scope.launch {
+                    val sticker = runCatching { actions.addToStickers(context, myStickers) }.onFailure { Log.w("Viewer", "Sticker failed", it) }.getOrNull()
+                    Toast.makeText(context, if (sticker != null) addedToStickers else failed, Toast.LENGTH_SHORT).show()
+                }
             }
             val picture = actions.singlePicture()
             if (picture != null && single != null) {
@@ -366,6 +435,22 @@ private fun EditMenus(
     items += stringResource(R.string.add_outline) to { addToDocument(outlineAdded) { addOutline(doc.id, pageId, pageTitle) } }
     PageMenu(Rect(at, at), items)
 }
+
+/** Scrolls the pages up when the keyboard would cover [target] (screen pixels), keeping its top in view. */
+@Composable
+private fun KeepAboveKeyboard(target: Rect, viewport: ViewportState) {
+    var visible by remember { mutableIntStateOf(0) }
+    val margin = with(LocalDensity.current) { 24.dp.toPx() }
+    Box(Modifier.fillMaxSize().imePadding().onSizeChanged { visible = it.height })
+    LaunchedEffect(visible) {
+        if (visible <= 0) return@LaunchedEffect
+        val hidden = target.bottom + margin - visible
+        if (hidden > 0f) viewport.transformBy(Offset.Zero, Offset(0f, -minOf(hidden, (target.top - margin).coerceAtLeast(0f))), 1f)
+    }
+}
+
+/** Stickers are stamped this many page points on their long side. */
+private const val STICKER_POINTS = 64f
 
 /** Images start at most this share of the page across. */
 private const val IMAGE_FILL = 0.6f

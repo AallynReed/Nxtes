@@ -41,7 +41,11 @@ data class PenPreset(
         }
 }
 
-enum class Tool { PEN, ERASER, LASSO, TEXT }
+enum class Tool { PEN, ERASER, LASSO, TEXT, NOTE, STICKER }
+
+/** A sticker to stamp: one Nxtes draws, by name, or an image from a pack, with its size in pixels. */
+@Serializable
+data class StickerRef(val basic: String? = null, val blob: String? = null, val width: Int = 1, val height: Int = 1)
 
 /** Font, size and colours for text boxes. */
 @Serializable
@@ -104,6 +108,37 @@ class ToolState(private val prefs: SharedPreferences) {
         if (style == textStyle) return
         textStyle = style
         prefs.edit { putString(KEY_TEXT_STYLE, json.encodeToString(style)) }
+    }
+
+    /** The colour new sticky notes get. */
+    var noteColor by mutableIntStateOf(prefs.getInt(KEY_NOTE_COLOR, NOTE_COLORS[0]))
+        private set
+
+    fun updateNoteColor(colour: Int) {
+        noteColor = colour
+        prefs.edit { putInt(KEY_NOTE_COLOR, colour) }
+    }
+
+    /** Stickers stamped lately, newest first; the first is the one the sticker tool stamps. */
+    var recentStickers by mutableStateOf(
+        runCatching { json.decodeFromString<List<StickerRef>>(prefs.getString(KEY_STICKERS, null)!!) }.getOrDefault(emptyList()),
+    )
+        private set
+
+    val sticker: StickerRef get() = recentStickers.firstOrNull() ?: StickerRef(basic = "star")
+
+    /** Picks the sticker to stamp and selects the sticker tool. */
+    fun armSticker(ref: StickerRef) {
+        saveStickers(listOf(ref) + recentStickers.filter { it != ref })
+        selectTool(Tool.STICKER)
+    }
+
+    /** Drops a deleted sticker from the recent ones. */
+    fun forgetSticker(blob: String) = saveStickers(recentStickers.filter { it.blob != blob })
+
+    private fun saveStickers(list: List<StickerRef>) {
+        recentStickers = list.take(MAX_RECENT_STICKERS)
+        prefs.edit { putString(KEY_STICKERS, json.encodeToString(recentStickers)) }
     }
 
     /** Shapes a pen stroke turns into when the pen is held still at its end. */
@@ -205,6 +240,11 @@ class ToolState(private val prefs: SharedPreferences) {
         private const val KEY_AUTO_DESELECT = "auto_deselect"
         private const val KEY_CONVERT = "convert_shapes"
         private const val KEY_TEXT_STYLE = "text_style"
+        private const val KEY_NOTE_COLOR = "note_color"
+        private const val KEY_STICKERS = "recent_stickers"
+        private const val MAX_RECENT_STICKERS = 16
+
+        val NOTE_COLORS = listOf(0xFFFFE082, 0xFFFFCC80, 0xFFF8BBD0, 0xFFD1C4E9, 0xFFB3E5FC, 0xFFC5E1A5).map { it.toInt() }
 
         /** Shapes hold-to-convert can make. */
         val CONVERTIBLE = setOf(ShapeKind.LINE, ShapeKind.ELLIPSE, ShapeKind.TRIANGLE, ShapeKind.RECTANGLE, ShapeKind.POLYGON)

@@ -8,6 +8,7 @@ import androidx.compose.ui.geometry.Offset
 import net.mildhope.nxtes.data.Affine
 import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.Picture
+import net.mildhope.nxtes.data.StickyNote
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.ink.PageSession
 import net.mildhope.nxtes.page.PagePainter
@@ -20,6 +21,9 @@ enum class Handle { NONE, BODY, SCALE_TOP_LEFT, SCALE_TOP_RIGHT, SCALE_BOTTOM_RI
 
 /** A text box being typed into: the page it's on and how it looks now. */
 class TextEdit(val pageId: String, val box: TextBox, val isNew: Boolean)
+
+/** A sticky note open for reading and writing; [group] keeps the whole edit one undo step. */
+class NoteEdit(val pageId: String, val note: StickyNote, val isNew: Boolean, val group: Any = Any())
 
 /** Items copied with the lasso, with the document whose blobs they use. */
 class ContentClip(val documentId: String, val content: PageContent, val bounds: Box)
@@ -53,6 +57,9 @@ class SelectionState {
     var crop by mutableStateOf<CropEdit?>(null)
         private set
 
+    var note by mutableStateOf<NoteEdit?>(null)
+        private set
+
     val active get() = pageId != null && !picked.isEmpty
 
     private var dragHandle = Handle.NONE
@@ -72,6 +79,36 @@ class SelectionState {
         clear()
         menuAt = null
         text = TextEdit(pageId, box, isNew)
+    }
+
+    /** Opens [note]; a new one goes on the page straight away so its icon shows while it's written. */
+    fun startNote(session: PageSession, pageId: String, note: StickyNote, isNew: Boolean) {
+        clear()
+        menuAt = null
+        val edit = NoteEdit(pageId, note, isNew)
+        if (isNew) session.update(pageId, edit.group) { it.copy(notes = it.notes + note) }
+        this.note = edit
+    }
+
+    fun updateNote(note: StickyNote) {
+        this.note = this.note?.let { NoteEdit(it.pageId, note, it.isNew, it.group) }
+    }
+
+    /** Saves the open note; a new one left empty is taken off the page again. */
+    fun commitNote(session: PageSession) {
+        val edit = note ?: return
+        note = null
+        val saved = edit.note
+        session.update(edit.pageId, edit.group) { c ->
+            if (edit.isNew && saved.text.isBlank()) c.copy(notes = c.notes.filter { it.id != saved.id })
+            else c.copy(notes = c.notes.map { if (it.id == saved.id) saved else it })
+        }
+    }
+
+    fun deleteNote(session: PageSession) {
+        val edit = note ?: return
+        note = null
+        session.update(edit.pageId, edit.group) { c -> c.copy(notes = c.notes.filter { it.id != edit.note.id }) }
     }
 
     fun startCrop(pageId: String, picture: Picture, freeform: Boolean) {

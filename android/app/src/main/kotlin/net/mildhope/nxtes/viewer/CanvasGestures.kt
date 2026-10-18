@@ -41,6 +41,9 @@ interface CanvasTools {
     /** The drag a drawing pointer makes with the current tool, or null to let the ink layer draw. */
     fun drawingDrag(): DragKind?
 
+    /** Whether something under the point opens when tapped, so drawing there waits to see if it's a tap. */
+    fun opensOnTap(at: Offset): Boolean
+
     fun dragStart(kind: DragKind, at: Offset, handle: Handle)
 
     fun dragMove(to: Offset)
@@ -136,7 +139,7 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                     continue
                 }
                 val erasing = tools.tool == Tool.ERASER
-                val toolDrag = canvas.drawingDrag()
+                val toolDrag = canvas.drawingDrag() ?: DragKind.PLACE.takeIf { canvas.opensOnTap(down.position) }
                 when {
                     down.type == PointerType.Eraser || (erasing && down.type.draws()) -> drag(pen, event, down.id, canvas, DragKind.ERASE, Handle.NONE)
                     down.type.draws() -> if (toolDrag != null) toolGesture(event, toolDrag) else watchPen(pen, event, down, canvas, slop)
