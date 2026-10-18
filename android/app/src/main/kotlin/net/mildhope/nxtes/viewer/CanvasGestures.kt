@@ -73,11 +73,11 @@ private const val HOLD_TO_CONVERT_MS = 650L
 private const val WHEEL_STEP_PX = 64f
 private const val FINGER_TAP_MS = 300L
 
-private class PenTracker {
+internal class PenTracker {
     var lastSeen = Long.MIN_VALUE / 2
 }
 
-private sealed interface Hold {
+internal sealed interface Hold {
     data object Held : Hold
     class Tapped(val at: Offset) : Hold
     class Moved(val event: PointerEvent) : Hold
@@ -129,7 +129,7 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                 /** Tool drags that can also be a tap or a touch and hold wait to see which it is. */
                 suspend fun AwaitPointerEventScope.toolGesture(start: PointerEvent, kind: DragKind) {
                     if (kind != DragKind.LASSO && kind != DragKind.PLACE && kind != DragKind.MASK) return drag(pen, start, down.id, canvas, kind, Handle.NONE)
-                    when (val hold = holdOrMove(pen, start, down, longPressMs, slop, everyPointer = true, consume = true)) {
+                    when (val hold = holdOrMove(pen, start, down, longPressMs, slop, everyPointer = true)) {
                         Hold.Held -> canvas.longPress(down.position)
                         is Hold.Tapped -> canvas.tap(hold.at, drawing = true)
                         is Hold.Moved -> drag(pen, hold.event, down.id, canvas, kind, Handle.NONE, from = down.position)
@@ -251,20 +251,22 @@ private suspend fun AwaitPointerEventScope.watchPen(
     }
 }
 
-/** Waits to see whether the first touch is held still, tapped, or moved (or joined by another). */
-private suspend fun AwaitPointerEventScope.holdOrMove(
+/**
+ * Waits to see whether the first touch is held still, tapped, or moved (or joined by another),
+ * consuming it meanwhile so the ink layer doesn't draw a tap.
+ */
+internal suspend fun AwaitPointerEventScope.holdOrMove(
     pen: PenTracker,
     first: PointerEvent,
     down: PointerInputChange,
     timeout: Long,
     slop: Float,
     everyPointer: Boolean,
-    consume: Boolean = false,
 ): Hold {
     fun counts(change: PointerInputChange) = everyPointer || change.type == PointerType.Touch
     var event = first
     while (true) {
-        if (consume) event.changes.forEach { if (counts(it)) it.consume() }
+        event.changes.forEach { if (counts(it)) it.consume() }
         val pressed = event.changes.filter { counts(it) && it.pressed }
         if (pressed.isEmpty()) return Hold.Tapped(down.position)
         if (pressed.size > 1 || (pressed.first().position - down.position).getDistance() > slop) return Hold.Moved(event)
