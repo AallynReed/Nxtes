@@ -74,6 +74,10 @@ import net.mildhope.nxtes.page.PageResources
 import androidx.core.graphics.withMatrix
 import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.Pen
+import net.mildhope.nxtes.data.InkStroke
+import net.mildhope.nxtes.data.MarkKind
+import net.mildhope.nxtes.data.TextMark
+import net.mildhope.nxtes.edit.snapHighlight
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.ColorFilter
@@ -745,7 +749,7 @@ fun PageCanvas(
             if (laser.visible) drawLaser(laser, tools.laserMode, Color(tools.laserColor))
             if (selection.active && selection.lasso.isEmpty()) selectionCorners()?.let { drawSelection(it, accent, rotateDistance) }
         }
-        InkLayer(state, layout, pages, ink, tools, !readOnly, darkPages) {
+        InkLayer(state, layout, pages, ink, tools, !readOnly, darkPages, pageText) {
             drag.convert.also {
                 drag.convert = null
                 shapePreview = null
@@ -861,6 +865,15 @@ private fun DrawScope.drawSelection(corners: List<Offset>, colour: Color, rotate
     }
 }
 
+/** Turns a highlighter stroke over PDF text into a highlight on that text, in the same undo step. */
+private fun snapToText(ink: PageSession, pageId: String, group: Any, stroke: InkStroke, text: PageText) {
+    val range = snapHighlight(text, stroke.x, stroke.y, stroke.size) ?: return
+    val mark = TextMark(UUID.randomUUID().toString(), MarkKind.HIGHLIGHT, stroke.color, text.rects(range.first, range.last), text.textOf(range.first, range.last))
+    ink.update(pageId, group) { content ->
+        if (content.strokes.none { it.id == stroke.id }) content else content.copy(strokes = content.strokes.filter { it.id != stroke.id }, marks = content.marks + mark)
+    }
+}
+
 /** Live, low-latency strokes; finished strokes move onto the page they started on. */
 @Composable
 private fun InkLayer(
@@ -871,9 +884,11 @@ private fun InkLayer(
     tools: ToolState,
     enabled: Boolean,
     darkPages: Boolean,
+    pageText: suspend (pageIndex: Int) -> PageText?,
     takeConversion: () -> Pair<Int, Shape>?,
 ) {
     val pen = tools.pen
+    val scope = rememberCoroutineScope()
     val brush = remember(pen, darkPages) { if (darkPages) Brushes.brush(pen.pen, darkColor(pen.color), pen.size) else pen.brush }
     val toWorld = 1f / (state.zoom * layout.scale)
     val pointerToWorld = Matrix().apply {
@@ -899,8 +914,15 @@ private fun InkLayer(
                 if (index < 0) continue
                 val origin = layout.origin(index)
                 val started = now - stroke.inputs.getDurationMillis()
-                val finished = StrokeGeometry.fromFinished(stroke, origin.x, origin.y, started)
-                ink.add(pages[index].id, if (darkPages) finished.recoloured(pen.color) else finished)
+                val finished = StrokeGeometry.fromFinished(stroke, origin.x, origin.y, started).let { if (darkPages) it.recoloured(pen.color) else it }
+                val page = pages[index]
+                if (finished.pen != Pen.HIGHLIGHTER || page.pdf == null) {
+                    ink.add(page.id, finished)
+                    continue
+                }
+                val group = Any()
+                ink.update(page.id, group) { it.copy(strokes = it.strokes + finished) }
+                scope.launch { snapToText(ink, page.id, group, finished, pageText(index) ?: return@launch) }
             }
         },
     )

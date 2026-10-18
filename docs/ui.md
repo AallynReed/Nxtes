@@ -153,6 +153,8 @@ Full screen, for New note and for an item's "Cover and template".
   - Picked PDF text gets handles at both ends and a menu: highlight colours, underline, strike
     through, copy, look up, share, add bookmark and add to outline. Touch and hold a highlight to
     recolour, copy or delete it.
+  - A highlighter stroke drawn mostly over PDF text snaps to that text and becomes a highlight in
+    the pen's colour, as in Flexcil; elsewhere it stays ink. One undo removes it.
 - **Tab bar (36 dp).** One tab per open document with a close button. The active tab is
   underlined in the accent colour, and the open-document count sits on the right; it lists the
   open documents and offers Close other tabs and Close all tabs, as does touching and holding a
