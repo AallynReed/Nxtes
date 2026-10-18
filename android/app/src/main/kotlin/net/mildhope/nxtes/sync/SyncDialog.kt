@@ -198,6 +198,7 @@ private fun AccountDialog(session: Session, onDismiss: () -> Unit) {
     var usage by remember { mutableStateOf<Usage?>(null) }
     var devices by remember { mutableStateOf(emptyList<DeviceInfo>()) }
     var shares by remember { mutableStateOf(emptyList<ShareInfo>()) }
+    var deleted by remember { mutableStateOf(emptyList<DeletedItem>()) }
     var reload by remember { mutableIntStateOf(0) }
     var asking by remember { mutableStateOf<AccountAction?>(null) }
 
@@ -206,6 +207,7 @@ private fun AccountDialog(session: Session, onDismiss: () -> Unit) {
             usage = sync.client.usage()
             devices = sync.client.devices()
             shares = sync.client.shares()
+            deleted = sync.client.deleted()
         }
     }
 
@@ -250,6 +252,15 @@ private fun AccountDialog(session: Session, onDismiss: () -> Unit) {
                                 runCatching { sync.client.removeDevice(device.id) }
                                 reload++
                             }
+                        }
+                    }
+                }
+                if (deleted.isNotEmpty()) {
+                    RecentlyDeleted(deleted) { item ->
+                        scope.launch {
+                            runCatching { sync.client.restoreVersion(item.kind, item.id, item.revision) }
+                            sync.requestSync()
+                            reload++
                         }
                     }
                 }

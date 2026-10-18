@@ -46,6 +46,28 @@ data class DeviceInfo(
     val current: Boolean = false,
 )
 
+/** One version of a document or folder the server kept. */
+@Serializable
+data class ItemVersion(
+    val revision: Long,
+    val deleted: Boolean = false,
+    val title: String? = null,
+    @SerialName("updated_at") val updated: Long = 0,
+)
+
+@Serializable
+data class ItemHistory(val current: ItemVersion, val versions: List<ItemVersion> = emptyList())
+
+/** A document or folder deleted on some device, with the version that can bring it back. */
+@Serializable
+data class DeletedItem(
+    val kind: String,
+    val id: String,
+    val title: String? = null,
+    @SerialName("deleted_at") val deletedAt: Long = 0,
+    val revision: Long,
+)
+
 /** A PDF anyone can view in a browser at [url]. */
 @Serializable
 data class ShareInfo(
@@ -108,6 +130,14 @@ class SyncClient(
     suspend fun shares(): List<ShareInfo> = authed("/v1/shares").read<ShareList>().shares
 
     suspend fun removeShare(id: String) = authed("/v1/shares/$id", "DELETE").check()
+
+    suspend fun history(kind: String, id: String): ItemHistory = authed("/v1/${kind}s/$id/history").read()
+
+    /** Makes a kept version the current one; it syncs to every device as a new revision. */
+    suspend fun restoreVersion(kind: String, id: String, revision: Long): Long =
+        authed("/v1/${kind}s/$id/restore", "POST", json(RestoreRequest(revision))).read<Written>().revision
+
+    suspend fun deleted(): List<DeletedItem> = authed("/v1/deleted").read<DeletedList>().items
 
     override suspend fun changes(since: Long): Changes = authed("/v1/changes?since=$since").read()
 
@@ -274,6 +304,12 @@ class SyncClient(
 
     @Serializable
     private class ShareList(val shares: List<ShareInfo>)
+
+    @Serializable
+    private class RestoreRequest(val revision: Long)
+
+    @Serializable
+    private class DeletedList(val items: List<DeletedItem>)
 
     @Serializable
     private class Hashes(val hashes: List<String>)

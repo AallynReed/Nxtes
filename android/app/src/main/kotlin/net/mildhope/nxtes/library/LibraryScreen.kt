@@ -82,6 +82,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.R
+import net.mildhope.nxtes.sync.VersionHistoryDialog
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.data.Folder
 import net.mildhope.nxtes.data.Library
@@ -108,6 +109,7 @@ private sealed interface LibraryDialog {
     data class DeleteForever(val item: LibraryItem) : LibraryDialog
     data object EmptyTrash : LibraryDialog
     data class Export(val doc: Document) : LibraryDialog
+    data class History(val item: LibraryItem) : LibraryDialog
 }
 
 /** The library: side menu on the left, the selected section on the right. See docs/ui.md. */
@@ -279,6 +281,8 @@ private fun MainPane(
     val unfavoriteLabel = stringResource(R.string.remove_from_favorites)
     val trashLabel = stringResource(R.string.move_to_trash)
     val restoreLabel = stringResource(R.string.restore)
+    val historyLabel = stringResource(R.string.version_history)
+    val signedIn = context.nxtes.sync.account.state.collectAsState().value.session != null
     val deleteLabel = stringResource(R.string.delete)
 
     Box(Modifier.fillMaxSize()) {
@@ -398,6 +402,7 @@ private fun MainPane(
                                 MenuAction(duplicateLabel) { duplicate(listOf(item.id)) },
                                 (item as? Folder)?.let { MenuAction(colourLabel) { dialog = LibraryDialog.Colour(it) } },
                                 MenuAction(if (item.favorite) unfavoriteLabel else favoriteLabel) { edit { setFavorite(item.id, !item.favorite) } },
+                                MenuAction(historyLabel) { dialog = LibraryDialog.History(item) }.takeIf { signedIn },
                                 MenuAction(trashLabel) { edit { trash(item.id) } },
                             )
                         }
@@ -437,6 +442,7 @@ private fun MainPane(
             onDismiss = { dialog = null },
         )
         is LibraryDialog.Export -> ExportDialog(d.doc, 0) { dialog = null }
+        is LibraryDialog.History -> VersionHistoryDialog(if (d.item is Folder) "folder" else "document", d.item.id) { dialog = null }
         is LibraryDialog.Settings -> {
             val doc = d.doc
             val original = TemplateChoice.of(doc.template, prefs.lastTemplate)

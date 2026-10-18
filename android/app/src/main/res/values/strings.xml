@@ -466,4 +466,14 @@
         <item quantity="one">Imported %d document from Flexcil</item>
         <item quantity="other">Imported %d documents from Flexcil</item>
     </plurals>
+    <string name="version_history">Version history</string>
+    <string name="version_current">Current version, from %1$s</string>
+    <string name="version_history_empty">No earlier versions yet. The server keeps each version for 30 days.</string>
+    <string name="version_history_not_synced">This isn’t on the server yet. Earlier versions are kept once it syncs.</string>
+    <string name="version_deleted">Deleted</string>
+    <string name="restore_version_title">Restore this version?</string>
+    <string name="restore_version_text">It becomes the current version on all your devices. The version you have now stays in the history.</string>
+    <string name="version_restored">Restored. Syncing…</string>
+    <string name="recently_deleted">Recently deleted</string>
+    <string name="deleted_on">Deleted %1$s</string>
 </resources>
