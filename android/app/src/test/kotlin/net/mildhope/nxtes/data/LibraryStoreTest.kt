@@ -341,6 +341,25 @@ class LibraryStoreTest {
         assertEquals(listOf(0, 1), inserted.map { it.pdf!!.index })
     }
 
+    @Test
+    fun bookmarksAndOutlineFollowTheirPages() {
+        val doc = import()
+        val (first, second) = doc.pages.map { it.id }
+        val mark = store.addBookmark(doc.id, second, "Results")
+        val entry = store.addOutline(doc.id, first, "Intro")
+        store.renameBookmark(doc.id, mark.id, "Findings")
+        store.updateOutline(doc.id, entry.id, second, "Method")
+
+        val reloaded = newStore().apply { load() }.state.value.document(doc.id)!!
+        assertEquals(listOf(Bookmark(mark.id, second, "Findings")), reloaded.bookmarks)
+        assertEquals(listOf(OutlineItem(entry.id, second, "Method")), reloaded.outline)
+
+        store.deletePages(doc.id, listOf(second))
+        val trimmed = store.state.value.document(doc.id)!!
+        assertTrue(trimmed.bookmarks.isEmpty())
+        assertTrue(trimmed.outline.isEmpty())
+    }
+
     private fun pages(documentId: String) = store.state.value.document(documentId)!!.pages.map { it.id }
 
     private fun stroke() = InkStroke(

@@ -58,7 +58,7 @@
     <string name="use_stylus_only">Use stylus only</string>
     <string name="pages">Pages</string>
     <string name="outline">Outline</string>
-    <string name="no_outline">This document has no outline</string>
+    <string name="no_outline">No outline yet</string>
     <string name="view_settings">View settings</string>
     <string name="side_panel">Side panel</string>
     <string name="pen_mode">Pen mode (tap for gesture mode)</string>
@@ -156,6 +156,15 @@
     <string name="custom_template_hint">Touch and hold a template to delete it.</string>
     <string name="delete_template_title">Delete “%1$s”?</string>
     <string name="delete_template_text">Notes that already use it keep their pages.</string>
+    <string name="bookmarks">Bookmarks</string>
+    <string name="no_bookmarks">No bookmarks yet</string>
+    <string name="add_bookmark">Add bookmark</string>
+    <string name="rename_bookmark">Rename bookmark</string>
+    <string name="add_outline">Add to outline</string>
+    <string name="edit_outline">Edit outline entry</string>
+    <string name="outline_name">Name</string>
+    <string name="outline_page">Page</string>
+    <string name="page_title">Page %d</string>
     <string name="go_to_page">Go to page</string>
     <string name="page_range">1 to %d</string>
     <string name="go">Go</string>

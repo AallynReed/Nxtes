@@ -43,6 +43,9 @@ data class Document(
     val cover: Int? = null,
     /** What new pages copy, or null to copy the size of the page they're added next to. */
     val template: PageTemplate? = null,
+    val bookmarks: List<Bookmark> = emptyList(),
+    /** Outline entries the user added, shown alongside the PDF's own. */
+    val outline: List<OutlineItem> = emptyList(),
     val pages: List<Page>,
 ) : LibraryItem {
     override val displayName get() = title
@@ -62,6 +65,12 @@ data class Page(
 
 @Serializable
 data class PdfSource(val blob: String, val index: Int)
+
+@Serializable
+data class Bookmark(val id: String, val pageId: String, val title: String)
+
+@Serializable
+data class OutlineItem(val id: String, val pageId: String, val title: String)
 
 data class PageSize(val width: Float, val height: Float)
 

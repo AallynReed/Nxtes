@@ -172,6 +172,40 @@ class LibraryStore(
         return pages
     }
 
+    @Synchronized
+    fun addBookmark(documentId: String, pageId: String, title: String): Bookmark {
+        val bookmark = Bookmark(newId(), pageId, title)
+        updateDocument(documentId) { it.copy(bookmarks = it.bookmarks + bookmark) }
+        return bookmark
+    }
+
+    @Synchronized
+    fun renameBookmark(documentId: String, id: String, title: String) {
+        updateDocument(documentId) { doc -> doc.copy(bookmarks = doc.bookmarks.map { if (it.id == id) it.copy(title = title) else it }) }
+    }
+
+    @Synchronized
+    fun deleteBookmark(documentId: String, id: String) {
+        updateDocument(documentId) { doc -> doc.copy(bookmarks = doc.bookmarks.filter { it.id != id }) }
+    }
+
+    @Synchronized
+    fun addOutline(documentId: String, pageId: String, title: String): OutlineItem {
+        val item = OutlineItem(newId(), pageId, title)
+        updateDocument(documentId) { it.copy(outline = it.outline + item) }
+        return item
+    }
+
+    @Synchronized
+    fun updateOutline(documentId: String, id: String, pageId: String, title: String) {
+        updateDocument(documentId) { doc -> doc.copy(outline = doc.outline.map { if (it.id == id) it.copy(pageId = pageId, title = title) else it }) }
+    }
+
+    @Synchronized
+    fun deleteOutline(documentId: String, id: String) {
+        updateDocument(documentId) { doc -> doc.copy(outline = doc.outline.filter { it.id != id }) }
+    }
+
     /** Pages that have ink, judged by their ink files. */
     fun annotatedPages(documentId: String): Set<String> =
         File(documentDir(documentId), "pages").listFiles().orEmpty()
@@ -221,7 +255,13 @@ class LibraryStore(
             trash(documentId)
             return
         }
-        updateDocument(documentId) { doc -> doc.copy(pages = doc.pages.filter { it.id !in pageIds }) }
+        updateDocument(documentId) { doc ->
+            doc.copy(
+                pages = doc.pages.filter { it.id !in pageIds },
+                bookmarks = doc.bookmarks.filter { it.pageId !in pageIds },
+                outline = doc.outline.filter { it.pageId !in pageIds },
+            )
+        }
         pageIds.forEach { pageInkFile(documentId, it).delete() }
         pruneBlobs(documentId)
     }
