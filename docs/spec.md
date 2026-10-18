@@ -50,6 +50,7 @@ Priorities: **v1** ships in the first release, **later** comes after it, and **d
 | Color picker: presets, recent colors, custom RGB or hex, opacity | v1 |
 | Erasers: whole stroke, partial, pressure-sensitive; option to spare highlighter; clear page; auto-deselect | v1 |
 | Lasso: select by type (ink, highlighter, text, images, textboxes); move, resize, rotate, recolor, copy, paste, delete, save as sticker | v1 |
+| Convert lassoed handwriting to text, on the device, in a chosen language; correct it, then copy it or swap it for a text box | v1 |
 | Shapes (line, rectangle, ellipse, polygon, arrow) and hold-to-convert shape recognition, toggled per shape | v1 |
 | Textboxes with system fonts and imported .ttf/.otf fonts, size, color, background | v1 |
 | Browsing Google Fonts | later |
@@ -61,6 +62,7 @@ Priorities: **v1** ships in the first release, **later** comes after it, and **d
 | Laser pointer (dot or trailing line, colors) | v1 |
 | Masking tape: cover regions, tap to reveal, mark right or wrong, per-document correct rate with sort by page or score; masking pen | v1 |
 | PDF text: select, copy, highlight, underline; send to the dictionary or translator via share | v1 |
+| Highlighter snaps to PDF text, and straightens over handwriting to cover the words it crosses | v1 |
 | Links between documents and pages | later |
 | Hide or show all annotations | v1 |
 | Undo and redo | v1 |

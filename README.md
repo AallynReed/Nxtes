@@ -3,13 +3,14 @@
 Nxtes is a free, open-source handwriting and PDF annotation app for Android tablets, with a sync
 server you can host yourself. Every feature is free, with no ads.
 
-**Status:** 1.0. You can import PDFs and create notes from generated templates (or
+**Status:** 1.1. You can import PDFs and create notes from generated templates (or
 your own images and PDFs), organise them in folders, open several at once in tabs, and write on them
 with a stylus or finger: pens, highlighter, eraser, undo and redo, saved automatically. The page
 navigator adds, reorders, turns, duplicates, copies and moves pages; bookmarks, outlines, covers,
 duplicate and merge are in too. The editing tools are in: lasso, shapes and shape recognition, text
 boxes with your own fonts, images with camera and crop, sticky notes, sticker packs, masking with
-correct rates, a laser pointer, and PDF text highlighting. The screens follow Flexcil's layout
+correct rates, a laser pointer, handwriting-to-text conversion, and a highlighter that snaps to PDF
+text and to handwriting. The screens follow Flexcil's layout
 ([UI](docs/ui.md)). The viewer scrolls down or across, page by page or continuously, one or two
 pages at a time, with dark pages, read-only mode, full screen, multi-finger undo and redo,
 annotation and search panels, and full-text search across the library. Recording audio while
@@ -20,6 +21,9 @@ backs up to one zip. Sign in from Settings to sync the library between devices, 
 app is open and hourly in the background, through the official server or [your own](server/README.md).
 Exported PDFs can be shared as web links that open in any browser, and Flexcil backups import with
 their folders, pages, writing and links.
+
+Handwriting is read on the device by Google's ML Kit, the one closed-source part of the app: each
+language's recognition model downloads from Google the first time it's used.
 
 Signed builds of each version are attached to the [GitHub releases](https://github.com/AallynReed/Nxtes/releases).
 1.0.0 and later can't install over the 0.x debug builds: uninstall those first, then sign in or
