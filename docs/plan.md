@@ -177,9 +177,12 @@ recordings; [flexcil-format.md](flexcil-format.md) describes it. The importer li
   only, since a PDF's own outline already shows. Hyperlinks, scrap references, sticker packs and
   calligraphy brush looks aren't carried over.
 
+- Pages whose PDF annotations Flexcil had taken over (its `annotationSubtypes`) keep them hidden,
+  on screen and in export, as Flexcil did.
+
 The importer only reads the user's own data, for interoperability. It was written from a static
-reading of the format and tested against generated backups; checking it against a real backup is
-still to do.
+reading of the format and checked against a real 193-document backup from Flexcil 1.3.0.24, which
+also showed that entry names can start with a slash.
 
 ## Milestones
 

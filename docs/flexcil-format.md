@@ -31,6 +31,10 @@ follows from the code but not every path was traced. **[open]** means a real bac
 
 ### 1.2 Entry tree
 
+A real backup from Flexcil 1.3.0.24 writes every file name in the backup, and inside each `.flx`, with a
+leading slash (`/flexcilbackup/info`, `/pages.index`); directory entries have none. Android 14 and later
+refuse such names unless the app relaxes its ZIP path check.
+
 Every entry sits under one top-level directory named **`flexcilbackup/`**. The zip root is the
 *parent* of the staging folder `<cache>/backup/flexcilbackup`. On restore, Flexcil uses the extracted
 directory if it contains `info` directly, or else the first child directory that contains `info`
