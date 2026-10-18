@@ -128,17 +128,17 @@ fun NoteSettingsDialog(
     onDismiss: () -> Unit,
     noCover: (@Composable (Modifier) -> Unit)? = null,
 ) {
-    var name by rememberSaveable { mutableStateOf(title.orEmpty()) }
-    var pickedCover by rememberSaveable { mutableStateOf(cover) }
-    var picked by remember { mutableStateOf(choice) }
-    var tab by rememberSaveable { mutableStateOf(SettingsTab.TEMPLATE) }
-    var templateTab by rememberSaveable { mutableStateOf(if (choice.customId != null) TemplateTab.CUSTOM else TemplateTab.BUILT_IN) }
-    var deleting by remember { mutableStateOf<CustomTemplate?>(null) }
-    val defaultTitle = stringResource(R.string.default_note_title)
     val context = LocalContext.current
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val templates by context.nxtes.library.templates.collectAsState()
+    var name by rememberSaveable { mutableStateOf(title.orEmpty()) }
+    var pickedCover by rememberSaveable { mutableStateOf(cover) }
+    var picked by remember { mutableStateOf(if (templates.any { it.id == choice.customId }) choice else choice.copy(customId = null)) }
+    var tab by rememberSaveable { mutableStateOf(SettingsTab.TEMPLATE) }
+    var templateTab by rememberSaveable { mutableStateOf(if (picked.customId != null) TemplateTab.CUSTOM else TemplateTab.BUILT_IN) }
+    var deleting by remember { mutableStateOf<CustomTemplate?>(null) }
+    val defaultTitle = stringResource(R.string.default_note_title)
 
     fun addTemplate(uri: Uri?, image: Boolean) {
         uri ?: return
