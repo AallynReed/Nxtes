@@ -139,10 +139,22 @@ class LibraryStore(
         }
     }
 
+    /** Shows generated cover [cover], or the first page when null, instead of any cover image. */
     @Synchronized
     fun setCover(id: String, cover: Int?) {
         val now = clock()
-        updateItem(id, { it }, { it.copy(cover = cover, modified = now) })
+        val hadImage = requireDocument(id).coverImage != null
+        updateItem(id, { it }, { it.copy(cover = cover, coverImage = null, modified = now) })
+        if (hadImage) pruneBlobs(id)
+    }
+
+    /** Makes the image in [input] the document's cover, kept with its blobs. */
+    @Synchronized
+    fun setCoverImage(id: String, input: InputStream) {
+        val blob = addBlob(id, input)
+        val now = clock()
+        updateItem(id, { it }, { it.copy(cover = null, coverImage = blob, modified = now) })
+        pruneBlobs(id)
     }
 
     /** Makes [choice] the template for new pages and, if [allPages], gives every page its background and size. */
@@ -474,10 +486,10 @@ class LibraryStore(
         writeAtomically(pageFile(toDocument, toPage), relinked)
     }
 
-    /** Deletes blobs that no page, page content, template or recording of the document refers to any more. */
+    /** Deletes blobs that no page, page content, template, cover or recording of the document refers to any more. */
     private fun pruneBlobs(documentId: String) {
         val doc = requireDocument(documentId)
-        val used = (doc.pages.mapNotNull { it.pdf?.blob } + listOfNotNull(doc.template?.pdf?.blob) + doc.recordings.map { it.blob }).toMutableSet()
+        val used = (doc.pages.mapNotNull { it.pdf?.blob } + listOfNotNull(doc.template?.pdf?.blob, doc.coverImage) + doc.recordings.map { it.blob }).toMutableSet()
         doc.pages.forEach { used += readPage(documentId, it.id).blobs }
         File(documentDir(documentId), "blobs").listFiles().orEmpty().filter { it.name !in used }.forEach { it.delete() }
     }
@@ -573,10 +585,11 @@ class LibraryStore(
                 outline += source.outline.mapNotNull { item -> newIds[item.pageId]?.let { item.copy(id = newId(), pageId = it) } }
             }
             first.template?.pdf?.let { copyBlob(first.id, it.blob, id) }
+            first.coverImage?.let { copyBlob(first.id, it, id) }
             val now = clock()
             val doc = Document(
                 id = id, title = title, folderId = first.folderId, created = now, modified = now,
-                note = first.note, cover = first.cover, template = first.template,
+                note = first.note, cover = first.cover, coverImage = first.coverImage, template = first.template,
                 bookmarks = bookmarks, outline = outline, pages = pages, recordings = recordings,
             )
             writeDocument(doc)

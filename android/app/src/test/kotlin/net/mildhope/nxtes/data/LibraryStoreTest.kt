@@ -287,6 +287,26 @@ class LibraryStoreTest {
     }
 
     @Test
+    fun coverImagesAreKeptMergedAndDroppedForOtherCovers() {
+        val doc = import("A")
+        val image = "jpeg bytes".toByteArray()
+        store.setCoverImage(doc.id, ByteArrayInputStream(image))
+        val withImage = store.state.value.document(doc.id)!!
+        assertEquals(sha256(image), withImage.coverImage)
+        assertNull(withImage.cover)
+        assertTrue(store.blobFile(doc.id, sha256(image)).exists())
+
+        val merged = store.merge(listOf(doc.id, import("B").id), "Both")
+        assertEquals(sha256(image), merged.coverImage)
+        assertTrue(store.blobFile(merged.id, sha256(image)).exists())
+
+        store.setCover(doc.id, 3)
+        assertEquals(3 to null, store.state.value.document(doc.id)!!.let { it.cover to it.coverImage })
+        assertFalse(store.blobFile(doc.id, sha256(image)).exists())
+        assertTrue(store.blobFile(doc.id, sha256(PDF_BYTES)).exists())
+    }
+
+    @Test
     fun pageLinksFollowCopiedAndMergedPages() {
         val doc = import()
         val (first, second) = doc.pages

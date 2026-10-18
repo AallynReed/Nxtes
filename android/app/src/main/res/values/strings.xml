@@ -101,6 +101,8 @@
     <string name="pattern_vertical">Vertical</string>
     <string name="covers_solid">Colours</string>
     <string name="covers_gradient">Gradients</string>
+    <string name="covers_image">Image</string>
+    <string name="cover_from_image">Add image</string>
     <string name="no_cover">First page</string>
     <string name="apply_template_title">Use the new template for</string>
     <string name="apply_template_new_pages">Pages you add from now on</string>

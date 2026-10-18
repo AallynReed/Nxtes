@@ -64,7 +64,9 @@ import net.mildhope.nxtes.data.Folder
 import net.mildhope.nxtes.data.Library
 import net.mildhope.nxtes.data.LibraryItem
 import net.mildhope.nxtes.notes.CoverArt
+import net.mildhope.nxtes.notes.CoverPhoto
 import net.mildhope.nxtes.notes.Covers
+import net.mildhope.nxtes.notes.decodeCover
 import net.mildhope.nxtes.nxtes
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -228,10 +230,13 @@ fun ItemPreview(item: LibraryItem, modifier: Modifier = Modifier) {
 @Composable
 private fun DocumentThumbnail(doc: Document, modifier: Modifier) {
     val context = LocalContext.current
-    val cover = Covers.get(doc.cover)
-    if (cover != null) {
-        val ratio = 1 / 1.414f
-        CoverArt(cover, modifier.aspectRatio(ratio, matchHeightConstraintsFirst = true).shadow(3.dp, RoundedCornerShape(2.dp)))
+    val coverBox = modifier.aspectRatio(Covers.RATIO, matchHeightConstraintsFirst = true).shadow(3.dp, RoundedCornerShape(2.dp))
+    doc.coverImage?.let { image ->
+        CoverPhoto(doc.id to image, { decodeCover(context.nxtes.library.blobFile(doc.id, image), THUMBNAIL_WIDTH_PX) }, coverBox)
+        return
+    }
+    Covers.get(doc.cover)?.let { cover ->
+        CoverArt(cover, coverBox)
         return
     }
     val first = doc.pages.firstOrNull() ?: return

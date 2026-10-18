@@ -86,7 +86,9 @@ import net.mildhope.nxtes.data.Library
 import net.mildhope.nxtes.data.LibraryItem
 import net.mildhope.nxtes.data.LibraryStore
 import net.mildhope.nxtes.data.TemplateChoice
+import net.mildhope.nxtes.notes.CoverPick
 import net.mildhope.nxtes.notes.NoteSettingsDialog
+import net.mildhope.nxtes.notes.importCover
 import net.mildhope.nxtes.notes.TemplateScopeDialog
 import net.mildhope.nxtes.nxtes
 import net.mildhope.nxtes.viewer.PageThumbnail
@@ -417,13 +419,17 @@ private fun MainPane(
         LibraryDialog.NewFolder -> NameDialog(stringResource(R.string.new_folder), "", { name -> edit { createFolder(name, folder?.id) } }, { dialog = null })
         LibraryDialog.NewNote -> NoteSettingsDialog(
             title = "",
-            cover = null,
+            cover = CoverPick.FirstPage,
             choice = prefs.lastTemplate,
             onDone = { title, cover, choice ->
                 dialog = null
                 prefs.updateLastTemplate(choice)
                 scope.launch {
-                    runLibraryAction(context) { createNote(title, folder?.id, choice, cover) }?.let(onOpen)
+                    runLibraryAction(context) {
+                        createNote(title, folder?.id, choice, (cover as? CoverPick.Generated)?.index).also { doc ->
+                            if (cover is CoverPick.NewImage) importCover(context, doc.id, cover.uri)
+                        }
+                    }?.let(onOpen)
                 }
             },
             onDismiss = { dialog = null },
@@ -434,13 +440,18 @@ private fun MainPane(
             val original = TemplateChoice.of(doc.template, prefs.lastTemplate)
             NoteSettingsDialog(
                 title = doc.title,
-                cover = doc.cover,
+                cover = CoverPick.of(doc),
                 choice = original,
                 noCover = { PageThumbnail(doc, 0, it) },
+                coverImage = doc.coverImage?.let { context.nxtes.library.blobFile(doc.id, it) },
                 onDone = { title, cover, choice ->
                     edit {
                         if (title != doc.title) rename(doc.id, title)
-                        if (cover != doc.cover) setCover(doc.id, cover)
+                        when (cover) {
+                            CoverPick.CurrentImage -> Unit
+                            is CoverPick.NewImage -> importCover(context, doc.id, cover.uri)
+                            else -> if (cover != CoverPick.of(doc)) setCover(doc.id, (cover as? CoverPick.Generated)?.index)
+                        }
                         if (choice != original && !doc.note) setTemplate(doc.id, choice, allPages = false)
                     }
                     if (choice != original && doc.note) dialog = LibraryDialog.ApplyTemplate(doc, choice)

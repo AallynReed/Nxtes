@@ -75,8 +75,9 @@ Full screen, for New note and for an item's "Cover and template".
 +------------------------------------------------------------------+
 ```
 
-- Tapping the Cover or Template preview switches the list below. Covers are generated colours and
-  gradients, plus "First page" for none.
+- Tapping the Cover or Template preview switches the list below. Covers are an image picked from
+  the gallery (cropped to fill, kept in the document), generated colours and gradients, plus "First
+  page" for none.
 - The template row holds paper size, orientation and paper colour (white, yellow, dark). The
   Custom tab lists templates made from an image or a PDF, with an Add tile; touch and hold one to
   delete it.

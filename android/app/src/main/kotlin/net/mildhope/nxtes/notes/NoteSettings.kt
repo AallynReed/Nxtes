@@ -1,6 +1,10 @@
 package net.mildhope.nxtes.notes
 
 import android.net.Uri
+import androidx.compose.runtime.saveable.Saver
+import net.mildhope.nxtes.data.Document
+import net.mildhope.nxtes.page.decodeImage
+import java.io.File
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -104,6 +108,46 @@ import net.mildhope.nxtes.page.TemplatePainter
 
 private enum class SettingsTab { COVER, TEMPLATE }
 
+/** The cover picked in note settings. */
+sealed interface CoverPick {
+    data object FirstPage : CoverPick
+
+    data class Generated(val index: Int) : CoverPick
+
+    /** An image just picked, stored once settings are done. */
+    data class NewImage(val uri: Uri) : CoverPick
+
+    /** The image the document already has. */
+    data object CurrentImage : CoverPick
+
+    companion object {
+        fun of(doc: Document) = when {
+            doc.coverImage != null -> CurrentImage
+            doc.cover != null -> Generated(doc.cover)
+            else -> FirstPage
+        }
+    }
+}
+
+private val CoverPickSaver = Saver<CoverPick, Any>(
+    save = {
+        when (it) {
+            CoverPick.FirstPage -> "first"
+            CoverPick.CurrentImage -> "current"
+            is CoverPick.Generated -> it.index
+            is CoverPick.NewImage -> it.uri
+        }
+    },
+    restore = {
+        when (it) {
+            "current" -> CoverPick.CurrentImage
+            is Int -> CoverPick.Generated(it)
+            is Uri -> CoverPick.NewImage(it)
+            else -> CoverPick.FirstPage
+        }
+    },
+)
+
 private enum class TemplateTab { BUILT_IN, CUSTOM }
 
 private val BASIC = listOf(Pattern.PLAIN, Pattern.LINED, Pattern.DOTTED, Pattern.GRAPH, Pattern.LEGAL, Pattern.CORNELL, Pattern.VERTICAL)
@@ -113,27 +157,30 @@ private val ITEM_LONG = 119.dp
 private val PREVIEW_SHORT = 96.dp
 private val PREVIEW_LONG = 136.dp
 private const val CUSTOM_THUMBNAIL_PX = 240
+private const val COVER_PREVIEW_PX = 480
 
 /**
  * The full-screen note editor (docs/ui.md): cover and template previews and the title on top,
  * the covers or templates to pick from below. With [title] null it only picks a template.
- * [noCover] previews the document when it has no cover.
+ * [noCover] previews the document when it has no cover; [coverImage] is its current cover image.
  */
 @Composable
 fun NoteSettingsDialog(
     title: String?,
-    cover: Int?,
+    cover: CoverPick,
     choice: TemplateChoice,
-    onDone: (title: String, cover: Int?, choice: TemplateChoice) -> Unit,
+    onDone: (title: String, cover: CoverPick, choice: TemplateChoice) -> Unit,
     onDismiss: () -> Unit,
     noCover: (@Composable (Modifier) -> Unit)? = null,
+    coverImage: File? = null,
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val templates by context.nxtes.library.templates.collectAsState()
     var name by rememberSaveable { mutableStateOf(title.orEmpty()) }
-    var pickedCover by rememberSaveable { mutableStateOf(cover) }
+    var pickedCover by rememberSaveable(stateSaver = CoverPickSaver) { mutableStateOf(cover) }
+    var newImage by rememberSaveable { mutableStateOf<Uri?>(null) }
     var picked by remember { mutableStateOf(if (templates.any { it.id == choice.customId }) choice else choice.copy(customId = null)) }
     var tab by rememberSaveable { mutableStateOf(SettingsTab.TEMPLATE) }
     var templateTab by rememberSaveable { mutableStateOf(if (picked.customId != null) TemplateTab.CUSTOM else TemplateTab.BUILT_IN) }
@@ -153,6 +200,13 @@ fun NoteSettingsDialog(
     val firstPage: @Composable (Modifier) -> Unit = noCover ?: { ChoiceThumb(picked, templates, it) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { addTemplate(it, image = true) }
     val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { addTemplate(it, image = false) }
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            newImage = uri
+            pickedCover = CoverPick.NewImage(uri)
+        }
+    }
+    val coverArt: @Composable (CoverPick, Modifier) -> Unit = { pick, box -> CoverPreview(pick, coverImage, box) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize()) {
@@ -171,9 +225,11 @@ fun NoteSettingsDialog(
                 ) {
                     if (title != null) {
                         PreviewTile(stringResource(R.string.cover), tab == SettingsTab.COVER, { tab = SettingsTab.COVER }) {
-                            val art = Covers.get(pickedCover)
-                            val box = Modifier.width(PREVIEW_SHORT).aspectRatio(1 / 1.414f)
-                            if (art != null) CoverArt(art, box) else firstPage(Modifier.width(PREVIEW_SHORT))
+                            if (pickedCover == CoverPick.FirstPage) {
+                                firstPage(Modifier.width(PREVIEW_SHORT))
+                            } else {
+                                coverArt(pickedCover, Modifier.width(PREVIEW_SHORT).aspectRatio(Covers.RATIO))
+                            }
                         }
                     }
                     PreviewTile(stringResource(R.string.template), tab == SettingsTab.TEMPLATE, { tab = SettingsTab.TEMPLATE }) {
@@ -214,7 +270,13 @@ fun NoteSettingsDialog(
                                 onAddPdf = { pdfPicker.launch(arrayOf("application/pdf")) },
                             )
                         }
-                        SettingsTab.COVER -> coverSections(pickedCover, firstPage) { pickedCover = it }
+                        SettingsTab.COVER -> coverSections(
+                            cover = pickedCover,
+                            images = listOfNotNull(CoverPick.CurrentImage.takeIf { coverImage != null }, newImage?.let { CoverPick.NewImage(it) }),
+                            noCover = firstPage,
+                            art = coverArt,
+                            onAddImage = { coverPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        ) { pickedCover = it }
                     }
                 }
             }
@@ -377,23 +439,29 @@ private fun LazyListScope.customSection(
     }
 }
 
+/** A dashed page-shaped tile with a plus, for adding something. */
+@Composable
+private fun AddTile(label: String, onClick: () -> Unit) {
+    val outline = MaterialTheme.colorScheme.outline
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(ITEM_SHORT).clickable(onClick = onClick)) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .width(ITEM_SHORT)
+                .aspectRatio(Covers.RATIO)
+                .drawBehind {
+                    drawRect(outline, style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))))
+                },
+        ) { Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+    }
+}
+
 @Composable
 private fun AddTemplateTile(onAddImage: () -> Unit, onAddPdf: () -> Unit) {
     var open by remember { mutableStateOf(false) }
-    val outline = MaterialTheme.colorScheme.outline
     Box {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(ITEM_SHORT).clickable { open = true }) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .width(ITEM_SHORT)
-                    .aspectRatio(1 / 1.414f)
-                    .drawBehind {
-                        drawRect(outline, style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))))
-                    },
-            ) { Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
-            Text(stringResource(R.string.add_template), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
-        }
+        AddTile(stringResource(R.string.add_template)) { open = true }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.template_from_image)) },
@@ -415,24 +483,53 @@ private fun AddTemplateTile(onAddImage: () -> Unit, onAddPdf: () -> Unit) {
     }
 }
 
-private fun LazyListScope.coverSections(cover: Int?, noCover: @Composable (Modifier) -> Unit, onPick: (Int?) -> Unit) {
+private fun LazyListScope.coverSections(
+    cover: CoverPick,
+    images: List<CoverPick>,
+    noCover: @Composable (Modifier) -> Unit,
+    art: @Composable (CoverPick, Modifier) -> Unit,
+    onAddImage: () -> Unit,
+    onPick: (CoverPick) -> Unit,
+) {
+    item(key = "image") {
+        SectionHeading(stringResource(R.string.covers_image))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            AddTile(stringResource(R.string.cover_from_image), onAddImage)
+            images.forEach { image ->
+                PickItem(null, cover == image, ITEM_SHORT, { onPick(image) }) { art(image, it.aspectRatio(Covers.RATIO)) }
+            }
+        }
+    }
     item(key = "solid") {
         SectionHeading(stringResource(R.string.covers_solid))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            PickItem(stringResource(R.string.no_cover), cover == null, ITEM_SHORT, { onPick(null) }) { noCover(it) }
-            Covers.solid.forEachIndexed { i, art ->
-                PickItem(null, cover == i, ITEM_SHORT, { onPick(i) }) { CoverArt(art, it.aspectRatio(1 / 1.414f)) }
+            PickItem(stringResource(R.string.no_cover), cover == CoverPick.FirstPage, ITEM_SHORT, { onPick(CoverPick.FirstPage) }) { noCover(it) }
+            Covers.solid.indices.forEach { i ->
+                val pick = CoverPick.Generated(i)
+                PickItem(null, cover == pick, ITEM_SHORT, { onPick(pick) }) { art(pick, it.aspectRatio(Covers.RATIO)) }
             }
         }
     }
     item(key = "gradients") {
         SectionHeading(stringResource(R.string.covers_gradient))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Covers.gradients.forEachIndexed { i, art ->
-                val index = Covers.solid.size + i
-                PickItem(null, cover == index, ITEM_SHORT, { onPick(index) }) { CoverArt(art, it.aspectRatio(1 / 1.414f)) }
+            Covers.gradients.indices.forEach { i ->
+                val pick = CoverPick.Generated(Covers.solid.size + i)
+                PickItem(null, cover == pick, ITEM_SHORT, { onPick(pick) }) { art(pick, it.aspectRatio(Covers.RATIO)) }
             }
         }
+    }
+}
+
+/** A generated or image cover filling [modifier]'s box; [coverImage] is the document's current image. */
+@Composable
+private fun CoverPreview(pick: CoverPick, coverImage: File?, modifier: Modifier) {
+    val context = LocalContext.current
+    when (pick) {
+        is CoverPick.Generated -> Covers.get(pick.index)?.let { CoverArt(it, modifier) } ?: Box(modifier)
+        is CoverPick.NewImage -> CoverPhoto(pick.uri, { decodeImage(context, pick.uri, COVER_PREVIEW_PX) }, modifier)
+        CoverPick.CurrentImage -> CoverPhoto(coverImage, { coverImage?.let { decodeCover(it, COVER_PREVIEW_PX) } }, modifier)
+        CoverPick.FirstPage -> Box(modifier)
     }
 }
 

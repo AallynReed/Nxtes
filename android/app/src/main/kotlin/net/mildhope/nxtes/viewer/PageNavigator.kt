@@ -106,6 +106,7 @@ import net.mildhope.nxtes.data.LibraryItem
 import net.mildhope.nxtes.data.LibraryStore
 import net.mildhope.nxtes.data.TemplateChoice
 import net.mildhope.nxtes.library.DEFAULT_FOLDER_COLOR
+import net.mildhope.nxtes.notes.CoverPick
 import net.mildhope.nxtes.notes.NoteSettingsDialog
 import net.mildhope.nxtes.nxtes
 import net.mildhope.nxtes.page.openAsPdf
@@ -278,7 +279,7 @@ fun PageNavigator(
     templateUse?.let { use ->
         NoteSettingsDialog(
             title = null,
-            cover = null,
+            cover = CoverPick.FirstPage,
             choice = TemplateChoice.of(shown.template, app.libraryPrefs.lastTemplate),
             onDone = { _, _, choice ->
                 templateUse = null

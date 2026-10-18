@@ -41,6 +41,8 @@ data class Document(
     val note: Boolean = false,
     /** Index into the generated covers, or null to show the first page. */
     val cover: Int? = null,
+    /** SHA-256 of an image in the document's blobs shown as its cover, ahead of [cover]. */
+    val coverImage: String? = null,
     /** What new pages copy, or null to copy the size of the page they're added next to. */
     val template: PageTemplate? = null,
     val bookmarks: List<Bookmark> = emptyList(),
