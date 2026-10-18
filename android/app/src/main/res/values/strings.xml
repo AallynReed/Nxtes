@@ -299,6 +299,11 @@
     <string name="close_other_tabs">Close other tabs</string>
     <string name="close_all_tabs">Close all tabs</string>
     <string name="hide_tabs">Hide the tab bar</string>
+    <string name="dark_pages">Dark pages</string>
+    <string name="keep_screen_on">Keep the screen on</string>
+    <string name="full_screen">Full screen</string>
+    <string name="read_only">Read only</string>
+    <string name="read_only_banner">Read only (tap to edit)</string>
     <string name="action_failed">That didn\'t work. Please try again.</string>
     <plurals name="import_failed">
         <item quantity="one">%d PDF couldn\'t be imported</item>

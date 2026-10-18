@@ -76,7 +76,11 @@ import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.Pen
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Paint
 import net.mildhope.nxtes.data.Mask
+import net.mildhope.nxtes.data.recoloured
+import net.mildhope.nxtes.ink.Brushes
 import net.mildhope.nxtes.edit.PageText
 import net.mildhope.nxtes.edit.TextPick
 import net.mildhope.nxtes.data.MaskKind
@@ -180,6 +184,8 @@ fun PageCanvas(
     flow: PageFlow,
     onPageCounter: () -> Unit,
     modifier: Modifier = Modifier,
+    readOnly: Boolean = false,
+    darkPages: Boolean = false,
     assetsLoaded: () -> Int = { 0 },
     onStamp: (pageIndex: Int, point: Offset) -> Unit = { _, _ -> },
     pageText: suspend (pageIndex: Int) -> PageText? = { null },
@@ -204,6 +210,7 @@ fun PageCanvas(
     var shapePreview by remember { mutableStateOf<Pair<Int, Shape>?>(null) }
     var maskPreview by remember { mutableStateOf<Pair<Int, Mask>?>(null) }
     val drag = remember { DragState() }
+    val darkPaint = remember { Paint().apply { colorFilter = ColorFilter.colorMatrix(darkPagesMatrix) } }
     val laser = remember { LaserTrail() }
     val scope = rememberCoroutineScope()
     val knob = with(density) { TEXT_KNOB.toPx() }
@@ -273,6 +280,8 @@ fun PageCanvas(
             tools.tool == Tool.TEXT || tools.tool == Tool.NOTE || tools.tool == Tool.STICKER -> DragKind.PLACE
             else -> null
         }
+
+        override fun readOnly() = readOnly
 
         override fun opensOnTap(at: Offset) = noteAt(at) != null || maskAt(at) != null
 
@@ -394,6 +403,11 @@ fun PageCanvas(
         }
 
         override fun tap(at: Offset) {
+            if (readOnly) {
+                maskAt(at)?.let { (pageId, mask) -> selection.toggleMask(pageId, mask.id) }
+                selection.asking = null
+                return
+            }
             if (finishEditing()) return
             selection.clear()
             selection.menuAt = null
@@ -504,7 +518,7 @@ fun PageCanvas(
         }
 
         override fun fingerTap(fingers: Int) {
-            if (selection.text != null || selection.note != null) return
+            if (readOnly || selection.text != null || selection.note != null) return
             selection.clear()
             when (fingers) {
                 2 -> ink.undo()
@@ -513,7 +527,7 @@ fun PageCanvas(
         }
 
         override fun longPress(at: Offset) {
-            if (tools.annotationsHidden) return
+            if (readOnly || tools.annotationsHidden) return
             val index = mapper.pageAt(at)
             val page = pages.getOrNull(index) ?: return
             val point = mapper.toPage(index, at)
@@ -627,6 +641,7 @@ fun PageCanvas(
             val zoom = state.zoom
             val offset = state.offset
             val viewport = Rect(Offset.Zero, this.size)
+            if (darkPages) drawIntoCanvas { it.saveLayer(viewport, darkPaint) }
             layout.rects.forEachIndexed { i, rect ->
                 val screen = rect.toScreen(zoom, offset)
                 if (!screen.overlaps(viewport)) return@forEachIndexed
@@ -663,6 +678,7 @@ fun PageCanvas(
                 }
                 drawRect(outline, screen.topLeft, screen.size, style = Stroke(1f))
             }
+            if (darkPages) drawIntoCanvas { it.restore() }
             eraserAt?.let { drawCircle(outline, eraserRadius, it, style = Stroke(2f)) }
             shapePreview?.let { (index, shape) ->
                 val origin = mapper.toScreen(index, Offset.Zero)
@@ -690,7 +706,7 @@ fun PageCanvas(
             if (laser.visible) drawLaser(laser, tools.laserMode, Color(tools.laserColor))
             if (selection.active && selection.lasso.isEmpty()) selectionCorners()?.let { drawSelection(it, accent, rotateDistance) }
         }
-        InkLayer(state, layout, pages, ink, tools) {
+        InkLayer(state, layout, pages, ink, tools, !readOnly, darkPages) {
             drag.convert.also {
                 drag.convert = null
                 shapePreview = null
@@ -806,8 +822,12 @@ private fun InkLayer(
     pages: List<Page>,
     ink: PageSession,
     tools: ToolState,
+    enabled: Boolean,
+    darkPages: Boolean,
     takeConversion: () -> Pair<Int, Shape>?,
 ) {
+    val pen = tools.pen
+    val brush = remember(pen, darkPages) { if (darkPages) Brushes.brush(pen.pen, darkColor(pen.color), pen.size) else pen.brush }
     val toWorld = 1f / (state.zoom * layout.scale)
     val pointerToWorld = Matrix().apply {
         values[Matrix.ScaleX] = toWorld
@@ -817,7 +837,7 @@ private fun InkLayer(
     }
     val scratch = remember { StrokeInput() }
     InProgressStrokes(
-        defaultBrush = if (tools.mode == InputMode.PEN && tools.tool == Tool.PEN && tools.pen.pen.inks && !tools.annotationsHidden) tools.pen.brush else null,
+        defaultBrush = if (enabled && tools.mode == InputMode.PEN && tools.tool == Tool.PEN && pen.pen.inks && !tools.annotationsHidden) brush else null,
         pointerEventToWorldTransform = pointerToWorld,
         onStrokesFinished = { strokes ->
             val now = System.currentTimeMillis()
@@ -832,7 +852,8 @@ private fun InkLayer(
                 if (index < 0) continue
                 val origin = layout.origin(index)
                 val started = now - stroke.inputs.getDurationMillis()
-                ink.add(pages[index].id, StrokeGeometry.fromFinished(stroke, origin.x, origin.y, started))
+                val finished = StrokeGeometry.fromFinished(stroke, origin.x, origin.y, started)
+                ink.add(pages[index].id, if (darkPages) finished.recoloured(pen.color) else finished)
             }
         },
     )

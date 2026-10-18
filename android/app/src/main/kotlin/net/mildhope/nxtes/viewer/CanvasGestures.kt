@@ -38,6 +38,9 @@ interface CanvasTools {
     /** The selection handle under the point, or [Handle.NONE]. */
     fun handleAt(at: Offset): Handle
 
+    /** Whether the document is read-only, so touches only scroll, zoom and tap. */
+    fun readOnly(): Boolean
+
     /** The drag a drawing pointer makes with the current tool, or null to let the ink layer draw. */
     fun drawingDrag(): DragKind?
 
@@ -138,7 +141,7 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                     drag(pen, event, down.id, canvas, DragKind.SELECTION, handle)
                     continue
                 }
-                if (tools.mode == InputMode.GESTURE || (tools.annotationsHidden && tools.tool != Tool.LASER)) {
+                if (tools.mode == InputMode.GESTURE || ((canvas.readOnly() || tools.annotationsHidden) && tools.tool != Tool.LASER)) {
                     navigateFrom(event, everyPointer = true)
                     continue
                 }

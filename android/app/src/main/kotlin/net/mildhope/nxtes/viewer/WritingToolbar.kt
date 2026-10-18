@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -122,7 +123,14 @@ fun WritingToolbar(
                 }
                 val toolScroll = rememberScrollState()
                 Box(Modifier.weight(1f).fillMaxHeight().fadingEdges(toolScroll), contentAlignment = Alignment.Center) {
-                Row(
+                if (view.readOnly) {
+                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.secondaryContainer, onClick = view::toggleReadOnly) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                            Icon(Icons.Default.Lock, null, modifier = Modifier.size(16.dp))
+                            Text(stringResource(R.string.read_only_banner), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 6.dp))
+                        }
+                    }
+                } else Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.horizontalScroll(toolScroll).padding(horizontal = 8.dp),
                 ) {
@@ -219,18 +227,25 @@ fun WritingToolbar(
                 }
                 }
                 Row(Modifier.padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    BarButton(painterResource(R.drawable.ic_undo), stringResource(R.string.undo), enabled = canUndo, onClick = onUndo)
-                    BarButton(painterResource(R.drawable.ic_redo), stringResource(R.string.redo), enabled = canRedo, onClick = onRedo)
+                    BarButton(painterResource(R.drawable.ic_undo), stringResource(R.string.undo), enabled = canUndo && !view.readOnly, onClick = onUndo)
+                    BarButton(painterResource(R.drawable.ic_redo), stringResource(R.string.redo), enabled = canRedo && !view.readOnly, onClick = onRedo)
                     Box {
                         BarButton(rememberVectorPainter(Icons.Default.Settings), stringResource(R.string.view_settings)) { viewSettings = true }
                         DropdownMenu(expanded = viewSettings, onDismissRequest = { viewSettings = false }) {
                             PageFlowSettings(view)
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.hide_tabs)) },
-                                trailingIcon = { Checkbox(checked = view.hideTabs, onCheckedChange = null) },
-                                onClick = view::toggleHideTabs,
-                            )
+                            listOf(
+                                Triple(R.string.dark_pages, view.darkPages, view::toggleDarkPages),
+                                Triple(R.string.keep_screen_on, view.keepScreenOn, view::toggleKeepScreenOn),
+                                Triple(R.string.full_screen, view.fullScreen, view::toggleFullScreen),
+                                Triple(R.string.hide_tabs, view.hideTabs, view::toggleHideTabs),
+                            ).forEach { (label, checked, toggle) ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(label)) },
+                                    trailingIcon = { Checkbox(checked = checked, onCheckedChange = null) },
+                                    onClick = toggle,
+                                )
+                            }
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.use_stylus_only)) },
@@ -241,6 +256,11 @@ fun WritingToolbar(
                                 text = { Text(stringResource(R.string.show_annotations)) },
                                 trailingIcon = { Checkbox(checked = !tools.annotationsHidden, onCheckedChange = null) },
                                 onClick = tools::toggleAnnotations,
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.read_only)) },
+                                trailingIcon = { Checkbox(checked = view.readOnly, onCheckedChange = null) },
+                                onClick = view::toggleReadOnly,
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             Text(

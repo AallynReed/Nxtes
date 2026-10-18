@@ -1,6 +1,12 @@
 package net.mildhope.nxtes.viewer
 
 import android.util.Log
+import android.app.Activity
+import android.content.ContextWrapper
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -169,6 +175,30 @@ fun DocumentViewer(
     BackHandler(enabled = selection.text != null) { selection.commitText(ink, resources)?.let { tools.updateTextStyle(it.style) } }
     BackHandler(enabled = selection.note != null) { selection.commitNote(ink) }
 
+    LaunchedEffect(app.view.readOnly) {
+        if (!app.view.readOnly) return@LaunchedEffect
+        selection.commitText(ink, resources)
+        selection.commitNote(ink)
+        selection.clear()
+        selection.menuAt = null
+        selection.asking = null
+    }
+    val hostView = LocalView.current
+    DisposableEffect(hostView, app.view.keepScreenOn) {
+        hostView.keepScreenOn = app.view.keepScreenOn
+        onDispose { hostView.keepScreenOn = false }
+    }
+    DisposableEffect(hostView, app.view.fullScreen) {
+        val bars = hostView.context.findActivity()?.window?.let { WindowCompat.getInsetsController(it, hostView) }
+        if (app.view.fullScreen) {
+            bars?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            bars?.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            bars?.show(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose { bars?.show(WindowInsetsCompat.Type.systemBars()) }
+    }
+
     /** Stamps the sticker tool's sticker centred on [point]. */
     fun stamp(pageIndex: Int, point: Offset) {
         val ref = tools.sticker
@@ -293,6 +323,8 @@ fun DocumentViewer(
                     selection = selection,
                     flow = app.view.flow,
                     onPageCounter = { goToPage = true },
+                    readOnly = app.view.readOnly,
+                    darkPages = app.view.darkPages,
                     assetsLoaded = { app.assets.loaded },
                     onStamp = ::stamp,
                     pageText = ::pageText,
@@ -498,6 +530,12 @@ private fun EditMenus(
     items += stringResource(R.string.add_bookmark) to { addToDocument(bookmarkAdded) { addBookmark(doc.id, pageId, pageTitle) } }
     items += stringResource(R.string.add_outline) to { addToDocument(outlineAdded) { addOutline(doc.id, pageId, pageTitle) } }
     PageMenu(Rect(at, at), items)
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /** Puts [text] on the clipboard; older Androids don't confirm it themselves. */
