@@ -275,6 +275,27 @@ class LibraryStore(
         return pages
     }
 
+    /** Moves a finished recording's audio file into the document and lists it there. */
+    @Synchronized
+    fun addRecording(documentId: String, audio: File, title: String, spans: List<AudioSpan>): Recording {
+        val blob = audio.inputStream().use { addBlob(documentId, it) }
+        val recording = Recording(newId(), title, blob, spans)
+        updateDocument(documentId) { it.copy(recordings = it.recordings + recording) }
+        audio.delete()
+        return recording
+    }
+
+    @Synchronized
+    fun renameRecording(documentId: String, id: String, title: String) {
+        updateDocument(documentId) { doc -> doc.copy(recordings = doc.recordings.map { if (it.id == id) it.copy(title = title) else it }) }
+    }
+
+    @Synchronized
+    fun deleteRecording(documentId: String, id: String) {
+        updateDocument(documentId) { doc -> doc.copy(recordings = doc.recordings.filter { it.id != id }) }
+        pruneBlobs(documentId)
+    }
+
     @Synchronized
     fun addBookmark(documentId: String, pageId: String, title: String): Bookmark {
         val bookmark = Bookmark(newId(), pageId, title)
@@ -443,10 +464,10 @@ class LibraryStore(
         writeAtomically(pageFile(toDocument, toPage), bytes)
     }
 
-    /** Deletes blobs that no page, page content or template of the document refers to any more. */
+    /** Deletes blobs that no page, page content, template or recording of the document refers to any more. */
     private fun pruneBlobs(documentId: String) {
         val doc = requireDocument(documentId)
-        val used = (doc.pages.mapNotNull { it.pdf?.blob } + listOfNotNull(doc.template?.pdf?.blob)).toMutableSet()
+        val used = (doc.pages.mapNotNull { it.pdf?.blob } + listOfNotNull(doc.template?.pdf?.blob) + doc.recordings.map { it.blob }).toMutableSet()
         doc.pages.forEach { used += readPage(documentId, it.id).blobs }
         File(documentDir(documentId), "blobs").listFiles().orEmpty().filter { it.name !in used }.forEach { it.delete() }
     }
@@ -528,7 +549,10 @@ class LibraryStore(
             val pages = mutableListOf<Page>()
             val bookmarks = mutableListOf<Bookmark>()
             val outline = mutableListOf<OutlineItem>()
+            val recordings = mutableListOf<Recording>()
             sources.forEach { source ->
+                source.recordings.forEach { copyBlob(source.id, it.blob, id) }
+                recordings += source.recordings
                 val newIds = source.pages.associate { it.id to newId() }
                 source.pages.forEach { page ->
                     page.pdf?.let { copyBlob(source.id, it.blob, id) }
@@ -543,7 +567,7 @@ class LibraryStore(
             val doc = Document(
                 id = id, title = title, folderId = first.folderId, created = now, modified = now,
                 note = first.note, cover = first.cover, template = first.template,
-                bookmarks = bookmarks, outline = outline, pages = pages,
+                bookmarks = bookmarks, outline = outline, pages = pages, recordings = recordings,
             )
             writeDocument(doc)
             _state.value = _state.value.let { it.copy(documents = it.documents + doc) }

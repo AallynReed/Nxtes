@@ -1,6 +1,14 @@
 package net.mildhope.nxtes.viewer
 
 import android.util.Log
+import android.Manifest
+import androidx.compose.foundation.layout.padding
+import net.mildhope.nxtes.audio.PlaybackBar
+import net.mildhope.nxtes.audio.RecordButton
+import net.mildhope.nxtes.audio.RecordingPill
+import net.mildhope.nxtes.data.Recording
+import net.mildhope.nxtes.library.ConfirmDialog
+import net.mildhope.nxtes.library.NameDialog
 import android.app.Activity
 import android.content.ContextWrapper
 import androidx.compose.ui.platform.LocalView
@@ -269,6 +277,42 @@ fun DocumentViewer(
         }
     }
 
+    val recorder = app.recorder
+    val player = app.player
+    var renamingRecording by remember { mutableStateOf<Recording?>(null) }
+    var deletingRecording by remember { mutableStateOf<Recording?>(null) }
+    val microphoneNeeded = stringResource(R.string.microphone_needed)
+    val recordingSaved = stringResource(R.string.recording_saved)
+    val microphone = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted[Manifest.permission.RECORD_AUDIO] != true) {
+            Toast.makeText(context, microphoneNeeded, Toast.LENGTH_LONG).show()
+            return@rememberLauncherForActivityResult
+        }
+        player.close()
+        runCatching { recorder.start(doc.id) }.onFailure {
+            Log.w("Viewer", "Recording failed to start", it)
+            Toast.makeText(context, R.string.action_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+    LaunchedEffect(recorder.finished) {
+        val (documentId, _) = recorder.finished ?: return@LaunchedEffect
+        if (documentId == doc.id) Toast.makeText(context, recordingSaved, Toast.LENGTH_SHORT).show()
+        recorder.finished = null
+    }
+
+    /** Loads [recording] into the player and starts it, optionally from [at] ms in. */
+    fun play(recording: Recording, at: Long = 0) {
+        if (player.loaded?.second?.id != recording.id) {
+            runCatching { player.load(doc.id, recording, app.library.blobFile(doc.id, recording.blob)) }.onFailure {
+                Log.w("Viewer", "Playback failed", it)
+                Toast.makeText(context, R.string.action_failed, Toast.LENGTH_SHORT).show()
+                return
+            }
+        }
+        player.seek(at)
+        player.play()
+    }
+
     val fontInvalid = stringResource(R.string.font_invalid)
     val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -312,6 +356,20 @@ fun DocumentViewer(
                 },
                 onSidePanel = { panelOpen = !panelOpen },
                 onAddImage = ::addImage,
+                recordButton = {
+                    RecordButton(
+                        doc = doc,
+                        recorder = recorder,
+                        onRecord = {
+                            val wanted = listOf(Manifest.permission.RECORD_AUDIO) +
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) listOf(Manifest.permission.POST_NOTIFICATIONS) else emptyList()
+                            microphone.launch(wanted.toTypedArray())
+                        },
+                        onPlay = { play(it) },
+                        onRename = { renamingRecording = it },
+                        onDelete = { deletingRecording = it },
+                    )
+                },
             )
             if (!app.view.hideTabs) DocumentTabBar(tabs, doc.id, onSelectTab, onCloseTab, onCloseOtherTabs, onCloseAllTabs)
             Box(Modifier.fillMaxWidth().weight(1f)) {
@@ -397,6 +455,10 @@ fun DocumentViewer(
                     },
                     modifier = Modifier.fillMaxSize().background(LocalNxtesColors.current.pageBackground),
                 )
+                RecordingPill(recorder, Modifier.align(Alignment.TopStart).padding(12.dp))
+                if (player.loaded?.first == doc.id) {
+                    PlaybackBar(player, Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, bottom = 56.dp))
+                }
                 if (panelOpen) {
                     Box(
                         Modifier
@@ -431,6 +493,19 @@ fun DocumentViewer(
                 onClose = { navigatorOpen = false },
             )
         }
+    }
+    renamingRecording?.let { recording ->
+        NameDialog(stringResource(R.string.rename), recording.title, onConfirm = { title ->
+            renamingRecording = null
+            scope.launch { runLibraryAction(context) { renameRecording(doc.id, recording.id, title) } }
+        }, onDismiss = { renamingRecording = null })
+    }
+    deletingRecording?.let { recording ->
+        ConfirmDialog(stringResource(R.string.delete_template_title, recording.title), stringResource(R.string.delete), onConfirm = {
+            deletingRecording = null
+            if (player.loaded?.second?.id == recording.id) player.close()
+            scope.launch { runLibraryAction(context) { deleteRecording(doc.id, recording.id) } }
+        }, onDismiss = { deletingRecording = null })
     }
     if (goToPage) {
         GoToPageDialog(

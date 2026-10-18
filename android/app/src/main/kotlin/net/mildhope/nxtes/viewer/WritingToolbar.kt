@@ -110,6 +110,7 @@ fun WritingToolbar(
     onSidePanel: () -> Unit,
     onAddImage: (ImageSource) -> Unit,
     modifier: Modifier = Modifier,
+    recordButton: @Composable () -> Unit = {},
 ) {
     var settingsFor by remember { mutableStateOf<Int?>(null) }
     var eraserSettings by remember { mutableStateOf(false) }
@@ -227,6 +228,7 @@ fun WritingToolbar(
                 }
                 }
                 Row(Modifier.padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    recordButton()
                     BarButton(painterResource(R.drawable.ic_undo), stringResource(R.string.undo), enabled = canUndo && !view.readOnly, onClick = onUndo)
                     BarButton(painterResource(R.drawable.ic_redo), stringResource(R.string.redo), enabled = canRedo && !view.readOnly, onClick = onRedo)
                     Box {

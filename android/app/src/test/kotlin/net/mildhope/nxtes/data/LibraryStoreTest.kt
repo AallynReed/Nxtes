@@ -434,6 +434,25 @@ class LibraryStoreTest {
         assertTrue(store.blobFile(doc.id, a.blob).exists())
     }
 
+    @Test
+    fun recordingsKeepTheirAudioThroughPruningAndMerging() {
+        val doc = import()
+        val audio = tmp.newFile("take.m4a").apply { writeBytes(byteArrayOf(7, 7, 7)) }
+        val recording = store.addRecording(doc.id, audio, "Lecture", listOf(AudioSpan(5_000, 1_000)))
+        assertFalse(audio.exists())
+        store.deletePages(doc.id, listOf(pages(doc.id).first()))
+        assertTrue(store.blobFile(doc.id, recording.blob).exists())
+
+        val merged = store.merge(listOf(doc.id, import().id), "Both")
+        assertEquals(listOf("Lecture"), merged.recordings.map { it.title })
+        assertTrue(store.blobFile(merged.id, recording.blob).exists())
+
+        store.renameRecording(doc.id, recording.id, "Talk")
+        assertEquals("Talk", newStore().apply { load() }.state.value.document(doc.id)!!.recordings.single().title)
+        store.deleteRecording(doc.id, recording.id)
+        assertFalse(store.blobFile(doc.id, recording.blob).exists())
+    }
+
     private fun pages(documentId: String) = store.state.value.document(documentId)!!.pages.map { it.id }
 
     private fun stroke() = InkStroke(
