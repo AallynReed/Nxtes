@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -46,16 +47,19 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.ui.ColorChooser
 import net.mildhope.nxtes.data.PageContent
+import net.mildhope.nxtes.data.TextAlignment
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.nxtes
@@ -77,6 +81,14 @@ private val SYSTEM_FONTS = listOf(
     "cursive" to R.string.font_cursive,
     "sans-serif-smallcaps" to R.string.font_small_caps,
 )
+
+/** Start and end, like the page's layout, so right-to-left text lines up the same in both. */
+private val TextAlignment.compose get() = when (this) {
+    TextAlignment.LEFT -> TextAlign.Start
+    TextAlignment.CENTER -> TextAlign.Center
+    TextAlignment.RIGHT -> TextAlign.End
+    TextAlignment.JUSTIFIED -> TextAlign.Justify
+}
 
 private val TEXT_SIZES = listOf(8f, 9f, 10f, 11f, 12f, 14f, 16f, 18f, 20f, 24f, 28f, 32f, 40f, 48f, 64f, 72f, 96f)
 
@@ -107,6 +119,7 @@ fun TextEditor(
         fontSize = with(density) { (box.size * k).toSp() },
         fontFamily = FontFamily(typeface),
         textDecoration = if (box.underline) TextDecoration.Underline else null,
+        textAlign = box.align.compose,
     )
     val widthPx = (box.width * k).roundToInt().coerceAtLeast(1)
     BasicTextField(
@@ -139,6 +152,7 @@ fun TextEditor(
             StyleToggle("B", box.bold, FontWeight.Bold, null) { onChange(box.copy(bold = !box.bold)) }
             StyleToggle("I", box.italic, FontWeight.Normal, FontStyle.Italic) { onChange(box.copy(italic = !box.italic)) }
             StyleToggle("U", box.underline, FontWeight.Normal, null, TextDecoration.Underline) { onChange(box.copy(underline = !box.underline)) }
+            AlignMenu(box.align) { onChange(box.copy(align = it)) }
             ColorDot(if (box.background == 0) null else Color(box.background), stringResource(R.string.text_background), allowNone = true) { onChange(box.copy(background = it)) }
             MenuIcon(rememberVectorPainter(Icons.Default.Delete), stringResource(R.string.delete), MaterialTheme.colorScheme.error) {
                 onChange(box.copy(text = ""))
@@ -189,6 +203,41 @@ private fun FontMenu(box: TextBox, onChange: (TextBox) -> Unit, onAddFont: () ->
             )
         }
     }
+}
+
+@Composable
+private fun AlignMenu(align: TextAlignment, onPick: (TextAlignment) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        MenuIcon(painterResource(align.icon), stringResource(R.string.text_alignment)) { open = true }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            TextAlignment.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(option.label)) },
+                    leadingIcon = { Icon(painterResource(option.icon), null) },
+                    trailingIcon = { if (option == align) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) },
+                    onClick = {
+                        open = false
+                        onPick(option)
+                    },
+                )
+            }
+        }
+    }
+}
+
+private val TextAlignment.icon get() = when (this) {
+    TextAlignment.LEFT -> R.drawable.ic_align_left
+    TextAlignment.CENTER -> R.drawable.ic_align_center
+    TextAlignment.RIGHT -> R.drawable.ic_align_right
+    TextAlignment.JUSTIFIED -> R.drawable.ic_align_justified
+}
+
+private val TextAlignment.label get() = when (this) {
+    TextAlignment.LEFT -> R.string.align_left
+    TextAlignment.CENTER -> R.string.align_center
+    TextAlignment.RIGHT -> R.string.align_right
+    TextAlignment.JUSTIFIED -> R.string.align_justified
 }
 
 @Composable
@@ -254,7 +303,7 @@ fun newTextBox(pageWidth: Float, x: Float, y: Float, style: net.mildhope.nxtes.i
     java.util.UUID.randomUUID().toString(), "", x, y - style.size / 2,
     (pageWidth - x - TEXT_MARGIN).coerceIn(TEXT_MIN_WIDTH, TEXT_WIDTH), style.size * 1.4f,
     font = style.font, size = style.size, color = style.color, background = style.background,
-    bold = style.bold, italic = style.italic, underline = style.underline,
+    bold = style.bold, italic = style.italic, underline = style.underline, align = style.align,
 )
 
 private const val TEXT_WIDTH = 240f

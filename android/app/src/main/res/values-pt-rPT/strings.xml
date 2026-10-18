@@ -237,6 +237,11 @@
     <string name="text_size">%1$d pt</string>
     <string name="text_color">Cor do texto</string>
     <string name="text_background">Fundo</string>
+    <string name="text_alignment">Alinhamento</string>
+    <string name="align_left">À esquerda</string>
+    <string name="align_center">Ao centro</string>
+    <string name="align_right">À direita</string>
+    <string name="align_justified">Justificado</string>
     <string name="add_font">Adicionar um ficheiro de tipo de letra</string>
     <string name="font_invalid">Esse ficheiro não é um tipo de letra .ttf ou .otf.</string>
     <string name="embedded_font">Tipo de letra deste documento</string>

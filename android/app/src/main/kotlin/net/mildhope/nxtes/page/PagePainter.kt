@@ -11,6 +11,7 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.graphics.text.LineBreaker
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
@@ -30,6 +31,7 @@ import net.mildhope.nxtes.data.Picture
 import net.mildhope.nxtes.data.Shape
 import net.mildhope.nxtes.data.ShapeKind
 import net.mildhope.nxtes.data.StickyNote
+import net.mildhope.nxtes.data.TextAlignment
 import net.mildhope.nxtes.data.TextBox
 import net.mildhope.nxtes.data.TextMark
 import net.mildhope.nxtes.ink.StrokeGeometry
@@ -242,7 +244,14 @@ class PagePainter {
                     isUnderlineText = box.underline
                 }
                 StaticLayout.Builder.obtain(box.text, 0, box.text.length, paint, box.width.toInt().coerceAtLeast(1))
-                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .setAlignment(
+                        when (box.align) {
+                            TextAlignment.CENTER -> Layout.Alignment.ALIGN_CENTER
+                            TextAlignment.RIGHT -> Layout.Alignment.ALIGN_OPPOSITE
+                            else -> Layout.Alignment.ALIGN_NORMAL
+                        },
+                    )
+                    .setJustificationMode(if (box.align == TextAlignment.JUSTIFIED) LineBreaker.JUSTIFICATION_MODE_INTER_WORD else LineBreaker.JUSTIFICATION_MODE_NONE)
                     .setIncludePad(false)
                     .build()
             }

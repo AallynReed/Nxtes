@@ -142,7 +142,7 @@ Full screen, for New note and for an item's "Cover and template".
   - Hold the pen still at the end of a line to turn it into a line, circle, triangle, rectangle
     or polygon.
   - Text box: tap to place one; a bar above it has font (with imported fonts), size, color,
-    bold, italic, underline, background and delete.
+    bold, italic, underline, alignment (left, center, right, justified), background and delete.
   - Image: from the gallery, files or the camera; crop to a box or freehand from the selection
     menu.
   - Sticky note: tap to place one; it opens a card with colors, delete and its date. Tap a

@@ -15,6 +15,7 @@ import net.mildhope.nxtes.data.LineStyle
 import net.mildhope.nxtes.data.MaskKind
 import net.mildhope.nxtes.data.Pen
 import net.mildhope.nxtes.data.ShapeKind
+import net.mildhope.nxtes.data.TextAlignment
 import net.mildhope.nxtes.edit.LassoType
 
 /** A pen on the toolbar. Shape pens also carry the shape they draw and its style. */
@@ -61,6 +62,7 @@ data class TextStyle(
     val bold: Boolean = false,
     val italic: Boolean = false,
     val underline: Boolean = false,
+    val align: TextAlignment = TextAlignment.LEFT,
 )
 
 /** A lasso is drawn freehand or as a box. */
@@ -332,4 +334,4 @@ class ToolState(private val prefs: SharedPreferences) {
 }
 
 /** The style of a text box, to start the next one with. */
-val net.mildhope.nxtes.data.TextBox.style get() = TextStyle(font, size, color, background, bold, italic, underline)
+val net.mildhope.nxtes.data.TextBox.style get() = TextStyle(font, size, color, background, bold, italic, underline, align)

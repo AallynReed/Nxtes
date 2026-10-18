@@ -229,6 +229,11 @@
     <string name="text_size">%1$d pt</string>
     <string name="text_color">Text color</string>
     <string name="text_background">Background</string>
+    <string name="text_alignment">Alignment</string>
+    <string name="align_left">Left</string>
+    <string name="align_center">Center</string>
+    <string name="align_right">Right</string>
+    <string name="align_justified">Justified</string>
     <string name="add_font">Add a font file</string>
     <string name="font_invalid">That file isn\'t a .ttf or .otf font.</string>
     <string name="embedded_font">Font in this document</string>
