@@ -64,6 +64,12 @@ import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.ink.erase
 import net.mildhope.nxtes.page.PagePainter
 import net.mildhope.nxtes.page.PageResources
+import androidx.core.graphics.withMatrix
+import net.mildhope.nxtes.data.Pen
+import net.mildhope.nxtes.data.Shape
+import net.mildhope.nxtes.edit.ShapeBuilder
+import net.mildhope.nxtes.edit.ShapeRecognizer
+import java.util.UUID
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -96,6 +102,11 @@ private class DragState {
     var last = Offset.Zero
     var group: Any? = null
     var page = 0
+    var start = Offset.Zero
+    val path = mutableListOf<Offset>()
+
+    /** A shape the next finished ink stroke turns into, from holding the pen still. */
+    var convert: Pair<Int, Shape>? = null
 }
 
 private const val DETAIL_DELAY_MS = 120L
@@ -134,7 +145,19 @@ fun PageCanvas(
     val strokeMatrix = remember { android.graphics.Matrix() }
     val strokeClip = remember { RectF() }
     var eraserAt by remember { mutableStateOf<Offset?>(null) }
+    var shapePreview by remember { mutableStateOf<Pair<Int, Shape>?>(null) }
     val drag = remember { DragState() }
+
+    /** The shape the shape pen makes for the current drag. */
+    fun dragShape(end: Offset): Shape? {
+        val preset = tools.pen
+        val xs = drag.path.map { it.x }.toFloatArray()
+        val ys = drag.path.map { it.y }.toFloatArray()
+        return ShapeBuilder.build(
+            UUID.randomUUID().toString(), preset.shape, preset.sides, drag.start.x, drag.start.y, end.x, end.y, xs to ys,
+            preset.color, preset.size, preset.fill, preset.line,
+        )
+    }
 
     /** The selection's corners on screen, clockwise from top-left, with the dragged transform applied. */
     fun selectionCorners(): List<Offset>? {
@@ -160,8 +183,9 @@ fun PageCanvas(
             return if (Geometry.inside(at.x, at.y, xs, ys)) Handle.BODY else Handle.NONE
         }
 
-        override fun drawingDrag() = when (tools.tool) {
-            Tool.LASSO -> DragKind.LASSO
+        override fun drawingDrag() = when {
+            tools.tool == Tool.LASSO -> DragKind.LASSO
+            tools.tool == Tool.PEN && tools.pen.pen == Pen.SHAPE -> DragKind.SHAPE
             else -> null
         }
 
@@ -178,6 +202,13 @@ fun PageCanvas(
                     selection.lasso = listOf(at)
                 }
                 DragKind.SELECTION -> selection.startDrag(handle, mapper.toPage(mapper.indexOf(selection.pageId), at))
+                DragKind.SHAPE -> {
+                    selection.clear()
+                    drag.page = mapper.pageAt(at)
+                    drag.start = mapper.toPage(drag.page, at)
+                    drag.path.clear()
+                    drag.path += drag.start
+                }
             }
         }
 
@@ -187,6 +218,11 @@ fun PageCanvas(
                 DragKind.LASSO -> selection.lasso =
                     if (tools.lassoShape == LassoShape.RECT) listOf(selection.lasso.first(), to) else selection.lasso + to
                 DragKind.SELECTION -> selection.drag(mapper.toPage(mapper.indexOf(selection.pageId), to))
+                DragKind.SHAPE -> {
+                    val point = mapper.toPage(drag.page, to)
+                    drag.path += point
+                    shapePreview = dragShape(point)?.let { drag.page to it }
+                }
                 null -> Unit
             }
             drag.last = to
@@ -200,6 +236,12 @@ fun PageCanvas(
                     selection.endDrag(ink)
                     if (tools.autoDeselect) selection.clear()
                 }
+                DragKind.SHAPE -> {
+                    shapePreview = null
+                    dragShape(mapper.toPage(drag.page, drag.last))?.let { shape ->
+                        pages.getOrNull(drag.page)?.let { page -> ink.update(page.id) { it.copy(objects = it.objects + shape) } }
+                    }
+                }
                 null -> Unit
             }
             drag.kind = null
@@ -211,7 +253,20 @@ fun PageCanvas(
             selection.menuAt = null
         }
 
-        override fun penDown(at: Offset) = tap(at)
+        override fun penDown(at: Offset) {
+            tap(at)
+            drag.convert = null
+        }
+
+        override fun penHeld(path: List<Offset>) {
+            val index = mapper.pageAt(path.first())
+            val local = path.map { mapper.toPage(index, it) }
+            val found = ShapeRecognizer.recognize(local.map { it.x }.toFloatArray(), local.map { it.y }.toFloatArray(), tools.convertShapes) ?: return
+            val preset = tools.pen
+            val shape = Shape(UUID.randomUUID().toString(), found.kind, found.xs, found.ys, preset.color, preset.size)
+            drag.convert = index to shape
+            shapePreview = index to shape
+        }
 
         override fun longPress(at: Offset) {
             val index = mapper.pageAt(at)
@@ -350,10 +405,24 @@ fun PageCanvas(
                 drawRect(outline, screen.topLeft, screen.size, style = Stroke(1f))
             }
             eraserAt?.let { drawCircle(outline, eraserRadius, it, style = Stroke(2f)) }
+            shapePreview?.let { (index, shape) ->
+                val origin = mapper.toScreen(index, Offset.Zero)
+                val k = mapper.pixelsPerPoint
+                drawIntoCanvas { canvas ->
+                    canvas.nativeCanvas.withMatrix(android.graphics.Matrix().apply { setScale(k, k); postTranslate(origin.x, origin.y) }) {
+                        painter.drawShape(this, shape)
+                    }
+                }
+            }
             drawLasso(selection.lasso, tools.lassoShape, accent)
             if (selection.active && selection.lasso.isEmpty()) selectionCorners()?.let { drawSelection(it, accent, rotateDistance) }
         }
-        InkLayer(state, layout, pages, ink, tools)
+        InkLayer(state, layout, pages, ink, tools) {
+            drag.convert.also {
+                drag.convert = null
+                shapePreview = null
+            }
+        }
         }
         overlay(mapper)
         if (pages.size > 1) {
@@ -416,6 +485,7 @@ private fun InkLayer(
     pages: List<Page>,
     ink: PageSession,
     tools: ToolState,
+    takeConversion: () -> Pair<Int, Shape>?,
 ) {
     val toWorld = 1f / (state.zoom * layout.scale)
     val pointerToWorld = Matrix().apply {
@@ -426,10 +496,14 @@ private fun InkLayer(
     }
     val scratch = remember { StrokeInput() }
     InProgressStrokes(
-        defaultBrush = if (tools.mode == InputMode.PEN && tools.tool == Tool.PEN) tools.pen.brush else null,
+        defaultBrush = if (tools.mode == InputMode.PEN && tools.tool == Tool.PEN && tools.pen.pen.inks) tools.pen.brush else null,
         pointerEventToWorldTransform = pointerToWorld,
         onStrokesFinished = { strokes ->
             val now = System.currentTimeMillis()
+            takeConversion()?.let { (index, shape) ->
+                pages.getOrNull(index)?.let { page -> ink.update(page.id) { it.copy(objects = it.objects + shape) } }
+                return@InProgressStrokes
+            }
             for (stroke in strokes) {
                 if (stroke.inputs.isEmpty()) continue
                 stroke.inputs.populate(0, scratch)

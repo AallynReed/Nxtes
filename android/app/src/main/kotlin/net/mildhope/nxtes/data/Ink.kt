@@ -6,7 +6,13 @@ enum class Pen(val code: Int) {
     PENCIL(3),
     MARKER(4),
     HIGHLIGHTER(5),
+
+    /** Draws shapes rather than ink. */
+    SHAPE(6),
     ;
+
+    /** Whether it lays down ink strokes. */
+    val inks get() = code <= HIGHLIGHTER.code
 
     companion object {
         fun fromCode(code: Int) = entries.firstOrNull { it.code == code } ?: BALLPOINT

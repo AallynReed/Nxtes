@@ -26,7 +26,7 @@ import net.mildhope.nxtes.ink.Tool
 import net.mildhope.nxtes.ink.ToolState
 
 /** Drags a pointer can make on the canvas. */
-enum class DragKind { ERASE, LASSO, SELECTION }
+enum class DragKind { ERASE, LASSO, SELECTION, SHAPE }
 
 /** What the canvas gestures ask of the pages under them. Positions are in screen pixels. */
 interface CanvasTools {
@@ -48,10 +48,14 @@ interface CanvasTools {
     /** A pen starts drawing ink. */
     fun penDown(at: Offset)
 
+    /** The pen drawing ink was held still at the end of [path], to turn it into a shape. */
+    fun penHeld(path: List<Offset>)
+
     fun longPress(at: Offset)
 }
 
 private const val PALM_REJECT_MS = 600L
+private const val HOLD_TO_CONVERT_MS = 650L
 private const val WHEEL_STEP_PX = 64f
 
 private class PenTracker {
@@ -130,12 +134,12 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                 val toolDrag = canvas.drawingDrag()
                 when {
                     down.type == PointerType.Eraser || (erasing && down.type.draws()) -> drag(pen, event, down.id, canvas, DragKind.ERASE, Handle.NONE)
-                    down.type.draws() -> if (toolDrag != null) toolGesture(event, toolDrag) else canvas.penDown(down.position)
+                    down.type.draws() -> if (toolDrag != null) toolGesture(event, toolDrag) else watchPen(pen, event, down, canvas, slop)
                     down.uptimeMillis - pen.lastSeen < PALM_REJECT_MS -> swallow(pen, event) { it.type == PointerType.Touch }
                     tools.drawWithFinger && toolDrag != null -> toolGesture(event, toolDrag)
                     tools.drawWithFinger -> {
                         fling?.cancel()
-                        secondFingerJoins(pen, event)?.let {
+                        watchPen(pen, event, down, canvas, slop, finger = true)?.let {
                             val velocity = navigate(pen, state, it)
                             fling = launch { state.fling(velocity, decay) }
                         }
@@ -182,6 +186,56 @@ private suspend fun AwaitPointerEventScope.drag(
     }
 }
 
+/**
+ * Watches a pen or drawing finger laying down ink, without taking its input from the ink layer.
+ * Holding still after drawing asks [canvas] to turn the line into a shape. A pen ignores resting
+ * palms meanwhile; a [finger] that's joined by a second one returns that event so they navigate.
+ */
+private suspend fun AwaitPointerEventScope.watchPen(
+    pen: PenTracker,
+    first: PointerEvent,
+    down: PointerInputChange,
+    canvas: CanvasTools,
+    slop: Float,
+    finger: Boolean = false,
+): PointerEvent? {
+    canvas.penDown(down.position)
+    val path = mutableListOf(down.position)
+    var anchor = down.position
+    var anchorTime = down.uptimeMillis
+    var moved = false
+    var held = false
+    var event = first
+    while (true) {
+        if (finger) {
+            if (event.changes.count { it.type == PointerType.Touch && it.pressed } >= 2) return event
+        } else {
+            event.changes.forEach { if (it.type == PointerType.Touch) it.consume() }
+        }
+        val change = event.changes.firstOrNull { it.id == down.id } ?: return null
+        if (!change.pressed) return null
+        if (change.position != path.last()) path += change.position
+        if ((change.position - anchor).getDistance() > slop) {
+            anchor = change.position
+            anchorTime = change.uptimeMillis
+            moved = true
+        }
+        if (moved && !held && change.uptimeMillis - anchorTime >= HOLD_TO_CONVERT_MS) {
+            held = true
+            canvas.penHeld(path.toList())
+        }
+        val wait = if (moved && !held) (HOLD_TO_CONVERT_MS - (change.uptimeMillis - anchorTime)).coerceAtLeast(1) else null
+        val next = if (wait == null) nextEvent(pen) else withTimeoutOrNull(wait) { nextEvent(pen) }
+        if (next == null) {
+            held = true
+            canvas.penHeld(path.toList())
+            event = nextEvent(pen)
+        } else {
+            event = next
+        }
+    }
+}
+
 /** Waits to see whether the first touch is held still, tapped, or moved (or joined by another). */
 private suspend fun AwaitPointerEventScope.holdOrMove(
     pen: PenTracker,
@@ -214,17 +268,6 @@ private suspend fun AwaitPointerEventScope.swallow(
     while (true) {
         event.changes.filter(matches).forEach { it.consume() }
         if (event.changes.none { matches(it) && it.pressed }) return
-        event = nextEvent(pen)
-    }
-}
-
-/** Lets one finger draw; returns the event where a second finger joined, or null if it never did. */
-private suspend fun AwaitPointerEventScope.secondFingerJoins(pen: PenTracker, first: PointerEvent): PointerEvent? {
-    var event = first
-    while (true) {
-        val touching = event.changes.count { it.type == PointerType.Touch && it.pressed }
-        if (touching >= 2) return event
-        if (touching == 0) return null
         event = nextEvent(pen)
     }
 }

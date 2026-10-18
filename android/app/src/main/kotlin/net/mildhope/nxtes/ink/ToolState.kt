@@ -11,11 +11,23 @@ import androidx.core.content.edit
 import androidx.ink.brush.Brush
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import net.mildhope.nxtes.data.LineStyle
 import net.mildhope.nxtes.data.Pen
+import net.mildhope.nxtes.data.ShapeKind
 import net.mildhope.nxtes.edit.LassoType
 
+/** A pen on the toolbar. Shape pens also carry the shape they draw and its style. */
 @Serializable
-data class PenPreset(val pen: Pen, val color: Int, val size: Float) {
+data class PenPreset(
+    val pen: Pen,
+    val color: Int,
+    val size: Float,
+    /** The shape a shape pen draws, or null to draw freely and recognise it. */
+    val shape: ShapeKind? = ShapeKind.RECTANGLE,
+    val fill: Int = 0,
+    val line: LineStyle = LineStyle.SOLID,
+    val sides: Int = 5,
+) {
     val brush: Brush by lazy { Brushes.brush(pen, color, size) }
 
     /** Allowed brush sizes in points. */
@@ -25,6 +37,7 @@ data class PenPreset(val pen: Pen, val color: Int, val size: Float) {
             Pen.FOUNTAIN, Pen.PENCIL -> 0.6f..8f
             Pen.MARKER -> 2f..16f
             Pen.HIGHLIGHTER -> 4f..30f
+            Pen.SHAPE -> 0.5f..12f
         }
 }
 
@@ -68,6 +81,17 @@ class ToolState(private val prefs: SharedPreferences) {
     /** Clear the selection after moving or changing it. */
     var autoDeselect by mutableStateOf(prefs.getBoolean(KEY_AUTO_DESELECT, false))
         private set
+
+    /** Shapes a pen stroke turns into when the pen is held still at its end. */
+    var convertShapes by mutableStateOf(
+        prefs.getStringSet(KEY_CONVERT, null)?.mapNotNull { runCatching { ShapeKind.valueOf(it) }.getOrNull() }?.toSet() ?: CONVERTIBLE,
+    )
+        private set
+
+    fun toggleConvert(kind: ShapeKind) {
+        convertShapes = if (kind in convertShapes) convertShapes - kind else convertShapes + kind
+        prefs.edit { putStringSet(KEY_CONVERT, convertShapes.map { it.name }.toSet()) }
+    }
 
     val pen: PenPreset get() = presets[selected]
 
@@ -155,6 +179,10 @@ class ToolState(private val prefs: SharedPreferences) {
         private const val KEY_LASSO_SHAPE = "lasso_shape"
         private const val KEY_LASSO_TYPES = "lasso_types"
         private const val KEY_AUTO_DESELECT = "auto_deselect"
+        private const val KEY_CONVERT = "convert_shapes"
+
+        /** Shapes hold-to-convert can make. */
+        val CONVERTIBLE = setOf(ShapeKind.LINE, ShapeKind.ELLIPSE, ShapeKind.TRIANGLE, ShapeKind.RECTANGLE, ShapeKind.POLYGON)
         const val MAX_PENS = 30
 
         val DEFAULT_PRESETS = listOf(
@@ -164,6 +192,7 @@ class ToolState(private val prefs: SharedPreferences) {
             PenPreset(Pen.PENCIL, 0xFF5F6368.toInt(), 1.6f),
             PenPreset(Pen.MARKER, 0xFFD93025.toInt(), 4f),
             PenPreset(Pen.HIGHLIGHTER, 0x80FFD600.toInt(), 12f),
+            PenPreset(Pen.SHAPE, 0xFF1E4FD8.toInt(), 1.5f),
         )
 
         val PALETTE = listOf(

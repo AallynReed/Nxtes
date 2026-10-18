@@ -32,7 +32,7 @@ object Brushes {
     private val pens = Collections.synchronizedMap(WeakHashMap<Brush, Pen>())
 
     fun brush(pen: Pen, color: Int, size: Float): Brush =
-        Brush.createWithColorIntArgb(families.getValue(pen), color, size, EPSILON).also { pens[it] = pen }
+        Brush.createWithColorIntArgb(families[pen] ?: families.getValue(Pen.BALLPOINT), color, size, EPSILON).also { pens[it] = pen }
 
     fun penOf(brush: Brush): Pen =
         pens[brush] ?: families.entries.firstOrNull { it.value === brush.family }?.key ?: Pen.BALLPOINT

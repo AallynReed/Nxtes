@@ -62,7 +62,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import net.mildhope.nxtes.R
+import net.mildhope.nxtes.data.LineStyle
 import net.mildhope.nxtes.data.Pen
+import net.mildhope.nxtes.data.ShapeKind
 import net.mildhope.nxtes.edit.LassoType
 import net.mildhope.nxtes.ink.EraserMode
 import net.mildhope.nxtes.ink.LassoShape
@@ -177,6 +179,19 @@ fun WritingToolbar(
                                 trailingIcon = { Checkbox(checked = !tools.drawWithFinger, onCheckedChange = null) },
                                 onClick = tools::toggleDrawWithFinger,
                             )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            Text(
+                                stringResource(R.string.shape_conversion),
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            )
+                            ToolState.CONVERTIBLE.forEach { kind ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(convertName(kind))) },
+                                    trailingIcon = { Checkbox(checked = kind in tools.convertShapes, onCheckedChange = null) },
+                                    onClick = { tools.toggleConvert(kind) },
+                                )
+                            }
                         }
                     }
                     BarButton(painterResource(R.drawable.ic_menu_open), stringResource(R.string.side_panel), onClick = onSidePanel)
@@ -242,7 +257,10 @@ private fun DrawScope.drawPen(preset: PenPreset, lift: Dp, outline: Color, body:
         }
         close()
     }
-    if (preset.pen == Pen.PENCIL) {
+    if (preset.pen == Pen.SHAPE) {
+        val side = bodyWidth * 0.9f
+        drawRect(color, Offset(size.width / 2 - side / 2, top), Size(side, side * 0.8f), style = Stroke(2.dp.toPx()))
+    } else if (preset.pen == Pen.PENCIL) {
         drawPath(tip, Color(0xFFE8C9A0))
         val lead = Path().apply {
             moveTo(size.width / 2, top)
@@ -404,6 +422,7 @@ private fun PenSettings(preset: PenPreset, onChange: (PenPreset) -> Unit, onDele
                 }
             }
         }
+        if (preset.pen == Pen.SHAPE) ShapeSettings(preset, onChange)
         LabelledSlider(
             label = stringResource(R.string.pen_size, preset.size),
             value = preset.size,
@@ -416,7 +435,7 @@ private fun PenSettings(preset: PenPreset, onChange: (PenPreset) -> Unit, onDele
             range = 25f..255f,
             onChange = { onChange(preset.copy(color = withAlpha(preset.color, it.roundToInt()))) },
         )
-        PenPreview(preset, Modifier.fillMaxWidth().height(48.dp))
+        if (preset.pen != Pen.SHAPE) PenPreview(preset, Modifier.fillMaxWidth().height(48.dp))
         if (onDelete != null) {
             TextButton(onClick = onDelete) { Text(stringResource(R.string.delete_pen), color = MaterialTheme.colorScheme.error) }
         }
@@ -462,4 +481,105 @@ private fun penName(pen: Pen) = when (pen) {
     Pen.PENCIL -> R.string.pen_pencil
     Pen.MARKER -> R.string.pen_marker
     Pen.HIGHLIGHTER -> R.string.pen_highlighter
+    Pen.SHAPE -> R.string.pen_shape
 }
+
+private val SHAPE_CHOICES = listOf(null, ShapeKind.ELLIPSE, ShapeKind.TRIANGLE, ShapeKind.RECTANGLE, ShapeKind.POLYGON, ShapeKind.LINE, ShapeKind.ARROW, ShapeKind.CURVE)
+
+private fun shapeName(kind: ShapeKind?) = when (kind) {
+    null -> R.string.shape_free
+    ShapeKind.LINE -> R.string.shape_line
+    ShapeKind.ARROW -> R.string.shape_arrow
+    ShapeKind.RECTANGLE -> R.string.shape_rectangle
+    ShapeKind.ELLIPSE -> R.string.shape_ellipse
+    ShapeKind.TRIANGLE -> R.string.shape_triangle
+    ShapeKind.POLYGON -> R.string.shape_polygon
+    ShapeKind.CURVE -> R.string.shape_curve
+}
+
+private fun convertName(kind: ShapeKind) = when (kind) {
+    ShapeKind.LINE -> R.string.convert_line
+    ShapeKind.ELLIPSE -> R.string.convert_ellipse
+    ShapeKind.TRIANGLE -> R.string.convert_triangle
+    ShapeKind.RECTANGLE -> R.string.convert_rectangle
+    else -> R.string.convert_polygon
+}
+
+/** A small drawing of a shape pen's shape. */
+@Composable
+private fun ShapeGlyph(kind: ShapeKind?, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(24.dp)) {
+        val w = size.width
+        val h = size.height
+        val stroke = Stroke(2.dp.toPx(), cap = StrokeCap.Round)
+        when (kind) {
+            null -> drawPath(Path().apply { moveTo(w * 0.15f, h * 0.7f); cubicTo(w * 0.3f, h * 0.1f, w * 0.6f, h * 0.9f, w * 0.85f, h * 0.3f) }, color, style = stroke)
+            ShapeKind.ELLIPSE -> drawOval(color, Offset(w * 0.1f, h * 0.2f), Size(w * 0.8f, h * 0.6f), style = stroke)
+            ShapeKind.TRIANGLE -> drawPath(Path().apply { moveTo(w / 2, h * 0.15f); lineTo(w * 0.88f, h * 0.85f); lineTo(w * 0.12f, h * 0.85f); close() }, color, style = stroke)
+            ShapeKind.RECTANGLE -> drawRect(color, Offset(w * 0.15f, h * 0.22f), Size(w * 0.7f, h * 0.56f), style = stroke)
+            ShapeKind.POLYGON -> drawPath(Path().apply {
+                for (i in 0 until 5) {
+                    val a = -Math.PI / 2 + 2 * Math.PI * i / 5
+                    val x = (w / 2 + kotlin.math.cos(a) * w * 0.4f).toFloat()
+                    val y = (h / 2 + kotlin.math.sin(a) * h * 0.4f).toFloat()
+                    if (i == 0) moveTo(x, y) else lineTo(x, y)
+                }
+                close()
+            }, color, style = stroke)
+            ShapeKind.LINE -> drawLine(color, Offset(w * 0.15f, h * 0.85f), Offset(w * 0.85f, h * 0.15f), stroke.width, StrokeCap.Round)
+            ShapeKind.ARROW -> {
+                drawLine(color, Offset(w * 0.15f, h * 0.85f), Offset(w * 0.85f, h * 0.15f), stroke.width, StrokeCap.Round)
+                drawPath(Path().apply { moveTo(w * 0.5f, h * 0.15f); lineTo(w * 0.85f, h * 0.15f); lineTo(w * 0.85f, h * 0.5f) }, color, style = stroke)
+            }
+            ShapeKind.CURVE -> drawPath(Path().apply { moveTo(w * 0.1f, h * 0.8f); quadraticTo(w * 0.5f, h * -0.2f, w * 0.9f, h * 0.8f) }, color, style = stroke)
+        }
+    }
+}
+
+@Composable
+private fun ShapeSettings(preset: PenPreset, onChange: (PenPreset) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        SHAPE_CHOICES.forEach { kind ->
+            val chosen = preset.shape == kind
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (chosen) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                    .clickable(onClickLabel = stringResource(shapeName(kind))) { onChange(preset.copy(shape = kind)) },
+            ) { ShapeGlyph(kind, if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+    }
+    if (preset.shape == ShapeKind.POLYGON) {
+        LabelledSlider(stringResource(R.string.polygon_sides, preset.sides), preset.sides.toFloat(), 3f..12f) { onChange(preset.copy(sides = it.roundToInt())) }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LineStyle.entries.forEach { style ->
+            FilterChip(
+                selected = preset.line == style,
+                onClick = { onChange(preset.copy(line = style)) },
+                label = {
+                    Text(stringResource(when (style) { LineStyle.SOLID -> R.string.line_solid; LineStyle.DASHED -> R.string.line_dashed; LineStyle.DOTTED -> R.string.line_dotted }))
+                },
+            )
+        }
+    }
+    Text(stringResource(R.string.fill), style = MaterialTheme.typography.labelLarge)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        FilterChip(selected = preset.fill == 0, onClick = { onChange(preset.copy(fill = 0)) }, label = { Text(stringResource(R.string.no_fill)) })
+        ToolState.PALETTE.take(8).forEach { swatch ->
+            val fill = withAlpha(swatch, FILL_ALPHA)
+            Box(
+                Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(Color(fill))
+                    .border(if (preset.fill == fill) 3.dp else 1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                    .clickable { onChange(preset.copy(fill = fill)) },
+            )
+        }
+    }
+}
+
+private const val FILL_ALPHA = 0x55
