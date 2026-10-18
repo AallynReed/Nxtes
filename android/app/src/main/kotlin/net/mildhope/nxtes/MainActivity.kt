@@ -70,12 +70,14 @@ private fun NxtesRoot(openRequests: MutableStateFlow<String?>) {
     val openRequest by openRequests.collectAsState()
     var folderId by rememberSaveable { mutableStateOf<String?>(null) }
     var documentId by rememberSaveable { mutableStateOf<String?>(null) }
+    var tabIds by rememberSaveable { mutableStateOf(listOf<String>()) }
     val scope = rememberCoroutineScope()
     val visibleFolder = folderId?.takeIf { library.folder(it) != null && !library.isInTrash(it) }
     val openDocument = library.document(documentId)?.takeIf { it.trashedAt == null && !library.isInTrash(it.folderId) }
 
     fun open(id: String) {
         documentId = id
+        if (id !in tabIds) tabIds = tabIds + id
         scope.launch(Dispatchers.IO) { runCatching { app.library.markOpened(id) } }
     }
 
@@ -88,10 +90,20 @@ private fun NxtesRoot(openRequests: MutableStateFlow<String?>) {
 
     val viewports = remember { mutableMapOf<String, ViewportState>() }
 
+    val tabs = tabIds.mapNotNull { id -> library.document(id)?.takeIf { it.trashedAt == null && !library.isInTrash(it.folderId) } }
+
     if (openDocument != null) {
         DocumentViewer(
             doc = openDocument,
             viewport = viewports.getOrPut(openDocument.id) { ViewportState() },
+            tabs = tabs.ifEmpty { listOf(openDocument) },
+            onSelectTab = ::open,
+            onCloseTab = { id ->
+                val index = tabIds.indexOf(id)
+                tabIds = tabIds - id
+                viewports.remove(id)
+                if (id == documentId) documentId = tabIds.getOrNull(index.coerceAtMost(tabIds.lastIndex))
+            },
             onBack = { documentId = null },
         )
     } else {

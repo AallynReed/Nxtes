@@ -10,6 +10,8 @@ import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.data.PageSize
 import java.io.File
 
+data class OutlineEntry(val title: String, val pdfPage: Int, val depth: Int)
+
 /** PDFium access. Calls are serialised; recently used documents stay open. */
 class PdfEngine(context: Context) {
     private val core = PdfiumCore(context)
@@ -22,6 +24,22 @@ class PdfEngine(context: Context) {
         openFile(file).use { doc ->
             doc.getPageSizes(POINTS_DPI).map { PageSize(it.width.toFloat(), it.height.toFloat()) }
         }
+
+    /** The PDF's table of contents, flattened in reading order. */
+    suspend fun outline(file: File): List<OutlineEntry> = withContext(Dispatchers.IO) {
+        synchronized(open) {
+            val doc = open.getOrPut(file.path) { openFile(file) }
+            val entries = mutableListOf<OutlineEntry>()
+            fun walk(marks: List<io.legere.pdfiumandroid.api.Bookmark>, depth: Int) {
+                marks.forEach {
+                    entries += OutlineEntry(it.title.orEmpty(), it.pageIdx.toInt(), depth)
+                    walk(it.children, depth + 1)
+                }
+            }
+            walk(doc.getTableOfContents(), 0)
+            entries
+        }
+    }
 
     /**
      * Draws the page at [left],[top] with size [width]x[height] in bitmap pixels.

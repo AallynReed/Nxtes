@@ -17,7 +17,7 @@ import net.mildhope.nxtes.ink.InkPainter
 import java.io.File
 import kotlin.math.roundToInt
 
-/** First-page previews with their ink, cached in memory and as JPEGs on disk. */
+/** Page previews with their ink, cached in memory and as JPEGs on disk. */
 class Thumbnails(
     private val dir: File,
     private val pdf: PdfEngine,
@@ -28,8 +28,8 @@ class Thumbnails(
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
-    suspend fun get(doc: Document, widthPx: Int): Bitmap? {
-        val page = doc.pages.firstOrNull() ?: return null
+    suspend fun get(doc: Document, widthPx: Int, pageIndex: Int = 0): Bitmap? {
+        val page = doc.pages.getOrNull(pageIndex) ?: return null
         val key = "${page.id}-${doc.modified}-$widthPx"
         memory.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
@@ -37,7 +37,7 @@ class Thumbnails(
             val file = File(docDir, "$key.jpg")
             val cached = if (file.exists()) BitmapFactory.decodeFile(file.path) else null
             val bitmap = cached ?: render(doc, page, widthPx).also { rendered ->
-                docDir.listFiles()?.forEach { it.delete() }
+                docDir.listFiles()?.filter { it.name.startsWith("${page.id}-") }?.forEach { it.delete() }
                 docDir.mkdirs()
                 file.outputStream().use { rendered.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }
             }
@@ -66,7 +66,7 @@ class Thumbnails(
     }
 
     private companion object {
-        const val MEMORY_BYTES = 24 * 1024 * 1024
+        const val MEMORY_BYTES = 48 * 1024 * 1024
         const val JPEG_QUALITY = 85
     }
 }
