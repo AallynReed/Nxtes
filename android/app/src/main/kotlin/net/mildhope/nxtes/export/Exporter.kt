@@ -19,11 +19,16 @@ import com.tom_roush.pdfbox.pdmodel.common.PDRectangle
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB
 import com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory
+import com.tom_roush.pdfbox.pdmodel.interactive.action.PDActionURI
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationText
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictionary
+import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageFitDestination
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.data.LibraryStore
+import net.mildhope.nxtes.data.Link
 import net.mildhope.nxtes.data.Page
 import net.mildhope.nxtes.data.PageContent
 import net.mildhope.nxtes.data.Picture
@@ -35,6 +40,7 @@ import net.mildhope.nxtes.page.PageBackgrounds
 import net.mildhope.nxtes.page.PagePainter
 import net.mildhope.nxtes.page.PageResources
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import com.tom_roush.pdfbox.util.Matrix as PdfMatrix
 
@@ -147,6 +153,8 @@ class Exporter(
                 overlay = PDDocument.load(overlayFile, MemoryUsageSetting.setupTempFileOnly())
             }
             val layers = LayerUtility(output)
+            val exported = HashMap<String, PDPage>()
+            val linking = mutableListOf<() -> Unit>()
             pages.forEachIndexed { n, i ->
                 val page = doc.pages[i]
                 val content = contents.getValue(i)
@@ -175,8 +183,12 @@ class Exporter(
                 } else {
                     output.importPage(drawn) to PdfMatrix()
                 }
-                if (options.notes) addNotes(target, content.notes, toPage, page, width, height)
+                val placement = Placement(toPage, page, width, height)
+                if (options.notes) addNotes(target, content.notes, placement)
+                exported[page.id] = target
+                if (content.links.isNotEmpty()) linking += { addLinks(target, content.links, placement, exported) }
             }
+            linking.forEach { it() }
             output.save(out)
         } finally {
             output.close()
@@ -289,17 +301,24 @@ class Exporter(
         }
     }
 
+    /** Where page points land on an exported page that was drawn [width] by [height] and placed by [toPage]. */
+    private class Placement(private val toPage: PdfMatrix, private val page: Page, private val width: Float, private val height: Float) {
+        /** The PDF rectangle around a box in page points. */
+        fun rectangle(x: Float, y: Float, w: Float, h: Float): PDRectangle {
+            val kx = width / page.width
+            val ky = height / page.height
+            val corners = listOf(x to y, x + w to y, x to y + h, x + w to y + h).map { (px, py) -> toPage.transformPoint(px * kx, height - py * ky) }
+            val left = corners.minOf { it.x }
+            val bottom = corners.minOf { it.y }
+            return PDRectangle(left, bottom, corners.maxOf { it.x } - left, corners.maxOf { it.y } - bottom)
+        }
+    }
+
     /** Adds sticky notes as PDF comments where their icons were. */
-    private fun addNotes(target: PDPage, notes: List<StickyNote>, toPage: PdfMatrix, page: Page, width: Float, height: Float) {
-        val kx = width / page.width
-        val ky = height / page.height
+    private fun addNotes(target: PDPage, notes: List<StickyNote>, at: Placement) {
         for (note in notes) {
-            val size = PagePainter.NOTE_SIZE
-            val corners = listOf(note.x to note.y, note.x + size to note.y, note.x to note.y + size, note.x + size to note.y + size).map { (x, y) ->
-                toPage.transformPoint(x * kx, height - y * ky)
-            }
             val annotation = PDAnnotationText().apply {
-                rectangle = PDRectangle(corners.minOf { it.x }, corners.minOf { it.y }, corners.maxOf { it.x } - corners.minOf { it.x }, corners.maxOf { it.y } - corners.minOf { it.y })
+                rectangle = at.rectangle(note.x, note.y, PagePainter.NOTE_SIZE, PagePainter.NOTE_SIZE)
                 contents = note.text
                 name = PDAnnotationText.NAME_NOTE
                 color = PDColor(floatArrayOf(Color.red(note.color) / 255f, Color.green(note.color) / 255f, Color.blue(note.color) / 255f), PDDeviceRGB.INSTANCE)
@@ -309,9 +328,33 @@ class Exporter(
         }
     }
 
+    /**
+     * Adds links as borderless PDF links, replacing the page's own PDF links in the same places, whose
+     * page targets don't survive the copy. Page links to pages left out of the export are dropped.
+     */
+    private fun addLinks(target: PDPage, links: List<Link>, at: Placement, exported: Map<String, PDPage>) {
+        val added = links.mapNotNull { link ->
+            val annotation = PDAnnotationLink().apply {
+                rectangle = at.rectangle(link.x, link.y, link.width, link.height)
+                borderStyle = PDBorderStyleDictionary().apply { width = 0f }
+            }
+            when {
+                link.pageId != null -> annotation.destination = PDPageFitDestination().apply { page = exported[link.pageId] ?: return@mapNotNull null }
+                link.url != null -> annotation.action = PDActionURI().apply { uri = link.url }
+                else -> return@mapNotNull null
+            }
+            annotation
+        }
+        fun PDRectangle.near(o: PDRectangle) = listOf(lowerLeftX - o.lowerLeftX, lowerLeftY - o.lowerLeftY, upperRightX - o.upperRightX, upperRightY - o.upperRightY)
+            .all { abs(it) < LINK_MATCH_PT }
+        val kept = target.annotations.filterNot { old -> old is PDAnnotationLink && old.rectangle?.let { r -> added.any { it.rectangle.near(r) } } == true }
+        target.annotations = kept + added
+    }
+
     private companion object {
         const val FLAT_DPI = 200f
         const val JPEG_QUALITY = 0.85f
         const val IMAGE_SCALE = 2f
+        const val LINK_MATCH_PT = 2f
     }
 }
