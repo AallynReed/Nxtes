@@ -213,12 +213,12 @@ class SyncEngineTest {
             return Changes(rows.map { item(it.key, it.value) }, rows.lastOrNull()?.value?.seq ?: since)
         }
 
-        override suspend fun missingBlobs(hashes: Collection<String>) = hashes.filter { it !in blobs }.distinct()
+        override suspend fun missingBlobs(hashes: Collection<String>) = synchronized(this) { hashes.filter { it !in blobs }.distinct() }
 
         override suspend fun putBlob(sha256: String, file: File) {
             val bytes = file.readBytes()
             if (sha(bytes) != sha256) throw ApiException(400, "hash_mismatch")
-            blobs[sha256] = bytes
+            synchronized(this) { blobs[sha256] = bytes }
         }
 
         override suspend fun getBlob(sha256: String, into: File) = into.writeBytes(blobs[sha256] ?: throw ApiException(404, "not_found"))

@@ -1,6 +1,11 @@
 package net.mildhope.nxtes.sync
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -264,13 +269,18 @@ class SyncEngine(
         }
     }
 
-    /** Sends the server the files of [body] it doesn't have, one at a time. */
+    /** Sends the server the files of [body] it doesn't have, a few at a time so round trips overlap. */
     private suspend fun upload(documentId: String, body: DocumentBody) {
         val missing = service.missingBlobs(body.blobs)
         if (missing.isEmpty()) return
         val files = store.documentFiles(documentId)
         val byHash = files.blobs + body.pages.entries.mapNotNull { (pageId, sha) -> files.pages[pageId]?.let { sha to it } }
-        missing.forEach { sha -> byHash[sha]?.let { service.putBlob(sha, it) } }
+        val gate = Semaphore(PARALLEL_UPLOADS)
+        coroutineScope {
+            missing.mapNotNull { sha -> byHash[sha]?.let { sha to it } }
+                .map { (sha, file) -> async { gate.withPermit { service.putBlob(sha, file) } } }
+                .awaitAll()
+        }
     }
 
     /**
@@ -372,6 +382,9 @@ class SyncEngine(
     }
 
     private companion object {
+        /** Stays under the server's request rate limit even with quick round trips. */
+        const val PARALLEL_UPLOADS = 6
+
         fun key(kind: String, id: String) = "$kind:$id"
 
         fun split(key: String): Pair<String, String> = key.substringBefore(':') to key.substringAfter(':')

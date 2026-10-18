@@ -112,14 +112,31 @@ class SyncManager(private val context: Context, private val store: LibraryStore,
             val now = System.currentTimeMillis()
             prefs.edit { putLong(LAST_SYNCED, now) }
             _status.value = SyncStatus(lastSynced = now)
+            retryDelay = RETRY_MS
             true
         } catch (e: CancellationException) {
             _status.update { it.copy(running = false) }
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "Sync failed", e)
-            _status.update { it.copy(running = false, problem = problemOf(e)) }
+            val problem = problemOf(e)
+            _status.update { it.copy(running = false, problem = problem) }
+            if (problem != SyncProblem.SIGNED_OUT) retryLater()
             false
+        }
+    }
+
+    private var retryDelay = RETRY_MS
+    private var retry: Job? = null
+
+    /** Tries again after a pause that doubles with each failure, so an interrupted upload carries on by itself. */
+    private fun retryLater() {
+        if (retry?.isActive == true) return
+        val wait = retryDelay
+        retryDelay = (retryDelay * 2).coerceAtMost(MAX_SYNC_RETRY_MS)
+        retry = scope.launch {
+            delay(wait)
+            requestSync()
         }
     }
 
@@ -265,6 +282,7 @@ class SyncManager(private val context: Context, private val store: LibraryStore,
         const val LOCAL_CHANGE_DELAY_MS = 4_000L
         const val RETRY_MS = 2_000L
         const val MAX_RETRY_MS = 120_000L
+        const val MAX_SYNC_RETRY_MS = 600_000L
         const val IDLE_CHECK_MS = 15_000L
     }
 }
