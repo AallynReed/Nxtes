@@ -271,5 +271,5 @@ private val DATE_FORMAT = SimpleDateFormat("yyyy.MM.dd", Locale.ROOT)
 
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier) {
-    Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = modifier)
+    Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
 }

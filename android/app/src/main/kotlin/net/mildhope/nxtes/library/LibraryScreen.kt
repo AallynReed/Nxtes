@@ -67,6 +67,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -296,7 +298,7 @@ private fun MainPane(
                         }
                         showsFolder && folder != null -> TextButton(onClick = { onOpenFolder(folder.parentId) }) {
                             Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, null)
-                            Text(library.folder(folder.parentId)?.name ?: stringResource(R.string.documents))
+                            Text(library.folder(folder.parentId)?.name ?: stringResource(R.string.documents), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 },
@@ -506,15 +508,35 @@ private fun TitleBar(
     leading: @Composable RowScope.() -> Unit,
     actions: @Composable RowScope.() -> Unit,
 ) {
-    Box(Modifier.fillMaxWidth().height(56.dp)) {
-        Row(Modifier.align(Alignment.CenterStart).padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (onMenu != null) {
-                IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, stringResource(R.string.open_menu)) }
+    Layout(
+        content = {
+            Row(Modifier.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (onMenu != null) {
+                    IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, stringResource(R.string.open_menu)) }
+                }
+                leading()
             }
-            leading()
+            SectionTitle(title)
+            Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
+        },
+        modifier = Modifier.fillMaxWidth().height(56.dp),
+    ) { (start, middle, end), constraints ->
+        // Sides first (start at most 40%); the title centres in what is left, or fills the gap.
+        val width = constraints.maxWidth
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val endPlaced = end.measure(loose.copy(maxWidth = width / 2))
+        val startPlaced = start.measure(loose.copy(maxWidth = minOf(width * 2 / 5, width - endPlaced.width)))
+        val side = maxOf(startPlaced.width, endPlaced.width)
+        val gap = (width - startPlaced.width - endPlaced.width).coerceAtLeast(0)
+        val centred = width - 2 * side >= width / 4
+        val titlePlaced = middle.measure(loose.copy(maxWidth = if (centred) width - 2 * side else gap))
+        layout(width, constraints.maxHeight) {
+            val height = constraints.maxHeight
+            startPlaced.place(0, (height - startPlaced.height) / 2)
+            endPlaced.place(width - endPlaced.width, (height - endPlaced.height) / 2)
+            val x = if (centred) (width - titlePlaced.width) / 2 else startPlaced.width + (gap - titlePlaced.width) / 2
+            titlePlaced.place(x, (height - titlePlaced.height) / 2)
         }
-        SectionTitle(title, Modifier.align(Alignment.Center))
-        Row(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
     }
 }
 
