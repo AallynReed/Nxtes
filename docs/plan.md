@@ -107,7 +107,8 @@ One directory per document, zipped for backup and export:
 | `GET /v1/changes?since=<cursor>` | Everything changed since the cursor |
 | `GET /v1/events` | Server-sent events notifying other devices that something changed, with no Google push service |
 | `GET /v1/usage` | Storage used against quota |
-| `POST /v1/shares`, `GET /s/{token}` | Web viewer: upload a PDF the app exports, then view it in the browser |
+| `POST /v1/shares?title=&days=`, `GET /v1/shares`, `DELETE /v1/shares/{id}` | Web links: upload a PDF the app exported, list them, stop sharing |
+| `GET /s/{token}`, `GET /s/{token}/file.pdf` | The web viewer page anyone with the link can open, and the PDF itself |
 
 A 409 response makes the app ask whether to keep this device's copy, the server's copy, or both
 (the server's copy is kept as a "conflicted copy").
@@ -132,7 +133,10 @@ A 409 response makes the app ask whether to keep this device's copy, the server'
   sticker packs don't sync yet.
 
 The v1 web viewer displays PDFs the app exports, using pdf.js (Apache-2.0), so the server never
-has to render ink. Rendering synced documents straight from their page files comes later.
+has to render ink. The Docker image carries its own copy of pdf.js's legacy build; a bare binary
+without `NXTES_ASSETS` loads it from jsDelivr. Links are unguessable tokens, can expire after a
+chosen number of days, aren't indexed (`noindex`, no referrer), and count toward storage.
+Rendering synced documents straight from their page files comes later.
 
 ## Deployment on Zakros
 
