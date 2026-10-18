@@ -73,6 +73,8 @@
     <string name="pen_marker">Marker</string>
     <string name="pen_highlighter">Highlighter</string>
     <string name="pen_size">Size: %1$.1f pt</string>
+    <string name="decrease">Decrease</string>
+    <string name="increase">Increase</string>
     <string name="pen_opacity">Opacity: %1$d%%</string>
     <string name="eraser">Eraser</string>
     <string name="eraser_stroke">Whole stroke</string>

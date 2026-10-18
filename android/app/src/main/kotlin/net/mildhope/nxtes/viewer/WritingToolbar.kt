@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,9 +47,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,6 +78,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.ui.ColorChooser
@@ -650,6 +655,7 @@ private fun PenSettings(preset: PenPreset, onChange: (PenPreset) -> Unit, onDele
             label = stringResource(R.string.pen_size, preset.size),
             value = preset.size,
             range = preset.sizeRange,
+            step = 0.1f,
             onChange = { onChange(preset.copy(size = it)) },
         )
         LabelledSlider(
@@ -689,10 +695,49 @@ private fun EraserSettings(tools: ToolState) {
 }
 
 @Composable
-private fun LabelledSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
+private fun LabelledSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, step: Float? = null, onChange: (Float) -> Unit) {
     Column {
         Text(label, style = MaterialTheme.typography.labelLarge)
-        Slider(value = value, onValueChange = onChange, valueRange = range)
+        if (step == null) {
+            Slider(value = value, onValueChange = onChange, valueRange = range)
+            return@Column
+        }
+        val current by rememberUpdatedState(value)
+        fun nudge(by: Float) = onChange((((current + by) / step).roundToInt() * step).coerceIn(range))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StepButton(painterResource(R.drawable.ic_remove), stringResource(R.string.decrease), value > range.start) { nudge(-step) }
+            Slider(value = value, onValueChange = onChange, valueRange = range, modifier = Modifier.weight(1f))
+            StepButton(rememberVectorPainter(Icons.Default.Add), stringResource(R.string.increase), value < range.endInclusive) { nudge(step) }
+        }
+    }
+}
+
+/** Steps once per tap, and keeps stepping while held. */
+@Composable
+private fun StepButton(icon: Painter, label: String, enabled: Boolean, onStep: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val canStep by rememberUpdatedState(enabled)
+    val step by rememberUpdatedState(onStep)
+    var held by remember { mutableStateOf(false) }
+    LaunchedEffect(pressed) {
+        if (!pressed) return@LaunchedEffect
+        delay(400)
+        held = true
+        while (canStep) {
+            step()
+            delay(70)
+        }
+    }
+    IconButton(
+        onClick = {
+            if (!held) step()
+            held = false
+        },
+        enabled = enabled,
+        interactionSource = interaction,
+    ) {
+        Icon(icon, label, modifier = Modifier.size(20.dp))
     }
 }
 

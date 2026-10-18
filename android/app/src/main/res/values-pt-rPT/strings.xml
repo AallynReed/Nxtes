@@ -74,6 +74,8 @@
     <string name="pen_marker">Caneta de feltro</string>
     <string name="pen_highlighter">Marcador fluorescente</string>
     <string name="pen_size">Tamanho: %1$.1f pt</string>
+    <string name="decrease">Diminuir</string>
+    <string name="increase">Aumentar</string>
     <string name="pen_opacity">Opacidade: %1$d%%</string>
     <string name="eraser">Borracha</string>
     <string name="eraser_stroke">Traço inteiro</string>
