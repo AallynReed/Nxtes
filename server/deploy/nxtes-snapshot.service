@@ -1,0 +1,6 @@
+[Unit]
+Description=Snapshot the Nxtes data folder
+
+[Service]
+Type=oneshot
+ExecStart=/opt/nxtes/snapshot.sh

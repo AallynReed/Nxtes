@@ -721,3 +721,152 @@ async fn shared_pdfs_open_by_link_until_removed_or_expired() {
     let (_, list) = s.call("GET", "/v1/shares", Some(&t), None).await;
     assert_eq!(list["shares"].as_array().unwrap().len(), 0);
 }
+
+#[tokio::test]
+async fn earlier_versions_are_kept_and_can_be_restored() {
+    let s = Server::new().await;
+    let t = s.signed_in("ana@example.com").await;
+    let old = b"old picture".to_vec();
+    s.raw("PUT", &format!("/v1/blobs/{}", sha(&old)), &t, old.clone())
+        .await;
+    let first = json!({ "document": { "title": "Draft" }, "blobs": [sha(&old)] });
+    s.call(
+        "PUT",
+        "/v1/documents/d",
+        Some(&t),
+        Some(json!({ "base_revision": 0, "body": first })),
+    )
+    .await;
+    s.call(
+        "PUT",
+        "/v1/documents/d",
+        Some(&t),
+        Some(json!({ "base_revision": 1, "body": { "document": { "title": "Final" }, "blobs": [] } })),
+    )
+    .await;
+
+    let (_, history) = s
+        .call("GET", "/v1/documents/d/history", Some(&t), None)
+        .await;
+    assert_eq!(history["current"]["revision"], 2);
+    assert_eq!(history["versions"][0]["revision"], 1);
+    assert_eq!(history["versions"][0]["title"], "Draft");
+
+    sqlx::query("UPDATE blobs SET created_at = 0")
+        .execute(&s.state.db)
+        .await
+        .unwrap();
+    assert_eq!(
+        nxtes_server::sync::collect_all_blobs(&s.state)
+            .await
+            .unwrap(),
+        0
+    );
+
+    let (status, restored) = s
+        .call(
+            "POST",
+            "/v1/documents/d/restore",
+            Some(&t),
+            Some(json!({ "revision": 1 })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(restored["revision"], 3);
+    let (_, library) = s.call("GET", "/v1/library", Some(&t), None).await;
+    assert_eq!(library["items"][0]["body"]["document"]["title"], "Draft");
+    let (_, history) = s
+        .call("GET", "/v1/documents/d/history", Some(&t), None)
+        .await;
+    assert_eq!(history["versions"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn deleted_documents_come_back_until_their_history_expires() {
+    let s = Server::new().await;
+    let t = s.signed_in("ana@example.com").await;
+    let pic = b"picture".to_vec();
+    s.raw("PUT", &format!("/v1/blobs/{}", sha(&pic)), &t, pic.clone())
+        .await;
+    s.call(
+        "PUT",
+        "/v1/documents/d",
+        Some(&t),
+        Some(json!({ "base_revision": 0, "body": { "document": { "title": "Notes" }, "blobs": [sha(&pic)] } })),
+    )
+    .await;
+    s.call("DELETE", "/v1/documents/d?base_revision=1", Some(&t), None)
+        .await;
+
+    let (_, deleted) = s.call("GET", "/v1/deleted", Some(&t), None).await;
+    assert_eq!(deleted["items"][0]["title"], "Notes");
+    assert_eq!(deleted["items"][0]["revision"], 1);
+    sqlx::query("UPDATE blobs SET created_at = 0")
+        .execute(&s.state.db)
+        .await
+        .unwrap();
+    assert_eq!(
+        nxtes_server::sync::collect_all_blobs(&s.state)
+            .await
+            .unwrap(),
+        0
+    );
+
+    let out = nxtes_server::admin::run(
+        &s.state,
+        nxtes_server::admin::Admin::Restore {
+            email: "ana@example.com".into(),
+            id: "d".into(),
+            revision: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(out.contains("revision 3"), "{out}");
+    let (status, _) = s
+        .raw("GET", &format!("/v1/blobs/{}", sha(&pic)), &t, vec![])
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    s.call("DELETE", "/v1/documents/d?base_revision=3", Some(&t), None)
+        .await;
+    sqlx::query("UPDATE item_history SET replaced_at = 0")
+        .execute(&s.state.db)
+        .await
+        .unwrap();
+    assert_eq!(
+        nxtes_server::sync::collect_all_blobs(&s.state)
+            .await
+            .unwrap(),
+        1
+    );
+    let (_, deleted) = s.call("GET", "/v1/deleted", Some(&t), None).await;
+    assert_eq!(deleted["items"].as_array().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn backup_writes_a_consistent_copy_of_the_database() {
+    let s = Server::new().await;
+    s.signed_in("ana@example.com").await;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("copy.db");
+    nxtes_server::admin::run(
+        &s.state,
+        nxtes_server::admin::Admin::Backup {
+            path: path.display().to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(std::fs::metadata(&path).unwrap().len() > 0);
+    assert!(
+        nxtes_server::admin::run(
+            &s.state,
+            nxtes_server::admin::Admin::Backup {
+                path: path.display().to_string()
+            }
+        )
+        .await
+        .is_err()
+    );
+}

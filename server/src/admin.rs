@@ -18,6 +18,16 @@ pub enum Admin {
     DeleteUser { email: String },
     /// Deletes blobs that no document refers to any more.
     CollectBlobs,
+    /// Lists an account's documents and folders that have earlier versions, and deleted ones that can come back.
+    History { email: String },
+    /// Brings a document or folder back to an earlier revision, by default the last one before it was deleted or changed.
+    Restore {
+        email: String,
+        id: String,
+        revision: Option<i64>,
+    },
+    /// Writes a consistent copy of the database to a new file, for snapshots; blobs are plain files to copy alongside.
+    Backup { path: String },
 }
 
 pub async fn run(state: &AppState, command: Admin) -> Result<String, String> {
@@ -104,6 +114,90 @@ pub async fn run(state: &AppState, command: Admin) -> Result<String, String> {
                 .await
                 .map_err(|e| format!("{:?}", e.body))?;
             Ok(format!("deleted {email}"))
+        }
+        Admin::History { email } => {
+            let id = user_id(email_of(&email)?).await?;
+            let rows: Vec<(String, String, bool, i64, i64)> = sqlx::query_as(
+                "SELECT t.kind, t.id, t.deleted, t.revision, (SELECT COUNT(*) FROM item_history h WHERE h.user_id = t.user_id AND h.kind = t.kind AND h.id = t.id)
+                 FROM items t WHERE t.user_id = ? ORDER BY t.updated_at DESC",
+            )
+            .bind(&id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|e| e.to_string())?;
+            let mut out = Vec::new();
+            for (kind, item, deleted, revision, kept) in rows.into_iter().filter(|r| r.4 > 0) {
+                let kind_of = if kind == "folder" {
+                    crate::sync::Kind::Folder
+                } else {
+                    crate::sync::Kind::Document
+                };
+                let title = crate::history::versions(state, &id, kind_of, &item)
+                    .await
+                    .ok()
+                    .and_then(|v| v["versions"][0]["title"].as_str().map(str::to_string))
+                    .unwrap_or_default();
+                out.push(format!(
+                    "{kind}\t{item}\t{}\trevision {revision}\t{kept} earlier\t{title}",
+                    if deleted { "deleted" } else { "live" }
+                ));
+            }
+            Ok(if out.is_empty() {
+                "no earlier versions".into()
+            } else {
+                out.join("\n")
+            })
+        }
+        Admin::Restore {
+            email,
+            id: item,
+            revision,
+        } => {
+            let id = user_id(email_of(&email)?).await?;
+            let kind: String =
+                sqlx::query_scalar("SELECT kind FROM items WHERE user_id = ? AND id = ?")
+                    .bind(&id)
+                    .bind(&item)
+                    .fetch_optional(&state.db)
+                    .await
+                    .map_err(|e| e.to_string())?
+                    .ok_or_else(|| format!("no document or folder {item}"))?;
+            let kind_of = if kind == "folder" {
+                crate::sync::Kind::Folder
+            } else {
+                crate::sync::Kind::Document
+            };
+            let revision = match revision {
+                Some(r) => r,
+                None => sqlx::query_scalar::<_, Option<i64>>(
+                    "SELECT MAX(revision) FROM item_history WHERE user_id = ? AND kind = ? AND id = ? AND deleted = 0",
+                )
+                .bind(&id)
+                .bind(&kind)
+                .bind(&item)
+                .fetch_one(&state.db)
+                .await
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| format!("{item} has no earlier version to restore"))?,
+            };
+            let done = crate::history::restore(state, &id, kind_of, &item, revision)
+                .await
+                .map_err(|e| format!("{:?}", e.body))?;
+            Ok(format!(
+                "restored {kind} {item} to revision {revision}; it is now revision {}",
+                done["revision"]
+            ))
+        }
+        Admin::Backup { path } => {
+            if std::path::Path::new(&path).exists() {
+                return Err(format!("{path} already exists"));
+            }
+            sqlx::query("VACUUM INTO ?")
+                .bind(&path)
+                .execute(&state.db)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(format!("wrote {path}"))
         }
         Admin::CollectBlobs => {
             let n = crate::sync::collect_all_blobs(state)

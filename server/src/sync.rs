@@ -26,7 +26,7 @@ pub enum Kind {
 }
 
 impl Kind {
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Kind::Document => "document",
             Kind::Folder => "folder",
@@ -353,7 +353,7 @@ async fn put_item(
 
 /// Writes an item if [base] is still its revision, bumping the revision and the user's change
 /// sequence; a stale base gets the server's copy back in a 409. A None body deletes it.
-async fn write_item(
+pub(crate) async fn write_item(
     state: &AppState,
     user: &str,
     kind: Kind,
@@ -374,8 +374,8 @@ async fn write_item(
         })
         .unwrap_or_default();
     let mut tx = state.db.begin().await?;
-    let current: Option<(i64, i64, bool, String)> = sqlx::query_as(
-        "SELECT revision, seq, deleted, body FROM items WHERE user_id = ? AND kind = ? AND id = ?",
+    let current: Option<(i64, i64, bool, String, i64)> = sqlx::query_as(
+        "SELECT revision, seq, deleted, body, updated_at FROM items WHERE user_id = ? AND kind = ? AND id = ?",
     )
     .bind(user)
     .bind(kind.as_str())
@@ -384,7 +384,7 @@ async fn write_item(
     .await?;
     let revision = current.as_ref().map_or(0, |c| c.0);
     if revision != base {
-        let (rev, seq, deleted, body) = current.unwrap_or((0, 0, true, "null".into()));
+        let (rev, seq, deleted, body, _) = current.unwrap_or((0, 0, true, "null".into(), 0));
         return Err(ApiError::conflict("conflict").with(
             "item",
             item_json(kind.as_str(), id.to_string(), rev, seq, deleted, body),
@@ -412,6 +412,17 @@ async fn write_item(
         .bind(user)
         .fetch_one(&mut *tx)
         .await?;
+    if let Some((rev, _, was_deleted, old, updated)) = &current {
+        crate::history::keep(
+            state,
+            &mut tx,
+            user,
+            kind,
+            id,
+            (*rev, *was_deleted, old, *updated),
+        )
+        .await?;
+    }
     let deleted = body.is_none();
     let text = body.map_or_else(|| "null".to_string(), |b| b.to_string());
     sqlx::query(
@@ -457,7 +468,8 @@ pub async fn collect_blobs(state: &AppState, user: &str) -> ApiResult<u64> {
     let doomed: Vec<String> = sqlx::query_scalar(
         "SELECT sha256 FROM blobs b WHERE user_id = ? AND created_at < ? AND NOT EXISTS
          (SELECT 1 FROM item_blobs i JOIN items t ON t.user_id = i.user_id AND t.kind = i.kind AND t.id = i.id
-          WHERE i.user_id = b.user_id AND i.sha256 = b.sha256 AND t.deleted = 0)",
+          WHERE i.user_id = b.user_id AND i.sha256 = b.sha256 AND t.deleted = 0)
+         AND NOT EXISTS (SELECT 1 FROM history_blobs h WHERE h.user_id = b.user_id AND h.sha256 = b.sha256)",
     )
     .bind(user)
     .bind(now() - BLOB_GRACE_MS)
@@ -474,8 +486,9 @@ pub async fn collect_blobs(state: &AppState, user: &str) -> ApiResult<u64> {
     Ok(doomed.len() as u64)
 }
 
-/// Collects every user's unreferenced blobs.
+/// Drops versions past the history time, then collects every user's unreferenced blobs.
 pub async fn collect_all_blobs(state: &AppState) -> ApiResult<u64> {
+    crate::history::prune(state).await?;
     let users: Vec<String> = sqlx::query_scalar("SELECT id FROM users")
         .fetch_all(&state.db)
         .await?;

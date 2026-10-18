@@ -31,6 +31,7 @@ docker run -d -p 8080:8080 -v nxtes-data:/data -e NXTES_PUBLIC_URL=https://notes
 | `NXTES_DEFAULT_QUOTA_MB` | `2048` | Storage per account unless set with `admin set-quota` |
 | `NXTES_MAX_DEVICES` | `0` | Devices per account; 0 means no limit |
 | `NXTES_MAX_BLOB_MB` | `1024` | Largest single file or shared PDF |
+| `NXTES_HISTORY_DAYS` | `30` | Days earlier versions of documents and folders, and deleted ones, are kept for restoring. They count toward storage. 0 keeps none |
 | `NXTES_ASSETS` | unset | Folder with the web viewer's `pdfjs/` files (`/usr/share/nxtes` in the image). Unset, shared-link pages load pdf.js from jsDelivr |
 
 ## Admin commands
@@ -43,6 +44,32 @@ Run inside the container with `docker exec nxtes nxtes-server admin <command>`:
 - `list-users`
 - `delete-user <email>`
 - `collect-blobs`: delete files no document uses (this also runs hourly)
+- `history <email>`: documents and folders with earlier versions, and deleted ones that can come back
+- `restore <email> <id> [revision]`: bring one back to an earlier revision, by default the last one before it changed or was deleted
+- `backup <path>`: write a consistent copy of the database while the server runs
+
+## Snapshots and recovery
+
+Two layers keep data recoverable:
+
+- **Version history.** Every change to a document or folder keeps the version it replaced, with its
+  files, for `NXTES_HISTORY_DAYS`. Deleting keeps the last version too. Restore one from the app
+  or with `admin restore`; the restore is a new revision that syncs to every device.
+- **Snapshots of the whole data folder.** `deploy/snapshot.sh` copies the database (with
+  `admin backup`) and the blob and share files into a dated folder, hardlinking files that didn't
+  change since the last snapshot. `deploy/nxtes-snapshot.timer` runs it nightly; snapshots older
+  than 30 days are removed.
+
+To roll the whole server back to a snapshot:
+
+```sh
+cd /opt/nxtes && docker compose stop
+rm -f data/nxtes.db-wal data/nxtes.db-shm
+cp /mnt/db/nxtes-snapshots/<stamp>/nxtes.db data/nxtes.db
+rsync -a --delete /mnt/db/nxtes-snapshots/<stamp>/blobs/ data/blobs/
+rsync -a --delete /mnt/db/nxtes-snapshots/<stamp>/shares/ data/shares/
+chown -R 10001:10001 data && docker compose start
+```
 
 ## Shared links
 

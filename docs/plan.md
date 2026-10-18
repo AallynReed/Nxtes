@@ -106,6 +106,8 @@ One directory per document, zipped for backup and export:
 | `PUT /v1/documents/{id}` | New manifest with `base_revision`: 200 with the new revision, or 409 with the server's |
 | `PUT /v1/folders/{id}`, `DELETE /v1/documents/{id}` | Folder changes; moving to trash and deleting |
 | `GET /v1/changes?since=<cursor>` | Everything changed since the cursor |
+| `GET /v1/documents/{id}/history`, `POST /v1/documents/{id}/restore` (and folders) | Earlier versions kept for `NXTES_HISTORY_DAYS`; restoring writes one back as a new revision |
+| `GET /v1/deleted` | Deleted documents and folders that still have a version to restore |
 | `GET /v1/events` | Server-sent events notifying other devices that something changed, with no Google push service |
 | `GET /v1/usage` | Storage used against quota |
 | `POST /v1/shares?title=&days=`, `GET /v1/shares`, `DELETE /v1/shares/{id}` | Web links: upload a PDF the app exported, list them, stop sharing |

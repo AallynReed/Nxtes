@@ -2,6 +2,7 @@ pub mod admin;
 pub mod auth;
 pub mod config;
 pub mod error;
+pub mod history;
 pub mod mail;
 pub mod pages;
 pub mod shares;
@@ -74,6 +75,17 @@ pub fn app(state: AppState) -> Router {
             "/v1/folders/{id}",
             put(sync::put_folder).delete(sync::delete_folder),
         )
+        .route(
+            "/v1/documents/{id}/history",
+            get(history::document_versions),
+        )
+        .route("/v1/folders/{id}/history", get(history::folder_versions))
+        .route(
+            "/v1/documents/{id}/restore",
+            post(history::restore_document),
+        )
+        .route("/v1/folders/{id}/restore", post(history::restore_folder))
+        .route("/v1/deleted", get(history::deleted))
         .route(
             "/verify/{token}",
             get(pages::verify_page).post(pages::verify_submit),

@@ -17,6 +17,8 @@ pub struct Config {
     /// 0 for no limit.
     pub max_devices: i64,
     pub max_blob_bytes: usize,
+    /// Days earlier versions of documents and folders are kept for restoring; 0 keeps none.
+    pub history_days: i64,
     /// Static files for the web viewer, such as `pdfjs/`; the viewer uses a CDN without them.
     pub assets_dir: Option<PathBuf>,
 }
@@ -52,6 +54,7 @@ impl Config {
             default_quota_bytes: number("NXTES_DEFAULT_QUOTA_MB", 2048) * 1024 * 1024,
             max_devices: number("NXTES_MAX_DEVICES", 0),
             max_blob_bytes: number("NXTES_MAX_BLOB_MB", 1024) as usize * 1024 * 1024,
+            history_days: number("NXTES_HISTORY_DAYS", 30).max(0),
             assets_dir: var("NXTES_ASSETS").map(PathBuf::from),
         }
     }
@@ -69,6 +72,7 @@ impl Config {
             default_quota_bytes: 10 * 1024 * 1024,
             max_devices: 0,
             max_blob_bytes: 4 * 1024 * 1024,
+            history_days: 30,
             assets_dir: None,
         }
     }
