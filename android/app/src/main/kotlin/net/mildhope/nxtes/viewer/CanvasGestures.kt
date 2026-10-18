@@ -45,7 +45,7 @@ interface CanvasTools {
     fun drawingDrag(): DragKind?
 
     /** Whether something under the point opens when tapped, so drawing there waits to see if it's a tap. */
-    fun opensOnTap(at: Offset): Boolean
+    fun opensOnTap(at: Offset, finger: Boolean): Boolean
 
     fun dragStart(kind: DragKind, at: Offset, handle: Handle)
 
@@ -129,7 +129,7 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                 /** Tool drags that can also be a tap or a touch and hold wait to see which it is. */
                 suspend fun AwaitPointerEventScope.toolGesture(start: PointerEvent, kind: DragKind) {
                     if (kind != DragKind.LASSO && kind != DragKind.PLACE && kind != DragKind.MASK) return drag(pen, start, down.id, canvas, kind, Handle.NONE)
-                    when (val hold = holdOrMove(pen, start, down, longPressMs, slop, everyPointer = true)) {
+                    when (val hold = holdOrMove(pen, start, down, longPressMs, slop, everyPointer = true, consume = true)) {
                         Hold.Held -> canvas.longPress(down.position)
                         is Hold.Tapped -> canvas.tap(hold.at)
                         is Hold.Moved -> drag(pen, hold.event, down.id, canvas, kind, Handle.NONE, from = down.position)
@@ -146,7 +146,7 @@ fun Modifier.canvasGestures(state: ViewportState, tools: ToolState, input: () ->
                     continue
                 }
                 val erasing = tools.tool == Tool.ERASER
-                val toolDrag = canvas.drawingDrag() ?: DragKind.PLACE.takeIf { canvas.opensOnTap(down.position) }
+                val toolDrag = canvas.drawingDrag() ?: DragKind.PLACE.takeIf { canvas.opensOnTap(down.position, finger = down.type == PointerType.Touch) }
                 when {
                     down.type == PointerType.Eraser || (erasing && down.type.draws()) -> drag(pen, event, down.id, canvas, DragKind.ERASE, Handle.NONE)
                     down.type.draws() -> if (toolDrag != null) toolGesture(event, toolDrag) else watchPen(pen, event, down, canvas, slop)
@@ -259,10 +259,12 @@ private suspend fun AwaitPointerEventScope.holdOrMove(
     timeout: Long,
     slop: Float,
     everyPointer: Boolean,
+    consume: Boolean = false,
 ): Hold {
     fun counts(change: PointerInputChange) = everyPointer || change.type == PointerType.Touch
     var event = first
     while (true) {
+        if (consume) event.changes.forEach { if (counts(it)) it.consume() }
         val pressed = event.changes.filter { counts(it) && it.pressed }
         if (pressed.isEmpty()) return Hold.Tapped(down.position)
         if (pressed.size > 1 || (pressed.first().position - down.position).getDistance() > slop) return Hold.Moved(event)
@@ -287,7 +289,6 @@ private suspend fun AwaitPointerEventScope.swallow(
     }
 }
 
-/** Pans and zooms until every finger lifts; returns the release velocity for a fling. */
 /** How a scroll or zoom ended: its speed, or the number of fingers when it was really a quick tap. */
 private class NavigationEnd(val velocity: Velocity, val fingers: Int)
 

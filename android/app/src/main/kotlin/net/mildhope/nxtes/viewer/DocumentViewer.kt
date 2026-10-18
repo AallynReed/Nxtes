@@ -4,6 +4,7 @@ import android.util.Log
 import android.Manifest
 import androidx.compose.foundation.layout.padding
 import net.mildhope.nxtes.audio.PlaybackBar
+import net.mildhope.nxtes.audio.Replay
 import net.mildhope.nxtes.audio.RecordButton
 import net.mildhope.nxtes.audio.RecordingPill
 import net.mildhope.nxtes.data.Recording
@@ -385,6 +386,15 @@ fun DocumentViewer(
                     onPageCounter = { goToPage = true },
                     readOnly = app.view.readOnly,
                     darkPages = app.view.darkPages,
+                    replay = {
+                        player.loaded?.takeIf { it.first == doc.id }?.second?.let { Replay(it.started, it.ended, it.timeAt(player.position)) }
+                    },
+                    onInkTap = if (player.loaded?.first == doc.id) { time ->
+                        val recording = doc.recordings.firstOrNull { it.offsetOf(time) != null }
+                        recording?.offsetOf(time)?.let { play(recording, it) } != null
+                    } else {
+                        null
+                    },
                     assetsLoaded = { app.assets.loaded },
                     onStamp = ::stamp,
                     pageText = ::pageText,

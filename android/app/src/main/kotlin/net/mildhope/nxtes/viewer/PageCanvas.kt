@@ -78,6 +78,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Paint
+import net.mildhope.nxtes.audio.Replay
+import net.mildhope.nxtes.audio.replayed
 import net.mildhope.nxtes.data.Mask
 import net.mildhope.nxtes.data.recoloured
 import net.mildhope.nxtes.ink.Brushes
@@ -187,6 +189,8 @@ fun PageCanvas(
     modifier: Modifier = Modifier,
     readOnly: Boolean = false,
     darkPages: Boolean = false,
+    replay: () -> Replay? = { null },
+    onInkTap: ((time: Long) -> Boolean)? = null,
     assetsLoaded: () -> Int = { 0 },
     onStamp: (pageIndex: Int, point: Offset) -> Unit = { _, _ -> },
     pageText: suspend (pageIndex: Int) -> PageText? = { null },
@@ -284,7 +288,23 @@ fun PageCanvas(
 
         override fun readOnly() = readOnly
 
-        override fun opensOnTap(at: Offset) = noteAt(at) != null || maskAt(at) != null
+        override fun opensOnTap(at: Offset, finger: Boolean) =
+            noteAt(at) != null || maskAt(at) != null || (finger && onInkTap != null && inkTimeAt(at) != null)
+
+        /** When the ink under the point was written there, or null if there's none. */
+        private fun inkTimeAt(at: Offset): Long? {
+            val index = mapper.pageAt(at)
+            val page = pages.getOrNull(index) ?: return null
+            val p = mapper.toPage(index, at)
+            val slop = handleTouch / mapper.pixelsPerPoint / 2
+            return ink.content(page.id).strokes.asReversed().firstNotNullOfOrNull { s ->
+                val reach = slop + s.size / 2
+                (0 until s.pointCount).firstOrNull { i ->
+                    val j = if (i == 0) 0 else i - 1
+                    segmentDistance(p.x, p.y, s.x[j], s.y[j], s.x[i], s.y[i]) <= reach
+                }?.let { s.created + s.t[it] }
+            }
+        }
 
         /** The topmost mask under the point, with its page. */
         private fun maskAt(at: Offset): Pair<String, Mask>? {
@@ -405,6 +425,10 @@ fun PageCanvas(
 
         override fun tap(at: Offset) {
             selection.searchMark = null
+            val jump = onInkTap
+            if (jump != null && selection.text == null && selection.note == null) {
+                inkTimeAt(at)?.let { time -> if (jump(time)) return }
+            }
             if (readOnly) {
                 maskAt(at)?.let { (pageId, mask) -> selection.toggleMask(pageId, mask.id) }
                 selection.asking = null
@@ -661,7 +685,10 @@ fun PageCanvas(
                 }
                 val editing = selection.text?.takeIf { it.pageId == pages[i].id }?.box?.id
                     ?: selection.crop?.takeIf { it.pageId == pages[i].id }?.picture?.id
-                val content = ink.content(pages[i].id).let { c -> if (editing == null) c else c.copy(objects = c.objects.filter { it.id != editing }) }
+                val replaying = replay()
+                val content = ink.content(pages[i].id)
+                    .let { c -> if (editing == null) c else c.copy(objects = c.objects.filter { it.id != editing }) }
+                    .let { c -> if (replaying == null) c else c.copy(strokes = replayed(c.strokes, replaying)) }
                 if (!content.isEmpty && !tools.annotationsHidden) {
                     val k = layout.scale * zoom
                     strokeMatrix.setScale(k, k)
@@ -757,6 +784,14 @@ fun PageCanvas(
         }
         overlay(mapper)
     }
+}
+
+private fun segmentDistance(px: Float, py: Float, ax: Float, ay: Float, bx: Float, by: Float): Float {
+    val dx = bx - ax
+    val dy = by - ay
+    val length = dx * dx + dy * dy
+    val t = if (length == 0f) 0f else (((px - ax) * dx + (py - ay) * dy) / length).coerceIn(0f, 1f)
+    return kotlin.math.hypot(px - (ax + t * dx), py - (ay + t * dy))
 }
 
 private fun Affine.toMatrix() = android.graphics.Matrix().apply { setValues(floatArrayOf(a, c, e, b, d, f, 0f, 0f, 1f)) }
