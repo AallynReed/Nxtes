@@ -1,0 +1,20 @@
+# The official instance's stack, kept at /opt/nxtes on Zakros.
+services:
+  server:
+    image: ghcr.io/aallynreed/nxtes-server:latest
+    container_name: nxtes
+    restart: unless-stopped
+    ports:
+      - "10.8.0.253:8479:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      NXTES_PUBLIC_URL: https://nxtes.mildhope.net
+      NXTES_SMTP_URL: smtp://host.docker.internal:25
+      NXTES_MAIL_FROM: Nxtes <nxtes@mildhope.net>
+      NXTES_DEFAULT_QUOTA_MB: "2048"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
