@@ -15,6 +15,8 @@ import net.mildhope.nxtes.page.PageBackgrounds
 import net.mildhope.nxtes.page.PagePainter
 import net.mildhope.nxtes.pdf.PdfEngine
 import net.mildhope.nxtes.pdf.Thumbnails
+import net.mildhope.nxtes.search.SearchIndex
+import net.mildhope.nxtes.search.SearchIndexer
 import net.mildhope.nxtes.viewer.ViewSettings
 import java.io.File
 import kotlin.concurrent.thread
@@ -42,6 +44,10 @@ class NxtesApplication : Application() {
         private set
     lateinit var thumbnails: Thumbnails
         private set
+    lateinit var searchIndex: SearchIndex
+        private set
+    lateinit var indexer: SearchIndexer
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -50,6 +56,8 @@ class NxtesApplication : Application() {
         backgrounds = PageBackgrounds(pdf, library::blobFile)
         assets = PageAssets(library::blobFile)
         thumbnails = Thumbnails(File(cacheDir, "thumbnails"), backgrounds, library, assets, lazy { PagePainter() })
+        searchIndex = SearchIndex(this)
+        indexer = SearchIndexer(searchIndex, library, pdf, scope)
         thread(name = "library-load") { library.load() }
     }
 }

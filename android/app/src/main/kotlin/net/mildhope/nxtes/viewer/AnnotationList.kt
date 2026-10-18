@@ -30,7 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,7 +62,7 @@ private class AnnotationRow(val key: String, val kind: AnnotationKind, val pageI
 fun ColumnScope.AnnotationList(doc: Document, ink: PageSession, viewport: ViewportState) {
     LaunchedEffect(doc.id, doc.pages) { ink.ensureLoaded(doc.pages.map { it.id }) }
     var filter by rememberSaveable { mutableStateOf(AnnotationKind.ALL) }
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val untitledNote = stringResource(R.string.empty_note)
     val markNames = mapOf(
         MarkKind.HIGHLIGHT to stringResource(R.string.highlight),

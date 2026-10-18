@@ -126,6 +126,10 @@ private fun NxtesRoot(openRequests: MutableStateFlow<String?>) {
             folderId = visibleFolder,
             onOpenFolder = { folderId = it },
             onOpenDocument = ::open,
+            onOpenPage = { id, page ->
+                open(id)
+                viewports.getOrPut(id) { ViewportState() }.goToPage(page)
+            },
         )
     }
 }

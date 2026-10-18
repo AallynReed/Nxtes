@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -90,7 +90,7 @@ fun ColumnScope.SearchTab(
         HitSource.NOTE to stringResource(R.string.sticky_note),
         HitSource.MARK to stringResource(R.string.highlight),
     )
-    val pageTitle = LocalContext.current.resources
+    val pageTitle = LocalResources.current
     LazyColumn(Modifier.weight(1f)) {
         var lastPage = -1
         search.hits.forEachIndexed { n, hit ->

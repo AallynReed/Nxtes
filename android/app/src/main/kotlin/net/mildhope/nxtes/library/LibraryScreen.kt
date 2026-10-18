@@ -1,5 +1,10 @@
 package net.mildhope.nxtes.library
 
+import androidx.compose.material3.FilterChip
+import kotlinx.coroutines.delay
+import net.mildhope.nxtes.search.ContentHit
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.collectAsState
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
@@ -106,6 +111,7 @@ fun LibraryScreen(
     folderId: String?,
     onOpenFolder: (String?) -> Unit,
     onOpenDocument: (String) -> Unit,
+    onOpenPage: (documentId: String, pageIndex: Int) -> Unit,
 ) {
     var section by rememberSaveable { mutableStateOf(LibrarySection.DOCUMENTS) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -154,13 +160,13 @@ fun LibraryScreen(
             val drawer = rememberDrawerState(DrawerValue.Closed)
             val scope = rememberCoroutineScope()
             ModalNavigationDrawer(drawerState = drawer, drawerContent = { ModalDrawerSheet { sideMenu() } }) {
-                MainPane(library, section, query, folder, ::open, onOpenFolder, onMenu = { scope.launch { drawer.open() } })
+                MainPane(library, section, query, folder, ::open, onOpenFolder, onOpenPage, onMenu = { scope.launch { drawer.open() } })
             }
         } else {
             Row(Modifier.fillMaxSize()) {
                 sideMenu()
                 VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                MainPane(library, section, query, folder, ::open, onOpenFolder, onMenu = null)
+                MainPane(library, section, query, folder, ::open, onOpenFolder, onOpenPage, onMenu = null)
             }
         }
     }
@@ -174,6 +180,7 @@ private fun MainPane(
     folder: Folder?,
     onOpen: (LibraryItem) -> Unit,
     onOpenFolder: (String?) -> Unit,
+    onOpenPage: (documentId: String, pageIndex: Int) -> Unit,
     onMenu: (() -> Unit)?,
 ) {
     val context = LocalContext.current
@@ -227,6 +234,18 @@ private fun MainPane(
         section == LibrarySection.FAVORITES -> prefs.arrange(library.favorites())
         else -> prefs.arrange(library.childFolders(folder?.id) + library.childDocuments(folder?.id), filter)
     }
+    val indexVersion by context.nxtes.indexer.version.collectAsState()
+    val contentHits by produceState(emptyList<ContentHit>(), query, indexVersion) {
+        if (query.isBlank()) {
+            value = emptyList()
+            return@produceState
+        }
+        delay(SEARCH_DELAY_MS)
+        value = withContext(Dispatchers.IO) { runCatching { context.nxtes.searchIndex.search(query) }.getOrDefault(emptyList()) }
+    }
+    val visibleHits = contentHits.filter { hit -> library.document(hit.documentId)?.let { it.trashedAt == null && !library.isInTrash(it.folderId) } == true }
+    var searchContents by rememberSaveable { mutableStateOf(false) }
+    val showContents = searching && (searchContents || (items.isEmpty() && visibleHits.isNotEmpty()))
     val showsFolder = section == LibrarySection.DOCUMENTS && !searching
     val selected = selection.mapNotNull { id -> items.find { it.id == id } }
     val mergedName = stringResource(R.string.merged_title)
@@ -308,8 +327,16 @@ private fun MainPane(
                 }
             }
             FilterRow(filter.takeIf { showsFolder }, { filter = it }, prefs)
+            if (searching) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) {
+                    FilterChip(selected = !showContents, onClick = { searchContents = false }, label = { Text(stringResource(R.string.search_in_titles, items.size)) })
+                    FilterChip(selected = showContents, onClick = { searchContents = true }, label = { Text(stringResource(R.string.search_in_contents, visibleHits.size)) })
+                }
+            }
             if (importing) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (library.loaded && items.isEmpty()) {
+            if (showContents) {
+                ContentResults(library, visibleHits, onOpenPage)
+            } else if (library.loaded && items.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         stringResource(
@@ -581,6 +608,8 @@ private fun AddMenuItem(label: String, icon: Painter, onClick: () -> Unit) {
         }
     }
 }
+
+private const val SEARCH_DELAY_MS = 200L
 
 /** Runs a store change off the main thread; returns its result, or shows a toast and returns null if it fails. */
 suspend fun <T> runLibraryAction(context: Context, action: LibraryStore.() -> T): T? {
