@@ -59,6 +59,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Affine
 import net.mildhope.nxtes.data.Page
+import net.mildhope.nxtes.data.PdfSource
+import net.mildhope.nxtes.pdf.PdfLink
+import net.mildhope.nxtes.pdf.pdfPageLinks
 import net.mildhope.nxtes.edit.Geometry
 import net.mildhope.nxtes.edit.Handle
 import net.mildhope.nxtes.edit.SelectionState
@@ -199,6 +202,7 @@ fun PageCanvas(
     assetsLoaded: () -> Int = { 0 },
     onStamp: (pageIndex: Int, point: Offset) -> Unit = { _, _ -> },
     pageText: suspend (pageIndex: Int) -> PageText? = { null },
+    pdfLinks: suspend (PdfSource) -> List<PdfLink> = { emptyList() },
     overlay: @Composable BoxScope.(PageMapper) -> Unit = {},
 ) {
     val density = LocalDensity.current
@@ -225,6 +229,8 @@ fun PageCanvas(
     val scope = rememberCoroutineScope()
     val knob = with(density) { TEXT_KNOB.toPx() }
     val uriHandler = LocalUriHandler.current
+    val pdfLinkCache = remember { HashMap<PdfSource, List<PdfLink>>() }
+    val readPdfLinks by rememberUpdatedState(pdfLinks)
 
     /** Where the picked text's two handles sit on screen: below its first and last characters. */
     fun textHandles(pick: TextPick): Pair<Offset, Offset>? {
@@ -460,12 +466,18 @@ fun PageCanvas(
             }
         }
 
-        /** Goes to the page or opens the URL of the link under the point; false if there's none. */
+        /**
+         * Goes to the page or opens the URL of the link under the point; false if there's none. The
+         * PDF's own links count only where an import, like Flexcil's, hasn't taken them over.
+         */
         private fun followLink(at: Offset): Boolean {
             val index = mapper.pageAt(at)
             val page = pages.getOrNull(index) ?: return false
             val point = mapper.toPage(index, at)
-            val links = ink.content(page.id).links
+            val links = ink.content(page.id).links.ifEmpty {
+                val pdfLinks = page.pdf?.takeIf { page.pdfAnnotations }?.let(pdfLinkCache::get).orEmpty()
+                pdfPageLinks(page, pdfLinks, pages)
+            }
             val slop = handleTouch / mapper.pixelsPerPoint / 4
             val link = links.lastOrNull { it.contains(point.x, point.y) } ?: links.lastOrNull { it.contains(point.x, point.y, slop) } ?: return false
             val target = link.pageId
@@ -632,6 +644,17 @@ fun PageCanvas(
         snapshotFlow { layout.visible(state.zoom, state.offset, state.size, extra = 1) }
             .distinctUntilChanged()
             .collect { range -> ink.ensureLoaded(range.map { pages[it].id }) }
+    }
+
+    LaunchedEffect(layout) {
+        snapshotFlow { layout.visible(state.zoom, state.offset, state.size, extra = 1) }
+            .distinctUntilChanged()
+            .collectLatest { range ->
+                for (i in range) {
+                    val source = pages[i].pdf ?: continue
+                    if (source !in pdfLinkCache) pdfLinkCache[source] = readPdfLinks(source)
+                }
+            }
     }
 
     LaunchedEffect(layout) {

@@ -6,9 +6,11 @@ import android.graphics.Matrix
 import android.graphics.RectF
 import android.os.ParcelFileDescriptor
 import io.legere.pdfiumandroid.PdfDocument
+import io.legere.pdfiumandroid.PdfPage
 import io.legere.pdfiumandroid.PdfiumCore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import net.mildhope.nxtes.data.Affine
 import net.mildhope.nxtes.data.PageSize
 import net.mildhope.nxtes.edit.PageText
 import java.io.File
@@ -49,13 +51,7 @@ class PdfEngine(context: Context) {
         synchronized(open) {
             val doc = open.getOrPut(file.path) { openFile(file) }
             doc.openPage(pageIndex)?.use { page ->
-                val w = page.getPageWidthPoint() * MAP_SCALE
-                val h = page.getPageHeightPoint() * MAP_SCALE
-                fun map(x: Double, y: Double) = page.mapPageCoordsToDevice(0, 0, w, h, 0, x, y).let { it.x.toFloat() / MAP_SCALE to it.y.toFloat() / MAP_SCALE }
-                val (ox, oy) = map(0.0, 0.0)
-                val (xx, xy) = map(MAP_SPAN, 0.0)
-                val (yx, yy) = map(0.0, MAP_SPAN)
-                val span = MAP_SPAN.toFloat()
+                val shown = shownPoints(page)
                 page.openTextPage().use { textPage ->
                     val count = textPage.textPageCountChars().coerceAtLeast(0)
                     val chars = StringBuilder(count)
@@ -63,10 +59,8 @@ class PdfEngine(context: Context) {
                     for (i in 0 until count) {
                         chars.append(textPage.textPageGetUnicode(i))
                         val r: RectF = textPage.textPageGetCharBox(i) ?: continue
-                        val ax = ox + (xx - ox) * r.left / span + (yx - ox) * r.top / span
-                        val ay = oy + (xy - oy) * r.left / span + (yy - oy) * r.top / span
-                        val bx = ox + (xx - ox) * r.right / span + (yx - ox) * r.bottom / span
-                        val by = oy + (xy - oy) * r.right / span + (yy - oy) * r.bottom / span
+                        val (ax, ay) = shown.map(r.left, r.top)
+                        val (bx, by) = shown.map(r.right, r.bottom)
                         boxes[i * 4] = minOf(ax, bx)
                         boxes[i * 4 + 1] = minOf(ay, by)
                         boxes[i * 4 + 2] = maxOf(ax, bx)
@@ -75,6 +69,26 @@ class PdfEngine(context: Context) {
                     PageText(chars.toString(), boxes)
                 }
             } ?: PageText("", FloatArray(0))
+        }
+    }
+
+    /** The page's go-to and URL link annotations. */
+    suspend fun links(file: File, pageIndex: Int): List<PdfLink> = withContext(Dispatchers.IO) {
+        synchronized(open) {
+            val doc = open.getOrPut(file.path) { openFile(file) }
+            doc.openPage(pageIndex)?.use { page ->
+                val shown = shownPoints(page)
+                val w = page.getPageWidthPoint().toFloat()
+                val h = page.getPageHeightPoint().toFloat()
+                page.getPageLinks().map { link ->
+                    val (ax, ay) = shown.map(link.bounds.left, link.bounds.top)
+                    val (bx, by) = shown.map(link.bounds.right, link.bounds.bottom)
+                    // URL links come with a page index too.
+                    val url = link.uri?.takeIf { it.isNotBlank() }
+                    val target = link.destPageIdx?.takeIf { url == null && it >= 0 }
+                    PdfLink(minOf(ax, bx) / w, minOf(ay, by) / h, maxOf(ax, bx) / w, maxOf(ay, by) / h, target, url)
+                }
+            }.orEmpty()
         }
     }
 
@@ -102,6 +116,18 @@ class PdfEngine(context: Context) {
                 }
             }
         }
+
+    /** Maps PDF user space to points from the top-left of the page as it's shown unturned, after its crop box and rotation. */
+    private fun shownPoints(page: PdfPage): Affine {
+        val w = page.getPageWidthPoint() * MAP_SCALE
+        val h = page.getPageHeightPoint() * MAP_SCALE
+        fun map(x: Double, y: Double) = page.mapPageCoordsToDevice(0, 0, w, h, 0, x, y).let { it.x.toFloat() / MAP_SCALE to it.y.toFloat() / MAP_SCALE }
+        val (ox, oy) = map(0.0, 0.0)
+        val (xx, xy) = map(MAP_SPAN, 0.0)
+        val (yx, yy) = map(0.0, MAP_SPAN)
+        val span = MAP_SPAN.toFloat()
+        return Affine((xx - ox) / span, (xy - oy) / span, (yx - ox) / span, (yy - oy) / span, ox, oy)
+    }
 
     /** Maps page points to bitmap pixels with the page turned clockwise. */
     private fun turnMatrix(pageWidth: Int, pageHeight: Int, turns: Int, left: Int, top: Int, width: Int, height: Int): Matrix {

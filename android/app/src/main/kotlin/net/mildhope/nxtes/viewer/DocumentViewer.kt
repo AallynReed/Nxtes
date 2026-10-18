@@ -407,6 +407,16 @@ fun DocumentViewer(
                     assetsLoaded = { app.assets.loaded },
                     onStamp = ::stamp,
                     pageText = ::pageText,
+                    pdfLinks = { source ->
+                        try {
+                            app.pdf.links(app.library.blobFile(doc.id, source.blob), source.index)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.w("Viewer", "Links of ${source.blob} page ${source.index} failed", e)
+                            emptyList()
+                        }
+                    },
                     overlay = { mapper ->
                         val edit = selection.text
                         val crop = selection.crop
