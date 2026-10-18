@@ -271,6 +271,36 @@ class LibraryStoreTest {
         assertEquals(0, store.state.value.document(doc.id)!!.pages.first().turns)
     }
 
+    @Test
+    fun copiedPagesBringTheirPdfAndInk() {
+        val pdf = import()
+        val note = store.createNote("Ideas", null, TemplateChoice(), cover = null)
+        val second = pdf.pages[1]
+        store.writePageInk(pdf.id, mapOf(second.id to listOf(stroke())))
+
+        val copy = store.copyPages(pdf.id, listOf(second.id), note.id, index = 0).single()
+
+        assertEquals(listOf(copy.id, note.pages[0].id), pages(note.id))
+        assertEquals(second.pdf, copy.pdf)
+        assertTrue(store.blobFile(note.id, sha256(PDF_BYTES)).exists())
+        assertEquals(listOf("s1"), store.readPageInk(note.id, copy.id).map { it.id })
+    }
+
+    @Test
+    fun movingEveryPageTrashesTheSourceAndPrunesItsBlobs() {
+        val pdf = import()
+        val note = store.createNote("Ideas", null, TemplateChoice(), cover = null)
+
+        store.movePages(pdf.id, listOf(pdf.pages[0].id), note.id)
+        assertEquals(1, store.state.value.document(pdf.id)!!.pages.size)
+        assertEquals(2, store.state.value.document(note.id)!!.pages.size)
+        assertTrue(store.blobFile(pdf.id, sha256(PDF_BYTES)).exists())
+
+        store.movePages(pdf.id, listOf(pdf.pages[1].id), note.id)
+        assertTrue(store.state.value.document(pdf.id)!!.trashedAt != null)
+        assertEquals(3, store.state.value.document(note.id)!!.pages.size)
+    }
+
     private fun pages(documentId: String) = store.state.value.document(documentId)!!.pages.map { it.id }
 
     private fun stroke() = InkStroke(

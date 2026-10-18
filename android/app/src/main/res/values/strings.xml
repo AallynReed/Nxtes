@@ -129,6 +129,20 @@
         <item quantity="other">Delete %d pages?</item>
     </plurals>
     <string name="delete_every_page">That\'s every page, so the document will move to the trash.</string>
+    <string name="move_pages">Move to another document</string>
+    <string name="move_pages_to">Move pages to</string>
+    <string name="no_other_documents">There are no other documents yet.</string>
+    <string name="copy_pages">Copy</string>
+    <plurals name="pages_copied">
+        <item quantity="one">Copied %d page</item>
+        <item quantity="other">Copied %d pages</item>
+    </plurals>
+    <string name="blank_page">Blank page</string>
+    <plurals name="paste_pages">
+        <item quantity="one">Paste %d page</item>
+        <item quantity="other">Paste %d pages</item>
+    </plurals>
+    <string name="paste_nothing">Paste (copy pages first)</string>
     <string name="go_to_page">Go to page</string>
     <string name="page_range">1 to %d</string>
     <string name="go">Go</string>

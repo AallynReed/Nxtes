@@ -2,6 +2,9 @@ package net.mildhope.nxtes
 
 import android.app.Application
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.MainScope
 import net.mildhope.nxtes.data.LibraryStore
 import net.mildhope.nxtes.ink.InkPainter
@@ -18,6 +21,9 @@ class NxtesApplication : Application() {
     val scope = MainScope()
     val tools by lazy { ToolState(getSharedPreferences("tools", MODE_PRIVATE)) }
     val libraryPrefs by lazy { LibraryPrefs(getSharedPreferences("library", MODE_PRIVATE)) }
+
+    /** Pages copied in the page navigator, waiting to be pasted. */
+    var copiedPages by mutableStateOf<CopiedPages?>(null)
 
     lateinit var pdf: PdfEngine
         private set
@@ -37,5 +43,7 @@ class NxtesApplication : Application() {
         thread(name = "library-load") { library.load() }
     }
 }
+
+data class CopiedPages(val documentId: String, val pageIds: List<String>)
 
 val Context.nxtes get() = applicationContext as NxtesApplication

@@ -71,10 +71,10 @@ fun DocumentViewer(
     var navigatorOpen by rememberSaveable { mutableStateOf(false) }
     var goToPage by remember { mutableStateOf(false) }
 
-    /** Runs a page change, saving this document's ink first and reloading it after. */
+    /** Runs a page change, saving this document's ink first and reloading it after if it changed. */
     fun editPages(documentId: String, action: LibraryStore.() -> Unit) {
         app.scope.launch {
-            if (documentId == doc.id) ink.flush()
+            ink.flush()
             runLibraryAction(context, action)
             if (documentId == doc.id) ink.reset()
         }

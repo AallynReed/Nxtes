@@ -204,6 +204,37 @@ class LibraryStore(
         }
     }
 
+    /** Copies pages, with their ink and PDF pages, into another document at [index], or at the end. */
+    @Synchronized
+    fun copyPages(fromId: String, pageIds: Collection<String>, toId: String, index: Int? = null): List<Page> {
+        val copies = requireDocument(fromId).pages.filter { it.id in pageIds }.map { page ->
+            page.pdf?.let { copyBlob(fromId, it.blob, toId) }
+            page.copy(id = newId()).also { copyInk(fromId, page.id, toId, it.id) }
+        }
+        updateDocument(toId) { doc ->
+            val at = (index ?: doc.pages.size).coerceIn(0, doc.pages.size)
+            doc.copy(pages = doc.pages.take(at) + copies + doc.pages.drop(at))
+        }
+        return copies
+    }
+
+    /** Moves pages to the end of another document. Moving every page trashes the source document. */
+    @Synchronized
+    fun movePages(fromId: String, pageIds: Collection<String>, toId: String) {
+        if (fromId == toId) return
+        copyPages(fromId, pageIds, toId)
+        deletePages(fromId, pageIds)
+    }
+
+    private fun copyBlob(fromDocument: String, sha256: String, toDocument: String) {
+        val target = blobFile(toDocument, sha256)
+        if (target.exists()) return
+        target.parentFile?.mkdirs()
+        val tmp = File(target.parentFile, "$sha256.tmp")
+        blobFile(fromDocument, sha256).copyTo(tmp, overwrite = true)
+        Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+    }
+
     private fun copyInk(fromDocument: String, fromPage: String, toDocument: String, toPage: String) {
         val source = pageInkFile(fromDocument, fromPage)
         if (source.exists()) writeAtomically(pageInkFile(toDocument, toPage), source.readBytes())

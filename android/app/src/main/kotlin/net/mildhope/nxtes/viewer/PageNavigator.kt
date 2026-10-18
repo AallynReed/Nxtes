@@ -1,5 +1,6 @@
 package net.mildhope.nxtes.viewer
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -39,6 +40,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,9 +52,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -72,6 +77,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -84,6 +91,7 @@ import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import net.mildhope.nxtes.CopiedPages
 import net.mildhope.nxtes.R
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.data.Folder
@@ -100,7 +108,8 @@ enum class PageFilter { ALL, ANNOTATED }
 
 private enum class FilesTab { DOCUMENTS, RECENTS, FAVORITES }
 
-private class PageDrag(val key: String, val offset: Offset)
+/** A page being dragged: [centre] is where it started, in root coordinates. */
+private class PageDrag(val key: String, val offset: Offset, val centre: Offset)
 
 private const val ADD_KEY = "add"
 private val CELL_WIDTH = 128.dp
@@ -130,6 +139,12 @@ fun PageNavigator(
     var picked by remember { mutableStateOf(emptySet<String>()) }
     var filter by rememberSaveable { mutableStateOf(PageFilter.ALL) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var choosingTarget by remember { mutableStateOf(false) }
+    var dropTarget by remember { mutableStateOf<String?>(null) }
+    val documentBounds = remember { mutableStateMapOf<String, Rect>() }
+    val context = LocalContext.current
+    val copied = app.copiedPages
+    val pasteCount = copied?.takeIf { library.document(it.documentId)?.trashedAt == null }?.pageIds?.size ?: 0
     val selected = picked.intersect(shown.pages.map { it.id }.toSet())
     val annotated by produceState(emptySet<String>(), shown.id, shown.modified) {
         value = withContext(Dispatchers.IO) { app.library.annotatedPages(shown.id) }
@@ -146,7 +161,7 @@ fun PageNavigator(
     Surface(modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize()) {
             if (filesOpen) {
-                DocumentsColumn(library, shown.id, current.folderId, onShow = { shownId = it })
+                DocumentsColumn(library, shown.id, dropTarget, current.folderId, documentBounds, onShow = { shownId = it })
                 VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
             Column(Modifier.weight(1f)) {
@@ -168,8 +183,14 @@ fun PageNavigator(
                     ToolButton(painterResource(R.drawable.ic_rotate_right), stringResource(R.string.turn_right), enabled) {
                         onEdit(shown.id) { turnPages(shown.id, selected, clockwise = true) }
                     }
+                    ToolButton(painterResource(R.drawable.ic_move_to), stringResource(R.string.move_pages), enabled) { choosingTarget = true }
                     ToolButton(painterResource(R.drawable.ic_duplicate), stringResource(R.string.duplicate), enabled) {
                         onEdit(shown.id) { duplicatePages(shown.id, selected) }
+                    }
+                    ToolButton(painterResource(R.drawable.ic_copy), stringResource(R.string.copy_pages), enabled) {
+                        app.copiedPages = CopiedPages(shown.id, shown.pages.map { it.id }.filter { it in selected })
+                        val message = context.resources.getQuantityString(R.plurals.pages_copied, selected.size, selected.size)
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                     }
                     Box(Modifier.padding(horizontal = 8.dp).width(1.dp).height(22.dp).background(MaterialTheme.colorScheme.outlineVariant))
                     ToolButton(
@@ -198,11 +219,35 @@ fun PageNavigator(
                         editing = true
                         picked = setOf(shown.pages[index].id)
                     },
+                    pasteCount = pasteCount,
                     onInsert = { index -> onEdit(shown.id) { insertPage(shown.id, index) } },
+                    onPaste = { index ->
+                        copied?.let { clip -> onEdit(shown.id) { copyPages(clip.documentId, clip.pageIds, shown.id, index) } }
+                    },
                     onReorder = { moving, toIndex -> onEdit(shown.id) { reorderPages(shown.id, moving, toIndex) } },
+                    documentBounds = documentBounds,
+                    onDropTarget = { dropTarget = it },
+                    onMoveTo = { moving, target ->
+                        picked = emptySet()
+                        onEdit(shown.id) { movePages(shown.id, moving, target) }
+                    },
                 )
             }
         }
+    }
+
+    if (choosingTarget) {
+        DocumentPickerDialog(
+            library = library,
+            excludeId = shown.id,
+            onPick = { target ->
+                choosingTarget = false
+                val moving = selected
+                picked = emptySet()
+                onEdit(shown.id) { movePages(shown.id, moving, target) }
+            },
+            onDismiss = { choosingTarget = false },
+        )
     }
 
     if (confirmDelete) {
@@ -304,8 +349,13 @@ private fun PageGrid(
     selected: Set<String>,
     onPage: (Int) -> Unit,
     onLongPage: (Int) -> Unit,
+    pasteCount: Int,
     onInsert: (Int) -> Unit,
+    onPaste: (Int) -> Unit,
     onReorder: (moving: Set<String>, toIndex: Int) -> Unit,
+    documentBounds: Map<String, Rect>,
+    onDropTarget: (String?) -> Unit,
+    onMoveTo: (moving: Set<String>, documentId: String) -> Unit,
 ) {
     val grid = rememberLazyGridState()
     var drag by remember { mutableStateOf<PageDrag?>(null) }
@@ -313,9 +363,18 @@ private fun PageGrid(
     val shownPages = doc.pages.indices.filter { all || doc.pages[it].id in annotated }
     LaunchedEffect(doc.id) { if (currentPage >= 0) grid.scrollToItem(currentPage) }
 
+    fun targetOf(moving: PageDrag): String? =
+        documentBounds.entries.firstOrNull { (id, bounds) -> id != doc.id && bounds.contains(moving.centre + moving.offset) }?.key
+
     fun drop(finished: PageDrag) {
+        val moving = if (finished.key in selected) selected else setOf(finished.key)
+        val target = targetOf(finished)
+        if (target != null) {
+            onMoveTo(moving, target)
+            return
+        }
         val toIndex = dropIndex(grid, doc, finished) ?: return
-        onReorder(if (finished.key in selected) selected else setOf(finished.key), toIndex)
+        onReorder(moving, toIndex)
     }
 
     LazyVerticalGrid(
@@ -328,9 +387,11 @@ private fun PageGrid(
         items(shownPages, key = { doc.pages[it].id }) { index ->
             val page = doc.pages[index]
             val dragging = drag?.takeIf { it.key == page.id }
+            var bounds by remember { mutableStateOf(Rect.Zero) }
             Row(
                 Modifier
                     .height(CELL_HEIGHT)
+                    .onGloballyPositioned { bounds = it.boundsInRoot() }
                     .zIndex(if (dragging != null) 1f else 0f)
                     .graphicsLayer {
                         translationX = dragging?.offset?.x ?: 0f
@@ -341,20 +402,28 @@ private fun PageGrid(
                         }
                     },
             ) {
-                if (all) InsertButton { onInsert(index) } else Spacer(Modifier.width(INSERT_WIDTH))
+                if (all) {
+                    AddPageMenu(pasteCount, { onInsert(index) }, { onPaste(index) }) { open -> InsertButton(open) }
+                } else {
+                    Spacer(Modifier.width(INSERT_WIDTH))
+                }
                 val reorder = if (editing && all) {
                     Modifier.pointerInput(page.id) {
                         detectDragGesturesAfterLongPress(
-                            onDragStart = { drag = PageDrag(page.id, Offset.Zero) },
+                            onDragStart = { drag = PageDrag(page.id, Offset.Zero, bounds.center) },
                             onDrag = { change, amount ->
                                 change.consume()
-                                drag = drag?.let { PageDrag(it.key, it.offset + amount) }
+                                drag = drag?.let { PageDrag(it.key, it.offset + amount, it.centre) }?.also { onDropTarget(targetOf(it)) }
                             },
                             onDragEnd = {
                                 drag?.let(::drop)
                                 drag = null
+                                onDropTarget(null)
                             },
-                            onDragCancel = { drag = null },
+                            onDragCancel = {
+                                drag = null
+                                onDropTarget(null)
+                            },
                         )
                     }
                 } else {
@@ -376,7 +445,11 @@ private fun PageGrid(
             item(key = ADD_KEY) {
                 Row(Modifier.height(CELL_HEIGHT)) {
                     Spacer(Modifier.width(INSERT_WIDTH))
-                    AddPageTile(Modifier.weight(1f).fillMaxHeight()) { onInsert(doc.pages.size) }
+                    Box(Modifier.weight(1f).fillMaxHeight()) {
+                        AddPageMenu(pasteCount, { onInsert(doc.pages.size) }, { onPaste(doc.pages.size) }) { open ->
+                            AddPageTile(Modifier.fillMaxSize(), open)
+                        }
+                    }
                 }
             }
         }
@@ -436,6 +509,42 @@ private fun PageCellContent(doc: Document, index: Int, current: Boolean, editing
     }
 }
 
+/** A menu to add a blank page or paste copied pages; [anchor] is the button that opens it. */
+@Composable
+private fun AddPageMenu(pasteCount: Int, onBlank: () -> Unit, onPaste: () -> Unit, anchor: @Composable (open: () -> Unit) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        anchor { open = true }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.blank_page)) },
+                leadingIcon = { Icon(Icons.Default.Add, null) },
+                onClick = {
+                    open = false
+                    onBlank()
+                },
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        if (pasteCount > 0) {
+                            pluralStringResource(R.plurals.paste_pages, pasteCount, pasteCount)
+                        } else {
+                            stringResource(R.string.paste_nothing)
+                        },
+                    )
+                },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_paste), null) },
+                enabled = pasteCount > 0,
+                onClick = {
+                    open = false
+                    onPaste()
+                },
+            )
+        }
+    }
+}
+
 @Composable
 private fun InsertButton(onClick: () -> Unit) {
     Box(
@@ -468,7 +577,14 @@ private fun AddPageTile(modifier: Modifier, onClick: () -> Unit) {
 
 /** The navigator's left column: browse folders, recents or favourites, and pick a document to show. */
 @Composable
-private fun DocumentsColumn(library: Library, shownId: String, startFolder: String?, onShow: (String) -> Unit) {
+private fun DocumentsColumn(
+    library: Library,
+    shownId: String,
+    dropTargetId: String?,
+    startFolder: String?,
+    bounds: MutableMap<String, Rect>,
+    onShow: (String) -> Unit,
+) {
     var tab by rememberSaveable { mutableStateOf(FilesTab.DOCUMENTS) }
     var folderId by rememberSaveable { mutableStateOf(startFolder) }
     val folder = library.folder(folderId)?.takeIf { !library.isInTrash(it.id) }
@@ -505,7 +621,7 @@ private fun DocumentsColumn(library: Library, shownId: String, startFolder: Stri
                         tab = FilesTab.DOCUMENTS
                         folderId = item.id
                     }
-                    is Document -> DocumentRow(item, item.id == shownId) { onShow(item.id) }
+                    is Document -> DocumentRow(item, item.id == shownId, item.id == dropTargetId, bounds) { onShow(item.id) }
                 }
             }
         }
@@ -559,14 +675,22 @@ private fun FolderRow(folder: Folder, onClick: () -> Unit) {
 }
 
 @Composable
-private fun DocumentRow(doc: Document, shown: Boolean, onClick: () -> Unit) {
+private fun DocumentRow(doc: Document, shown: Boolean, dropTarget: Boolean, bounds: MutableMap<String, Rect>, onClick: () -> Unit) {
     val date = remember(doc.modified) { DATE_FORMAT.format(Date(doc.modified)) }
+    DisposableEffect(doc.id) { onDispose { bounds.remove(doc.id) } }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
-            .background(if (shown) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent)
+            .onGloballyPositioned { bounds[doc.id] = it.boundsInRoot() }
+            .background(
+                when {
+                    dropTarget -> MaterialTheme.colorScheme.primaryContainer
+                    shown -> MaterialTheme.colorScheme.surfaceContainerHigh
+                    else -> Color.Transparent
+                },
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp),
     ) {
