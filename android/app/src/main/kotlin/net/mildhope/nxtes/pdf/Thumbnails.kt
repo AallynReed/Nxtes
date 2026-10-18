@@ -3,7 +3,6 @@ package net.mildhope.nxtes.pdf
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.RectF
 import android.util.LruCache
@@ -14,13 +13,14 @@ import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.data.LibraryStore
 import net.mildhope.nxtes.data.Page
 import net.mildhope.nxtes.ink.InkPainter
+import net.mildhope.nxtes.page.PageBackgrounds
 import java.io.File
 import kotlin.math.roundToInt
 
 /** Page previews with their ink, cached in memory and as JPEGs on disk. */
 class Thumbnails(
     private val dir: File,
-    private val pdf: PdfEngine,
+    private val backgrounds: PageBackgrounds,
     private val library: LibraryStore,
     private val painter: Lazy<InkPainter>,
 ) {
@@ -49,12 +49,7 @@ class Thumbnails(
     private suspend fun render(doc: Document, page: Page, widthPx: Int): Bitmap {
         val heightPx = (widthPx * page.height / page.width).roundToInt().coerceAtLeast(1)
         val bitmap = createBitmap(widthPx, heightPx)
-        val source = page.pdf
-        if (source != null) {
-            pdf.render(library.blobFile(doc.id, source.blob), source.index, bitmap, 0, 0, widthPx, heightPx)
-        } else {
-            bitmap.eraseColor(Color.WHITE)
-        }
+        backgrounds.render(doc.id, page, bitmap, 0, 0, widthPx, heightPx)
         val strokes = library.readPageInk(doc.id, page.id)
         if (strokes.isNotEmpty()) {
             val scale = widthPx / page.width

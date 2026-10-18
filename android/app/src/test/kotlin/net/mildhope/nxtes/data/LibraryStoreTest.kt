@@ -166,6 +166,33 @@ class LibraryStoreTest {
         assertEquals(setOf("Physics", "Physics notes"), store.state.value.search("phys").map { it.displayName }.toSet())
     }
 
+    @Test
+    fun newNoteHasOneTemplatePageAndSurvivesReload() {
+        val choice = TemplateChoice(Background(Pattern.DOTTED, Paper.YELLOW), PaperSize.LETTER, landscape = true)
+
+        val note = store.createNote("Ideas", null, choice, cover = 3)
+
+        val page = note.pages.single()
+        assertEquals(792f to 612f, page.width to page.height)
+        assertEquals(Background(Pattern.DOTTED, Paper.YELLOW), page.background)
+        assertTrue(note.note)
+        assertEquals(note, newStore().apply { load() }.state.value.document(note.id))
+        assertEquals(choice, TemplateChoice.of(note.template, TemplateChoice()))
+    }
+
+    @Test
+    fun templateChangeReachesExistingPagesOnlyWhenAsked() {
+        val note = store.createNote("Ideas", null, TemplateChoice(), cover = null)
+        val graph = TemplateChoice(Background(Pattern.GRAPH))
+
+        store.setTemplate(note.id, graph, allPages = false)
+        assertEquals(Pattern.PLAIN, store.state.value.document(note.id)!!.pages.single().background!!.pattern)
+        assertEquals(Pattern.GRAPH, store.state.value.document(note.id)!!.template!!.background!!.pattern)
+
+        store.setTemplate(note.id, graph, allPages = true)
+        assertEquals(Pattern.GRAPH, store.state.value.document(note.id)!!.pages.single().background!!.pattern)
+    }
+
     private fun sha256(bytes: ByteArray) =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 

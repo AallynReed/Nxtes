@@ -1,6 +1,5 @@
 package net.mildhope.nxtes.viewer
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,12 +35,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -54,8 +48,6 @@ import net.mildhope.nxtes.nxtes
 import net.mildhope.nxtes.pdf.OutlineEntry
 
 enum class SideTab { PAGES, OUTLINE }
-
-private const val PAGE_THUMBNAIL_PX = 240
 
 /** The panel that slides in from the right: page thumbnails and the PDF outline. */
 @Composable
@@ -113,7 +105,7 @@ private fun PageGrid(doc: Document, viewport: ViewportState) {
                 PageThumbnail(
                     doc,
                     index,
-                    Modifier.border(
+                    Modifier.fillMaxWidth().border(
                         if (current) 2.dp else 1.dp,
                         if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
                     ),
@@ -127,18 +119,6 @@ private fun PageGrid(doc: Document, viewport: ViewportState) {
             }
         }
     }
-}
-
-@Composable
-private fun PageThumbnail(doc: Document, index: Int, modifier: Modifier) {
-    val context = LocalContext.current
-    val page = doc.pages[index]
-    val bitmap by produceState<ImageBitmap?>(null, doc.id, doc.modified, index) {
-        value = runCatching { context.nxtes.thumbnails.get(doc, PAGE_THUMBNAIL_PX, index) }.getOrNull()?.asImageBitmap()
-    }
-    val box = modifier.fillMaxWidth().aspectRatio(page.width / page.height).background(Color.White)
-    val image = bitmap
-    if (image == null) Box(box) else Image(image, null, contentScale = ContentScale.FillBounds, modifier = box)
 }
 
 @Composable

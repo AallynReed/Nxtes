@@ -91,6 +91,52 @@ class LibraryStore(
     }
 
     @Synchronized
+    fun createNote(title: String, folderId: String?, choice: TemplateChoice, cover: Int?): Document {
+        val id = newId()
+        try {
+            val template = pageTemplate(id, choice)
+            val now = clock()
+            val doc = Document(
+                id = id, title = title, folderId = folderId, created = now, modified = now,
+                note = true, cover = cover, template = template, pages = listOf(newPage(template)),
+            )
+            writeDocument(doc)
+            _state.value = _state.value.let { it.copy(documents = it.documents + doc) }
+            return doc
+        } catch (e: Exception) {
+            documentDir(id).deleteRecursively()
+            throw e
+        }
+    }
+
+    @Synchronized
+    fun setCover(id: String, cover: Int?) {
+        val now = clock()
+        updateItem(id, { it }, { it.copy(cover = cover, modified = now) })
+    }
+
+    /** Makes [choice] the template for new pages and, if [allPages], gives every page its background and size. */
+    @Synchronized
+    fun setTemplate(id: String, choice: TemplateChoice, allPages: Boolean) {
+        val template = pageTemplate(id, choice)
+        val now = clock()
+        updateItem(id, { it }) { doc ->
+            val pages = if (allPages) doc.pages.map { it.withTemplate(template) } else doc.pages
+            doc.copy(template = template, pages = pages, modified = now)
+        }
+    }
+
+    /** Resolves a picked template into one this document can use. */
+    private fun pageTemplate(documentId: String, choice: TemplateChoice): PageTemplate =
+        PageTemplate(choice.width, choice.height, background = choice.background)
+
+    private fun newPage(template: PageTemplate) =
+        Page(newId(), template.width, template.height, template.pdf, template.background)
+
+    private fun Page.withTemplate(template: PageTemplate) =
+        copy(width = template.width, height = template.height, pdf = template.pdf, background = template.background, turns = 0)
+
+    @Synchronized
     fun createFolder(name: String, parentId: String?): Folder {
         val now = clock()
         val folder = Folder(id = newId(), name = name, parentId = parentId, created = now, modified = now)

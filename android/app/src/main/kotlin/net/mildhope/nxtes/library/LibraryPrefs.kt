@@ -6,9 +6,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.edit
+import kotlinx.serialization.json.Json
+import net.mildhope.nxtes.data.Background
 import net.mildhope.nxtes.data.Document
 import net.mildhope.nxtes.data.Folder
 import net.mildhope.nxtes.data.LibraryItem
+import net.mildhope.nxtes.data.Pattern
+import net.mildhope.nxtes.data.TemplateChoice
 
 enum class SortOrder { NAME_ASC, NAME_DESC, MODIFIED_NEWEST, MODIFIED_OLDEST, CREATED_NEWEST, CREATED_OLDEST }
 
@@ -21,6 +25,18 @@ class LibraryPrefs(private val prefs: SharedPreferences) {
         private set
     var listView by mutableStateOf(prefs.getBoolean(KEY_LIST, false))
         private set
+
+    /** The template the last new note used, offered for the next one. */
+    var lastTemplate by mutableStateOf(
+        runCatching { Json.decodeFromString<TemplateChoice>(prefs.getString(KEY_TEMPLATE, null)!!) }
+            .getOrDefault(TemplateChoice(Background(Pattern.LINED))),
+    )
+        private set
+
+    fun updateLastTemplate(choice: TemplateChoice) {
+        lastTemplate = choice
+        prefs.edit { putString(KEY_TEMPLATE, Json.encodeToString(choice)) }
+    }
 
     fun updateSort(order: SortOrder) {
         sort = order
@@ -60,7 +76,8 @@ class LibraryPrefs(private val prefs: SharedPreferences) {
     private companion object {
         const val KEY_SORT = "sort"
         const val KEY_LIST = "list_view"
+        const val KEY_TEMPLATE = "last_template"
     }
 }
 
-val Document.isPdf get() = pages.any { it.pdf != null }
+val Document.isPdf get() = !note

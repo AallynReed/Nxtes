@@ -7,6 +7,7 @@ import net.mildhope.nxtes.data.LibraryStore
 import net.mildhope.nxtes.ink.InkPainter
 import net.mildhope.nxtes.ink.ToolState
 import net.mildhope.nxtes.library.LibraryPrefs
+import net.mildhope.nxtes.page.PageBackgrounds
 import net.mildhope.nxtes.pdf.PdfEngine
 import net.mildhope.nxtes.pdf.Thumbnails
 import java.io.File
@@ -22,6 +23,8 @@ class NxtesApplication : Application() {
         private set
     lateinit var library: LibraryStore
         private set
+    lateinit var backgrounds: PageBackgrounds
+        private set
     lateinit var thumbnails: Thumbnails
         private set
 
@@ -29,7 +32,8 @@ class NxtesApplication : Application() {
         super.onCreate()
         pdf = PdfEngine(this)
         library = LibraryStore(File(filesDir, "library"), pdf::pageSizes)
-        thumbnails = Thumbnails(File(cacheDir, "thumbnails"), pdf, library, lazy { InkPainter() })
+        backgrounds = PageBackgrounds(pdf, library::blobFile)
+        thumbnails = Thumbnails(File(cacheDir, "thumbnails"), backgrounds, library, lazy { InkPainter() })
         thread(name = "library-load") { library.load() }
     }
 }

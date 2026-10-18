@@ -37,18 +37,27 @@ data class Document(
     override val favorite: Boolean = false,
     /** When the document was last opened, for Recents. */
     val opened: Long? = null,
+    /** True for notes made in Nxtes, false for imported PDFs. */
+    val note: Boolean = false,
+    /** Index into the generated covers, or null to show the first page. */
+    val cover: Int? = null,
+    /** What new pages copy, or null to copy the size of the page they're added next to. */
+    val template: PageTemplate? = null,
     val pages: List<Page>,
 ) : LibraryItem {
     override val displayName get() = title
 }
 
-/** Size is in PDF points. */
+/** Size is in PDF points, as displayed. A page shows a PDF page, a generated background, or plain white. */
 @Serializable
 data class Page(
     val id: String,
     val width: Float,
     val height: Float,
     val pdf: PdfSource? = null,
+    val background: Background? = null,
+    /** Clockwise quarter turns applied to the PDF page or background, 0 to 3. */
+    val turns: Int = 0,
 )
 
 @Serializable

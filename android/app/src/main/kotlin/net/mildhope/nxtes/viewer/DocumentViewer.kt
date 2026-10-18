@@ -43,11 +43,10 @@ fun DocumentViewer(
     onBack: () -> Unit,
 ) {
     val app = LocalContext.current.nxtes
-    val renderer = remember(doc.id) {
+    val renderer = remember(doc.id, doc.pages) {
         PageRenderer { index, bitmap, left, top, width, height ->
-            val source = doc.pages[index].pdf ?: return@PageRenderer
             try {
-                app.pdf.render(app.library.blobFile(doc.id, source.blob), source.index, bitmap, left, top, width, height)
+                app.backgrounds.render(doc.id, doc.pages[index], bitmap, left, top, width, height)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

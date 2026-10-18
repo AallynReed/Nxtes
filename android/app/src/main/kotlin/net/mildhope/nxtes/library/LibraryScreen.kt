@@ -71,10 +71,17 @@ import net.mildhope.nxtes.data.Folder
 import net.mildhope.nxtes.data.Library
 import net.mildhope.nxtes.data.LibraryItem
 import net.mildhope.nxtes.data.LibraryStore
+import net.mildhope.nxtes.data.TemplateChoice
+import net.mildhope.nxtes.notes.NoteSettingsDialog
+import net.mildhope.nxtes.notes.TemplateScopeDialog
 import net.mildhope.nxtes.nxtes
+import net.mildhope.nxtes.viewer.PageThumbnail
 
 private sealed interface LibraryDialog {
     data object NewFolder : LibraryDialog
+    data object NewNote : LibraryDialog
+    data class Settings(val doc: Document) : LibraryDialog
+    data class ApplyTemplate(val doc: Document, val choice: TemplateChoice) : LibraryDialog
     data class Rename(val item: LibraryItem) : LibraryDialog
     data class Move(val item: LibraryItem) : LibraryDialog
     data class Colour(val folder: Folder) : LibraryDialog
@@ -200,6 +207,7 @@ private fun MainPane(
     val showsFolder = section == LibrarySection.DOCUMENTS && !searching
 
     val renameLabel = stringResource(R.string.rename)
+    val settingsLabel = stringResource(R.string.cover_and_template)
     val moveLabel = stringResource(R.string.move)
     val colourLabel = stringResource(R.string.folder_colour)
     val favoriteLabel = stringResource(R.string.add_to_favorites)
@@ -253,6 +261,7 @@ private fun MainPane(
                         } else {
                             listOfNotNull(
                                 MenuAction(renameLabel) { dialog = LibraryDialog.Rename(item) },
+                                (item as? Document)?.let { MenuAction(settingsLabel) { dialog = LibraryDialog.Settings(it) } },
                                 MenuAction(moveLabel) { dialog = LibraryDialog.Move(item) },
                                 (item as? Folder)?.let { MenuAction(colourLabel) { dialog = LibraryDialog.Colour(it) } },
                                 MenuAction(if (item.favorite) unfavoriteLabel else favoriteLabel) { edit { setFavorite(item.id, !item.favorite) } },
@@ -267,6 +276,7 @@ private fun MainPane(
         if (showsFolder) {
             AddMenu(
                 onNewFolder = { dialog = LibraryDialog.NewFolder },
+                onNewNote = { dialog = LibraryDialog.NewNote },
                 onImport = { picker.launch(arrayOf("application/pdf")) },
                 modifier = Modifier.align(Alignment.BottomEnd),
             )
@@ -275,6 +285,42 @@ private fun MainPane(
 
     when (val d = dialog) {
         LibraryDialog.NewFolder -> NameDialog(stringResource(R.string.new_folder), "", { name -> edit { createFolder(name, folder?.id) } }, { dialog = null })
+        LibraryDialog.NewNote -> NoteSettingsDialog(
+            title = "",
+            cover = null,
+            choice = prefs.lastTemplate,
+            onDone = { title, cover, choice ->
+                dialog = null
+                prefs.updateLastTemplate(choice)
+                scope.launch {
+                    runLibraryAction(context) { createNote(title, folder?.id, choice, cover) }?.let(onOpen)
+                }
+            },
+            onDismiss = { dialog = null },
+        )
+        is LibraryDialog.Settings -> {
+            val doc = d.doc
+            val original = TemplateChoice.of(doc.template, prefs.lastTemplate)
+            NoteSettingsDialog(
+                title = doc.title,
+                cover = doc.cover,
+                choice = original,
+                noCover = { PageThumbnail(doc, 0, it) },
+                onDone = { title, cover, choice ->
+                    edit {
+                        if (title != doc.title) rename(doc.id, title)
+                        if (cover != doc.cover) setCover(doc.id, cover)
+                        if (choice != original && !doc.note) setTemplate(doc.id, choice, allPages = false)
+                    }
+                    if (choice != original && doc.note) dialog = LibraryDialog.ApplyTemplate(doc, choice)
+                },
+                onDismiss = { dialog = null },
+            )
+        }
+        is LibraryDialog.ApplyTemplate -> TemplateScopeDialog(
+            onPick = { allPages -> edit { setTemplate(d.doc.id, d.choice, allPages) } },
+            onDismiss = { dialog = null },
+        )
         is LibraryDialog.Rename -> NameDialog(renameLabel, d.item.displayName, { name -> edit { rename(d.item.id, name) } }, { dialog = null })
         is LibraryDialog.Move -> MoveDialog(library, d.item, { target -> edit { move(d.item.id, target) } }, { dialog = null })
         is LibraryDialog.Colour -> ColourDialog(d.folder.color ?: DEFAULT_FOLDER_COLOR, { colour -> edit { setFolderColor(d.folder.id, colour) } }, { dialog = null })
@@ -385,7 +431,7 @@ private fun sortLabel(order: SortOrder) = when (order) {
 
 /** The round add button; it expands into labelled actions over a dimmed library. */
 @Composable
-private fun AddMenu(onNewFolder: () -> Unit, onImport: () -> Unit, modifier: Modifier = Modifier) {
+private fun AddMenu(onNewFolder: () -> Unit, onNewNote: () -> Unit, onImport: () -> Unit, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         if (open) {
@@ -401,6 +447,10 @@ private fun AddMenu(onNewFolder: () -> Unit, onImport: () -> Unit, modifier: Mod
                 AddMenuItem(stringResource(R.string.new_folder), painterResource(R.drawable.ic_folder)) {
                     open = false
                     onNewFolder()
+                }
+                AddMenuItem(stringResource(R.string.new_note), painterResource(R.drawable.ic_note)) {
+                    open = false
+                    onNewNote()
                 }
                 AddMenuItem(stringResource(R.string.import_pdf), painterResource(R.drawable.ic_document)) {
                     open = false
@@ -431,13 +481,14 @@ private fun AddMenuItem(label: String, icon: Painter, onClick: () -> Unit) {
     }
 }
 
-/** Runs a store change off the main thread and shows a toast if it fails. */
-suspend fun runLibraryAction(context: Context, action: LibraryStore.() -> Unit) {
-    val error = withContext(Dispatchers.IO) { runCatching { context.nxtes.library.action() }.exceptionOrNull() }
-    if (error != null) {
+/** Runs a store change off the main thread; returns its result, or shows a toast and returns null if it fails. */
+suspend fun <T> runLibraryAction(context: Context, action: LibraryStore.() -> T): T? {
+    val result = withContext(Dispatchers.IO) { runCatching { context.nxtes.library.action() } }
+    result.exceptionOrNull()?.let { error ->
         Log.w("Library", "Action failed", error)
         Toast.makeText(context, R.string.action_failed, Toast.LENGTH_SHORT).show()
     }
+    return result.getOrNull()
 }
 
 @Composable
