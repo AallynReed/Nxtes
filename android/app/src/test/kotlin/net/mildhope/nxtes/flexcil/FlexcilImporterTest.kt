@@ -103,6 +103,9 @@ class FlexcilImporterTest {
         val fountain = page.strokes.single { it.pen == Pen.FOUNTAIN }
         assertEquals(2.4f, fountain.size, 0.01f)
         assertArrayEquals(floatArrayOf(0.5f, 1f), fountain.pressure, 0.01f)
+        val straightHighlight = page.strokes.single { it.pen == Pen.HIGHLIGHTER }
+        assertArrayEquals(floatArrayOf(60f, 180f), straightHighlight.x, 0.01f)
+        assertEquals(0x77FFED2A, straightHighlight.color)
 
         val objects = page.objects
         assertTrue("the .objects order comes first", objects[0] is Picture && objects[1] is TextBox)
@@ -192,7 +195,8 @@ class FlexcilImporterTest {
         "objects/P1.drawings" to """[
             {"key":"D1","type":1,"mode":1,"figure":0,"strokeColor":4278190080,"points":"${strokes(0f, 0f, 0.003f, 0.01f, 0.005f, 0.0032f)}","start":{"x":0.25,"y":0.4},"scale":{"x":1.0,"y":1.0},"rotate":0.0},
             {"key":"D2","type":1,"mode":5,"figure":0,"strokeColor":4278190335,"points":"${strokes(0f, 0f, 0.002f, 0.1f, 0f, 0.004f)}","start":{"x":0.1,"y":0.1}},
-            {"key":"D3","type":1,"mode":1,"figure":2,"strokeColor":4278190080,"points":"${strokes(0f, 0f, 0.002f, 0.1f, 0.1f, 0.002f)}","start":{"x":0.5,"y":0.8}}]""",
+            {"key":"D3","type":1,"mode":1,"figure":2,"strokeColor":4278190080,"points":"${strokes(0f, 0f, 0.002f, 0.1f, 0.1f, 0.002f)}","start":{"x":0.5,"y":0.8}},
+            {"key":"D6","type":2,"mode":2,"figure":1,"strokeColor":2013261098,"points":"${strokes(0f, 0f, 0.005f, 0.2f, 0f, 0.005f)}","start":{"x":0.1,"y":0.3}}]""",
         "objects/P1.texts" to """[{"key":"TXT1","type":30,"frame":{"x":0.1,"y":0.1,"width":0.5,"height":0.1},"rotate":0.0,"text":"Hello",
             "columns":[{"p":{"span":[{"text":"Hello","style":{"font-size":0.05,"font-family":"Times New Roman","font-weight":"bold","font-style":"italic underline","color":"#FF0000"}}],"reflow":[1],"offset":1}}]}]""",
         "objects/P1.images" to """[{"key":"IMG1","type":20,"frame":{"x":0.5,"y":0.5,"width":0.2,"height":0.1},"cropBox":{"x":0.1,"y":0.0,"width":0.8,"height":1.0},"rotate":1.5707963267948966}]""",

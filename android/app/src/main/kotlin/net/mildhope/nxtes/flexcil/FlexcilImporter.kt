@@ -268,9 +268,11 @@ class FlexcilImporter(
             )
         }
 
+        /** Highlighters stay highlighter ink whatever their figure, so they're drawn under the text. */
         private fun drawing(d: DrawingEntry): Any? {
             val (xs, ys, ws) = points(d.points, d.start, d.scale) ?: return null
             val color = d.strokeColor.toInt()
+            if (penOf(d) == Pen.HIGHLIGHTER) return ink(Pen.HIGHLIGHTER, color, xs, ys, ws, timeOf(d.key))
             val line = LineStyle.fromCode(d.dashtype)
             val stroke = ws[0].coerceAtLeast(MIN_WIDTH)
             val fill = d.fillColor.toInt()
