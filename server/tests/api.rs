@@ -614,6 +614,56 @@ async fn device_limits_and_account_deletion() {
 }
 
 #[tokio::test]
+async fn accounts_can_be_deleted_from_the_web_page() {
+    let s = Server::new().await;
+    s.signed_in("mo@example.com").await;
+    let submit = |body: &'static str| {
+        let req = Request::post("/delete-account")
+            .header("content-type", "application/x-www-form-urlencoded")
+            .body(Body::from(body))
+            .unwrap();
+        let app = s.app.clone();
+        async move {
+            let res = app.oneshot(req).await.unwrap();
+            String::from_utf8(res.into_body().collect().await.unwrap().to_bytes().to_vec()).unwrap()
+        }
+    };
+    assert!(
+        submit("email=mo%40example.com&password=wrong+password&confirm=on")
+            .await
+            .contains("don't match")
+    );
+    assert!(
+        submit("email=mo%40example.com&password=correct+horse")
+            .await
+            .contains("Tick the box")
+    );
+    assert!(
+        submit("email=MO%40example.com&password=correct+horse&confirm=on")
+            .await
+            .contains("Account deleted")
+    );
+    let (status, _) = s
+        .call(
+            "POST",
+            "/v1/auth/login",
+            None,
+            Some(json!({ "email": "mo@example.com", "password": "correct horse" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    for uri in ["/privacy", "/privacy/pt", "/delete-account"] {
+        let res = s
+            .app
+            .clone()
+            .oneshot(Request::get(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK, "{uri}");
+    }
+}
+
+#[tokio::test]
 async fn emailed_links_open_pages_that_need_a_click() {
     let s = Server::new().await;
     s.call(

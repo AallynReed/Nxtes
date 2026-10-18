@@ -466,6 +466,29 @@ pub async fn delete_account(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Deletes the account behind [email] if [password] is right, for the web deletion page.
+pub async fn delete_with_password(
+    state: &AppState,
+    email: &str,
+    password: String,
+) -> ApiResult<bool> {
+    let email = normalize_email(email).unwrap_or_default();
+    let user: Option<(String, String)> =
+        sqlx::query_as("SELECT id, password_hash FROM users WHERE email = ?")
+            .bind(&email)
+            .fetch_optional(&state.db)
+            .await?;
+    let Some((id, hash)) = user else {
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        return Ok(false);
+    };
+    if !password_matches(password, hash).await {
+        return Ok(false);
+    }
+    remove_user(state, &id).await?;
+    Ok(true)
+}
+
 pub async fn remove_user(state: &AppState, user_id: &str) -> ApiResult<()> {
     sqlx::query("DELETE FROM users WHERE id = ?")
         .bind(user_id)

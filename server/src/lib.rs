@@ -5,6 +5,7 @@ pub mod error;
 pub mod history;
 pub mod mail;
 pub mod pages;
+mod privacy;
 pub mod shares;
 pub mod state;
 pub mod sync;
@@ -22,6 +23,12 @@ pub fn app(state: AppState) -> Router {
     let router = Router::new()
         .route("/", get(pages::home))
         .route("/healthz", get(|| async { "ok" }))
+        .route("/privacy", get(pages::privacy))
+        .route("/privacy/pt", get(pages::privacy_pt))
+        .route(
+            "/delete-account",
+            get(pages::delete_page).post(pages::delete_submit),
+        )
         .route("/v1/auth/register", post(auth::register))
         .route("/v1/auth/login", post(auth::login))
         .route("/v1/auth/refresh", post(auth::refresh))
