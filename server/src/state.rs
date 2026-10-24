@@ -32,6 +32,8 @@ impl AppState {
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
         .foreign_keys(true)
+        // The container's root is read-only, so SQLite has nowhere to put temp files.
+        .pragma("temp_store", "memory")
         .busy_timeout(std::time::Duration::from_secs(10));
         let db = SqlitePoolOptions::new()
             .max_connections(8)

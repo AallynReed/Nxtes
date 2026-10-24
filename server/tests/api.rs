@@ -920,3 +920,15 @@ async fn backup_writes_a_consistent_copy_of_the_database() {
         .is_err()
     );
 }
+
+#[tokio::test]
+async fn sqlite_keeps_temp_files_in_memory() {
+    let s = Server::new().await;
+    for _ in 0..3 {
+        let mode: i64 = sqlx::query_scalar("PRAGMA temp_store")
+            .fetch_one(&s.state.db)
+            .await
+            .unwrap();
+        assert_eq!(mode, 2);
+    }
+}
