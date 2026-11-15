@@ -1,12 +1,29 @@
-<p align="center"><img src="docs/play/graphics/icon-512.png" width="128" alt="Nxtes icon"></p>
+<div align="center">
+
+<img src="docs/play/graphics/icon-512.png" width="128" alt="Nxtes icon">
 
 # Nxtes
 
-[![Release](https://img.shields.io/github/v/release/AallynReed/Nxtes)](https://github.com/AallynReed/Nxtes/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/AallynReed/Nxtes/total)](https://github.com/AallynReed/Nxtes/releases)
-[![License](https://img.shields.io/github/license/AallynReed/Nxtes)](LICENSE)
-[![Discord](https://img.shields.io/badge/Discord-Foxhearth-5865F2?logo=discord&logoColor=white)](https://foxhearth.com/discord)
-[![foxhearth.com](https://img.shields.io/badge/foxhearth.com-project_page-e8702a)](https://foxhearth.com/projects/nxtes)
+<!-- Project status -->
+[![GitHub Release](https://img.shields.io/github/v/release/AallynReed/Nxtes?style=for-the-badge&color=blue&cacheSeconds=21600)](https://github.com/AallynReed/Nxtes/releases/latest)
+![GitHub Repo stars](https://img.shields.io/github/stars/AallynReed/Nxtes?style=for-the-badge&color=gold&cacheSeconds=21600)
+[![GitHub Downloads](https://img.shields.io/github/downloads/AallynReed/Nxtes/total?style=for-the-badge&cacheSeconds=21600)](https://github.com/AallynReed/Nxtes/releases)
+![GitHub last commit](https://img.shields.io/github/last-commit/AallynReed/Nxtes?style=for-the-badge&color=green&cacheSeconds=21600)
+![GitHub issues](https://img.shields.io/github/issues/AallynReed/Nxtes?style=for-the-badge&cacheSeconds=21600)
+
+<!-- Platforms -->
+![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
+
+<!-- Tech stack -->
+![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white)
+
+<!-- Project meta -->
+![License](https://img.shields.io/badge/License-AGPL--3.0-8A2BE2?style=for-the-badge)
+[![Discord](https://img.shields.io/badge/Discord-Foxhearth-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://foxhearth.com/discord)
+[![foxhearth.com](https://img.shields.io/badge/foxhearth.com-project_page-E8702A?style=for-the-badge)](https://foxhearth.com/projects/nxtes)
+
+</div>
 
 Nxtes is a free, open-source handwriting and PDF annotation app for Android tablets, with a sync
 server you can host yourself. Every feature is free, with no ads.
