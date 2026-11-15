@@ -1,4 +1,12 @@
+<p align="center"><img src="docs/play/graphics/icon-512.png" width="128" alt="Nxtes icon"></p>
+
 # Nxtes
+
+[![Release](https://img.shields.io/github/v/release/AallynReed/Nxtes)](https://github.com/AallynReed/Nxtes/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/AallynReed/Nxtes/total)](https://github.com/AallynReed/Nxtes/releases)
+[![License](https://img.shields.io/github/license/AallynReed/Nxtes)](LICENSE)
+[![Discord](https://img.shields.io/badge/Discord-Foxhearth-5865F2?logo=discord&logoColor=white)](https://foxhearth.com/discord)
+[![foxhearth.com](https://img.shields.io/badge/foxhearth.com-project_page-e8702a)](https://foxhearth.com/projects/nxtes)
 
 Nxtes is a free, open-source handwriting and PDF annotation app for Android tablets, with a sync
 server you can host yourself. Every feature is free, with no ads.
